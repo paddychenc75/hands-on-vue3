@@ -431,7 +431,7 @@ export const counter: Exercise = {
 { text: '2 模板语法与指令', link: '/chapters/02-template' }
 ```
 
-3. 顶部导航 `nav` 也是按章列出的（`{ text: '第 2 章', link: '/chapters/02-template' }`）。每迁一章，在 `nav` 里同样加一项。
+3. 顶部导航 `nav` 只放固定入口（首页、课程）。迁章节时不用改它，章节只加进侧边栏。
 4. 上一章和下一章按侧边栏顺序自动生成。
 
 ## 6. 迁一章的步骤清单

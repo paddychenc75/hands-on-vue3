@@ -126,8 +126,8 @@ export default defineConfig({
     }
   },
   themeConfig: {
-    nav: [{ text: '首页', link: '/' }, { text: '第 1 章', link: '/chapters/01-first' },
-      { text: '第 2 章', link: '/chapters/02-template' }],
+    // 顶部导航只放固定入口。章节都在侧边栏，不要按章往这里加
+    nav: [{ text: '首页', link: '/' }, { text: '课程', link: '/chapters/01-first', activeMatch: '^/chapters/' }],
     // 新增一章：在对应阶段的 items 末尾加一行
     sidebar: [
       {

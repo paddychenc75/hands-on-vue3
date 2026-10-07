@@ -1,16 +1,13 @@
 {
-  "name": "vue3-course",
+  "name": "hands-on-vue3",
   "version": "19.0.0",
   "private": true,
-  "description": "Vue3 从零到专家：单文件互动课程",
+  "description": "动手学 Vue 3：互动课程，每章有讲解、实验台、练习和自测（VitePress）",
   "scripts": {
-    "build:editor": "esbuild editor/entry.js --bundle --minify --format=iife --target=es2019 --legal-comments=none --banner:js=\"/*! CodeMirror 6 (codemirror.net), MIT License, (c) Marijn Haverbeke and others. Bundled for this course. */\" --outfile=cm.min.js",
-    "start": "node server.js",
-    "test": "node tests/run-all.js",
-    "test:exercises": "node tests/exercises.test.js vue3-course.html",
     "dev": "vitepress dev course",
     "build": "vitepress build course",
     "preview": "vitepress preview course",
+    "test": "npm run test:site",
     "test:site": "vitepress build course && node tests/site/exercises.test.js && node tests/site/progress.test.js && node tests/site/quiz.test.js"
   },
   "devDependencies": {

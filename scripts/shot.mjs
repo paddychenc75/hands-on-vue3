@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// 给一章截图自查：浅色和深色各一张整页图。会展开所有深入块，并点开每个实验台的“先猜”（选第一项）。
+// 给一章截图自查：浅色和深色各一张整页图。会展开所有折叠块（深入、想一想、速查表），并点开每个实验台的“先猜”（选第一项）。
 //
 //   node scripts/shot.mjs <章文件名，如 03-refs> [输出目录]
 //
-// 只构建这一章到临时目录，不碰共享的 dist。输出目录默认是系统临时目录下的 shots-<章>。
+// 只构建这一章到临时目录，不碰 dist。输出目录默认是系统临时目录下的 shots-<章>。
 // 打印图片路径，用 Read 工具打开图片看版面（浅色和深色都要看）。页面很长时图片会很高，可以分段看。
 import fs from 'node:fs'
 import os from 'node:os'
@@ -28,8 +28,8 @@ try {
     p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) })
     await p.goto(`${pv.base}/chapters/${ch.replace(/\.md$/, '')}.html`)
     await p.waitForTimeout(800)
-    // 展开深入块
-    for (const d of await p.locator('details.deep > summary').all()) await d.click().catch(() => {})
+    // 展开所有折叠块（深入、想一想、速查表外层）。直接设 open，不用点击，嵌套的也一并展开
+    await p.evaluate(() => document.querySelectorAll('.vp-doc details').forEach(d => { d.open = true }))
     // 点开实验台的“先猜”
     for (const l of await p.locator('.lab .sc.predict').all()) {
       await l.scrollIntoViewIfNeeded().catch(() => {})

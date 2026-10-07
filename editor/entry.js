@@ -95,5 +95,3 @@ export function create({ parent, doc, lang, api = [], onChange, onRun, label }) 
     focus() { view.focus(); }
   };
 }
-// 旧版页面（vue3-course.html）通过全局变量使用；VitePress 站点用 ES 模块导入
-if (typeof window !== 'undefined') window.VueCM = { create };

@@ -1,4 +1,4 @@
-// 实验台里展示代码用的简单高亮：从旧版 vue3-course.html 的 hl() 搬来。
+// 实验台里展示代码用的简单高亮：从旧版 vue3-course.html（已删除，取回见提交 a2fe105） 的 hl() 搬来。
 // 只高亮注释、字符串、关键字和数字，输出 <span class="c|s|k|n">。
 const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const KW = 'const|let|var|function|return|if|else|for|of|in|new|import|from|export|default|async|await|while|class|extends|this|true|false|null|undefined|typeof|continue|try|finally|get|set|constructor|type|interface'

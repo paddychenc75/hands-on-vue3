@@ -1,4 +1,4 @@
-// 综合测验的题库（从旧版 vue3-course.html 逐字搬来，不改题干、选项、解析）。
+// 综合测验的题库（从旧版 vue3-course.html（已删除，取回见提交 a2fe105） 逐字搬来，不改题干、选项、解析）。
 // 每题：[题目, 选项（第一个总是正确答案，显示时按题号打乱顺序）, 解析, 章节 id, 阶段(1-4), 代码（可选）]
 export type QuizItem = [string, string[], string, string, 1 | 2 | 3 | 4] | [string, string[], string, string, 1 | 2 | 3 | 4, string]
 

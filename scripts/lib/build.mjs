@@ -4,7 +4,9 @@ import os from 'node:os'
 import net from 'node:net'
 import path from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
-import { ROOT } from './old.mjs'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 const VITEPRESS = path.join(ROOT, 'node_modules/vitepress/bin/vitepress.js')
 

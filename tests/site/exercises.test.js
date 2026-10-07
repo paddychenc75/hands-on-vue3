@@ -132,7 +132,8 @@ async function runLabs(browser, base, ch) {
       const errs = []
       p.on('pageerror', e => errs.push(e.message))
       p.on('console', m => { if (m.type() === 'error' && !IGNORED_CONSOLE.some(re => re.test(m.text()))) errs.push(m.text()) })
-      p.on('requestfailed', r => errs.push('请求失败 ' + r.url()))
+      // 刷新或关闭页面时，浏览器会取消还在飞的预取请求（VitePress 会预取页面里链接到的章），这种取消不算失败
+      p.on('requestfailed', r => { if (!/ABORTED/i.test(r.failure()?.errorText || '')) errs.push('请求失败 ' + r.url()) })
       const url = base + '/chapters/' + ch + '.html'
       await p.goto(url)
       await p.waitForSelector('.ex[data-ex] .cm-content', { timeout: 15000 }).catch(() => {})

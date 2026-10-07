@@ -1,4 +1,4 @@
-// diff 模拟器的算法部分（旧版 vue3-course.html 第 9059-9181 行）：getSequence 和 simulate，逻辑原样搬来。
+// diff 模拟器的算法部分（旧版 vue3-course.html（已删除，取回见提交 a2fe105） 第 9059-9181 行）：getSequence 和 simulate，逻辑原样搬来。
 export interface Step { op: string; key: string; phase: string; text: string }
 export interface SimInfo { range?: string; n2o?: string; lis?: string }
 export interface Sim { steps: Step[]; info: SimInfo }

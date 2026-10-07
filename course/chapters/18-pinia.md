@@ -7,8 +7,8 @@ desc: setup store、跨组件共享
 ---
 
 <script setup>
-import Fig1UseTaskStoreStoreAdd from '../figures/18-pinia/Fig1UseTaskStoreStoreAdd.vue'
-import Fig2StoreToRefsStoreRef from '../figures/18-pinia/Fig2StoreToRefsStoreRef.vue'
+import SharedStoreInstance from '../figures/18-pinia/SharedStoreInstance.vue'
+import StoreToRefsVsDestructure from '../figures/18-pinia/StoreToRefsVsDestructure.vue'
 import PiniaShared from '../labs/18-pinia/PiniaShared.vue'
 </script>
 
@@ -98,7 +98,7 @@ store.left                   // 读取 getter，不写 .value
 store 只有一个实例。第一次调用 `useTaskStore()` 时，Pinia 创建 store。之后，所有组件得到同一个 store。下图说明多个组件怎样共享它。
 
 <Figure caption="三个组件调用 useTaskStore()，得到同一个 store。一个组件调用 add()，其他组件自动更新。">
-<Fig1UseTaskStoreStoreAdd />
+<SharedStoreInstance />
 </Figure>
 
 <Lab id="demo-pinia" title="实验台：两个组件共享任务 store" note="一个 15 行的简化 defineStore">
@@ -200,7 +200,7 @@ const { add, toggle } = store                // action 可以直接解构
 下图比较直接解构和 storeToRefs。
 
 <Figure caption="直接解构只复制当时的值，之后不再同步。storeToRefs 返回连接到 store 的 ref。">
-<Fig2StoreToRefsStoreRef />
+<StoreToRefsVsDestructure />
 </Figure>
 
 注意：storeToRefs 跳过 action。所以 action 要从 store 直接解构。

@@ -7,8 +7,8 @@ desc: props、emit、v-model、slot、provide
 ---
 
 <script setup>
-import Fig1Props from '../figures/05-comm/Fig1Props.vue'
-import Fig2PropsProvideInject from '../figures/05-comm/Fig2PropsProvideInject.vue'
+import PropsDownEmitsUp from '../figures/05-comm/PropsDownEmitsUp.vue'
+import PropDrillingVsProvideInject from '../figures/05-comm/PropDrillingVsProvideInject.vue'
 import SlotsLab from '../labs/05-comm/SlotsLab.vue'
 import CommBoard from '../labs/05-comm/CommBoard.vue'
 </script>
@@ -69,7 +69,7 @@ Vue 使用单向数据流。规则如下：
 下图说明数据和事件的方向。本章先用这个规则写一个 TaskItem 组件，然后介绍其他通信方式。
 
 <Figure caption="数据只从父组件流向子组件。子组件用事件通知父组件。父组件修改数据后，新的 props 再流向子组件。">
-<Fig1Props />
+<PropsDownEmitsUp />
 </Figure>
 
 ### 5.1 用 props 接收数据
@@ -408,7 +408,7 @@ createVNode(TaskItem, { task: t }, {
 数据要经过多层组件时，每层都要转交 props。provide 和 inject 让后代组件直接取到祖先提供的数据。
 
 <Figure caption="用 props 时，中间组件必须逐层转交数据。用 provide 和 inject 时，后代组件直接取到祖先提供的数据。">
-<Fig2PropsProvideInject />
+<PropDrillingVsProvideInject />
 </Figure>
 
 ```js

@@ -7,8 +7,8 @@ desc: Vite、环境变量、scoped CSS、ESLint、部署、Vitest
 ---
 
 <script setup>
-import Fig1ViteDist from '../figures/22-tooling/Fig1ViteDist.vue'
-import Fig2 from '../figures/22-tooling/Fig2.vue'
+import DevVsBuild from '../figures/22-tooling/DevVsBuild.vue'
+import ScopedStyleAttribute from '../figures/22-tooling/ScopedStyleAttribute.vue'
 import ScopedRewrite from '../labs/22-tooling/ScopedRewrite.vue'
 import CssVars from '../labs/22-tooling/CssVars.vue'
 </script>
@@ -68,7 +68,7 @@ Vitest
 Vite 有两种工作方式。开发时不打包。`npm run build` 时打包到 dist/。见下图。
 
 <Figure caption="开发时，Vite 不打包，只编译浏览器请求的文件。构建时，Vite 把全部代码打包到 dist/。">
-<Fig1ViteDist />
+<DevVsBuild />
 </Figure>
 
 Vite 8 用 Rolldown 打包。Vite 7 及以前用 Rollup 打包。所以旧项目和旧文章中的配置写 `build.rollupOptions`，Vite 8 中对应的是 `build.rolldownOptions`。`npm create vue@latest` 新建的项目使用 Vite 8。
@@ -227,7 +227,7 @@ import.meta.env.BASE_URL        // vite.config 中的 base
 `<style scoped>` 让样式只作用于当前组件。编译器给每个选择器加上组件的属性，例如 `[data-v-7ba5bd90]`。渲染时，Vue 给组件的元素加上这个属性。下图说明属性加在哪些元素上。
 
 <Figure caption="编译器给选择器加上属性。父组件的属性只加到自己的元素和子组件的根元素上。">
-<Fig2 />
+<ScopedStyleAttribute />
 </Figure>
 
 scoped 样式不匹配子组件内部的元素，也不匹配插槽内容。用下面的写法改变作用范围：

@@ -7,8 +7,8 @@ desc: 路由匹配、动态参数、导航守卫
 ---
 
 <script setup>
-import Fig1RouterViewNMatched from '../figures/19-router/Fig1RouterViewNMatched.vue'
-import Fig2False from '../figures/19-router/Fig2False.vue'
+import RouterViewDepth from '../figures/19-router/RouterViewDepth.vue'
+import NavigationFlow from '../figures/19-router/NavigationFlow.vue'
 import MiniRouter from '../labs/19-router/MiniRouter.vue'
 </script>
 
@@ -133,7 +133,7 @@ const routes = [
 下图说明嵌套的 RouterView 怎样选择组件。
 
 <Figure caption="每个 RouterView 有一个深度。深度为 n 的 RouterView 显示 to.matched[n] 的组件。">
-<Fig1RouterViewNMatched />
+<RouterViewDepth />
 </Figure>
 
 **场景：登录页不显示侧边栏。**在路由的 meta 中写布局名称。App.vue 根据它选择布局组件：
@@ -267,7 +267,7 @@ onBeforeRouteUpdate(async (to, from) => {
 导航守卫在切换页面前运行检查。守卫返回 `false` 时，导航取消。守卫返回一个新地址时，Router 跳转到新地址。下图说明一次导航的过程。
 
 <Figure caption="一次导航先匹配路由，再运行守卫。守卫返回 false 时取消，返回新地址时重新导航。">
-<Fig2False />
+<NavigationFlow />
 </Figure>
 
 **场景：未登录时访问后台。**在 beforeEach 中检查路由的 meta。把目标地址存入 query，登录后再跳回：

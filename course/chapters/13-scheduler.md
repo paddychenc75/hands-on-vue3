@@ -7,8 +7,8 @@ desc: 更新队列
 ---
 
 <script setup>
-import Fig1UpdateNextTick from '../figures/13-scheduler/Fig1UpdateNextTick.vue'
-import Fig2PrePostNextTick from '../figures/13-scheduler/Fig2PrePostNextTick.vue'
+import BatchedUpdateQueue from '../figures/13-scheduler/BatchedUpdateQueue.vue'
+import FlushOrder from '../figures/13-scheduler/FlushOrder.vue'
 import TickDemo from '../labs/13-scheduler/TickDemo.vue'
 import QueueDemo from '../labs/13-scheduler/QueueDemo.vue'
 </script>
@@ -55,7 +55,7 @@ nextTick
 下图按时间顺序显示一次批量更新。
 
 <Figure caption="三次修改只把 update 加入队列一次。同步代码结束后，微任务更新一次 DOM。然后 nextTick 之后的代码运行，读到新内容。">
-<Fig1UpdateNextTick />
+<BatchedUpdateQueue />
 </Figure>
 
 ### 13.1 批量更新：多次修改只渲染一次
@@ -210,7 +210,7 @@ watchPostEffect(() => {
 最后，`nextTick` 的回调运行。下图显示这个顺序。
 
 <Figure caption="一次刷新按 ①→④ 的顺序运行。只有 ② 修改 DOM。所以 ③ 和 ④ 中可以读取新的 DOM。">
-<Fig2PrePostNextTick />
+<FlushOrder />
 </Figure>
 
 <Lab id="demo-queues" title="实验台：一次修改中所有回调的顺序" note="运行真实的 Vue">

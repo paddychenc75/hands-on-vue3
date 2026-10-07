@@ -419,3 +419,13 @@ html.fig-open { overflow: hidden; }
 .vp-doc .q .opt span { display: inline; }
 .vp-doc .q .opt span > p { display: inline; margin: 0; }
 .home .stage .stage-sum { font-size: 12.5px; color: var(--muted); }
+
+/* ---- 手机：触控目标不小于 32px ---- */
+@media (max-width: 640px), (pointer: coarse) {
+  .vp-doc .lab label, .vp-doc .ex label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
+  .vp-doc .lab input[type="checkbox"], .vp-doc .lab input[type="radio"],
+  .vp-doc .ex input[type="checkbox"], .vp-doc .ex input[type="radio"] { width: 20px; height: 20px; accent-color: var(--accent); }
+  .vp-doc .lab input[type="range"] { min-height: 32px; }
+  .vp-doc .lab input.t, .vp-doc .lab select.t, .vp-doc .ex-out input { min-height: 32px; }
+  .vp-doc .lab button, .vp-doc .ex-out button { min-height: 32px; min-width: 32px; }
+}

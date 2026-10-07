@@ -7,8 +7,8 @@ desc: v-model 修饰符、defineModel、校验、无障碍
 ---
 
 <script setup>
-import Fig1 from '../figures/11-forms/Fig1.vue'
-import Fig2Ms from '../figures/11-forms/Fig2Ms.vue'
+import FormErrorVisibility from '../figures/11-forms/FormErrorVisibility.vue'
+import DebounceTimeline from '../figures/11-forms/DebounceTimeline.vue'
 import TaskForm from '../labs/11-forms/TaskForm.vue'
 </script>
 
@@ -220,7 +220,7 @@ const show = field => (touched[field] || submitted.value) && errors.value[field]
 下图说明错误在什么时候显示。
 
 <Figure caption="错误从表单数据计算出来。只有字段有错误，并且用户离开过它或已经提交时，才显示错误。">
-<Fig1 />
+<FormErrorVisibility />
 </Figure>
 
 常用的显示时机如下：
@@ -301,7 +301,7 @@ watch(() => values.text, text => {
 下图按时间顺序显示输入和请求。
 
 <Figure caption="每次输入都取消上一次的计时。用户停止输入 400ms 后，才发出一次请求。">
-<Fig2Ms />
+<DebounceTimeline />
 </Figure>
 
 onWatcherCleanup 同时实现了防抖和取消请求。旧请求的结果不会覆盖新的结果。

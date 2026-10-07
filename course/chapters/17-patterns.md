@@ -7,8 +7,8 @@ desc: 分支组件、复合组件、递归组件、泛型组件
 ---
 
 <script setup>
-import Fig1StoreAPIProps from '../figures/17-patterns/Fig1StoreAPIProps.vue'
-import Fig2TabsProvideTab from '../figures/17-patterns/Fig2TabsProvideTab.vue'
+import ContainerVsPresentational from '../figures/17-patterns/ContainerVsPresentational.vue'
+import CompoundTabsProvide from '../figures/17-patterns/CompoundTabsProvide.vue'
 import PatTabs from '../labs/17-patterns/PatTabs.vue'
 import PatTree from '../labs/17-patterns/PatTree.vue'
 </script>
@@ -116,7 +116,7 @@ const ChartPanel = defineAsyncComponent({
 下图说明两类组件分别连接什么。
 
 <Figure caption="容器组件连接路由、store 和 API。展示组件只接收 props，并发送事件。所以展示组件容易测试和复用。">
-<Fig1StoreAPIProps />
+<ContainerVsPresentational />
 </Figure>
 
 ```vue
@@ -255,7 +255,7 @@ defineProps(['columns', 'rows'])
 下图说明它们怎样交换数据。
 
 <Figure caption="Tabs 用 provide 提供一个上下文。每个 Tab 用 inject 读取 active，并调用 register 和 select。Tab 不直接修改状态，所有修改都经过 Tabs。">
-<Fig2TabsProvideTab />
+<CompoundTabsProvide />
 </Figure>
 
 ```ts

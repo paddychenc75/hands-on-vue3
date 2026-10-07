@@ -7,8 +7,8 @@ desc: 挂载、更新、卸载、KeepAlive
 ---
 
 <script setup>
-import Fig1OnMounted from '../figures/06-lifecycle/Fig1OnMounted.vue'
-import Fig2KeepAliveOnActivated from '../figures/06-lifecycle/Fig2KeepAliveOnActivated.vue'
+import ParentChildHookOrder from '../figures/06-lifecycle/ParentChildHookOrder.vue'
+import KeepAliveLifecycle from '../figures/06-lifecycle/KeepAliveLifecycle.vue'
 import TemplateRefTiming from '../labs/06-lifecycle/TemplateRefTiming.vue'
 import LifeHooks from '../labs/06-lifecycle/LifeHooks.vue'
 </script>
@@ -88,7 +88,7 @@ KeepAlive
 下图按时间顺序显示父组件和子组件的钩子。
 
 <Figure caption="从上到下是时间顺序。挂载时，父组件先开始，子组件先完成。整棵树的 DOM 插入页面后，onMounted 才运行。卸载也是父组件先开始，子组件先完成。">
-<Fig1OnMounted />
+<ParentChildHookOrder />
 </Figure>
 
 ::: deep 钩子怎样注册和运行
@@ -318,7 +318,7 @@ nextTick(() => console.log(el.textContent))
 - `onDeactivated`：组件被切换掉、进入缓存时运行。
 
 <Figure caption="组件挂载后可以多次更新。在 KeepAlive 中，离开的组件进入缓存，不卸载。它回来时运行 onActivated。">
-<Fig2KeepAliveOnActivated />
+<KeepAliveLifecycle />
 </Figure>
 
 ```js

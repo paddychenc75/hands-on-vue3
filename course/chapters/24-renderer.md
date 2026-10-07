@@ -7,7 +7,7 @@ desc: createRenderer、渲染到 Canvas
 ---
 
 <script setup>
-import Fig1RuntimeCoreNodeOps from '../figures/24-renderer/Fig1RuntimeCoreNodeOps.vue'
+import RuntimeCoreAndNodeOps from '../figures/24-renderer/RuntimeCoreAndNodeOps.vue'
 import CanvasRenderer from '../labs/24-renderer/CanvasRenderer.vue'
 </script>
 
@@ -50,7 +50,7 @@ runtime-core
 下图显示运行时的两层结构。
 
 <Figure caption="runtime-core 只通过 nodeOps 和 patchProp 操作节点。换一组函数，就换了渲染目标。">
-<Fig1RuntimeCoreNodeOps />
+<RuntimeCoreAndNodeOps />
 </Figure>
 
 - **runtime-core**：组件、虚拟节点、diff。响应式在 `@vue/reactivity` 包中，runtime-core 使用它。这一层不知道 DOM 的存在。

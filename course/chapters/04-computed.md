@@ -7,8 +7,8 @@ desc: computed 缓存、watch 竞态
 ---
 
 <script setup>
-import Fig1Computed from '../figures/04-computed/Fig1Computed.vue'
-import Fig2AbOnCleanupCancelled from '../figures/04-computed/Fig2AbOnCleanupCancelled.vue'
+import ComputedCache from '../figures/04-computed/ComputedCache.vue'
+import OnCleanupDiscardsStaleRequest from '../figures/04-computed/OnCleanupDiscardsStaleRequest.vue'
 import ComputedVsMethod from '../labs/04-computed/ComputedVsMethod.vue'
 import FlushTiming from '../labs/04-computed/FlushTiming.vue'
 import WatchRace from '../labs/04-computed/WatchRace.vue'
@@ -84,7 +84,7 @@ computed 有两个特点：
 下图比较方法和 computed 的运行次数。
 
 <Figure caption="方法在每次渲染时都运行。computed 只在依赖改变后重新运行，其他时候返回缓存。">
-<Fig1Computed />
+<ComputedCache />
 </Figure>
 
 **场景：任务列表只显示未完成的任务。**v-for 不能和 v-if 写在同一个元素上（第 2 章）。用 computed 过滤，再用 v-for 显示结果。
@@ -327,7 +327,7 @@ watch(keyword, async (kw, _old, onCleanup) => {
 下图按时间顺序显示两个请求。
 
 <Figure caption="请求 2 先返回，页面显示 ab 的结果。请求 1 后返回。onCleanup 已经把它的 cancelled 设为 true，所以结果被丢弃。">
-<Fig2AbOnCleanupCancelled />
+<OnCleanupDiscardsStaleRequest />
 </Figure>
 
 Vue 在两个时刻调用 onCleanup 中的函数：下一次运行回调之前，以及侦听器停止时。所以请求 1 返回时，它的 cancelled 已经是 true。组件卸载时，侦听器也停止。

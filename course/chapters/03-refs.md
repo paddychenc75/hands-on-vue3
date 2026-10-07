@@ -7,8 +7,8 @@ desc: ref、reactive 与解构问题
 ---
 
 <script setup>
-import Fig1RefValueReactive from '../figures/03-refs/Fig1RefValueReactive.vue'
-import Fig2StateToRefsRef from '../figures/03-refs/Fig2StateToRefsRef.vue'
+import RefVsReactiveAccess from '../figures/03-refs/RefVsReactiveAccess.vue'
+import DestructureVsToRefs from '../figures/03-refs/DestructureVsToRefs.vue'
 import ProxyIdentity from '../labs/03-refs/ProxyIdentity.vue'
 import DestructureShallow from '../labs/03-refs/DestructureShallow.vue'
 </script>
@@ -82,7 +82,7 @@ form.age++
 两者的规则相同：读取时，Vue 记录谁在使用数据。修改时，Vue 通知这些使用者。下图比较两者的结构。
 
 <Figure>
-<Fig1RefValueReactive />
+<RefVsReactiveAccess />
 <template #caption>
 
 ref 把值放在 `value` 中。reactive 用 Proxy 包住原始对象。两者的规则相同：读取时记录依赖（track），修改时通知依赖它的副作用函数（trigger）。
@@ -129,7 +129,7 @@ const { count: c2 } = toRefs(state)   // ✅ c2 是连接到 state.count 的 ref
 下图说明解构和 toRefs 的区别。
 
 <Figure>
-<Fig2StateToRefsRef />
+<DestructureVsToRefs />
 <template #caption>
 
 解构只复制当时的值，之后和 state 断开。toRefs 创建的 ref 把读写都转到 `state.count`，所以保持连接。

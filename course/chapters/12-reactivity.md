@@ -7,8 +7,8 @@ desc: Proxy、track、trigger 手写实现
 ---
 
 <script setup>
-import Fig1TrackDepTrigger from '../figures/12-reactivity/Fig1TrackDepTrigger.vue'
-import Fig2TargetMapTrigger from '../figures/12-reactivity/Fig2TargetMapTrigger.vue'
+import TrackAndTrigger from '../figures/12-reactivity/TrackAndTrigger.vue'
+import TargetMapStructure from '../figures/12-reactivity/TargetMapStructure.vue'
 import RxLab from '../labs/12-reactivity/RxLab.vue'
 </script>
 
@@ -68,7 +68,7 @@ targetMap
 所以修改 price 时，只有读取过 price 的副作用函数运行。没有读取 price 的代码不受影响。下图说明 track 和 trigger 的过程。
 
 <Figure caption="读取时，track 把副作用函数存入 dep。写入时，trigger 从 dep 取出它，并重新运行它。">
-<Fig1TrackDepTrigger />
+<TrackAndTrigger />
 </Figure>
 
 ### 12.2 手写 reactive、effect、track 和 trigger
@@ -164,7 +164,7 @@ tip = state.showDiscount
 track 把依赖存进 targetMap。trigger 按对象和属性名从中查找。下图显示 targetMap 的三层结构。
 
 <Figure caption="targetMap 有三层：对象 → 属性 → 读取过这个属性的副作用函数。trigger 按对象和属性名找到要运行的函数。">
-<Fig2TargetMapTrigger />
+<TargetMapStructure />
 </Figure>
 
 ::: think targetMap 为什么使用 WeakMap？

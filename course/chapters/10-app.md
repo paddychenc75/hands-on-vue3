@@ -7,8 +7,8 @@ desc: createApp、app.use、插件、onErrorCaptured
 ---
 
 <script setup>
-import Fig1AppUseInstall from '../figures/10-app/Fig1AppUseInstall.vue'
-import Fig2FalseErrorHandler from '../figures/10-app/Fig2FalseErrorHandler.vue'
+import PluginInstallFlow from '../figures/10-app/PluginInstallFlow.vue'
+import ErrorPropagation from '../figures/10-app/ErrorPropagation.vue'
 import AppPluginLab from '../labs/10-app/AppPluginLab.vue'
 </script>
 
@@ -131,7 +131,7 @@ globalProperties 只能在模板和选项式 API 的 `this` 中使用。在 setu
 插件把一组全局注册放在一起。插件是一个对象，它有一个 `install(app, options)` 方法。插件也可以是一个函数。`app.use(plugin, options)` 调用这个方法。下图说明 app.use 的过程。
 
 <Figure caption="app.use 调用插件的 install。install 把资源注册到 app 上下文中。mount 之后，所有组件都可以读取它们。">
-<Fig1AppUseInstall />
+<PluginInstallFlow />
 </Figure>
 
 插件通常做下面这些事情：
@@ -430,7 +430,7 @@ app.config.errorHandler = (err, instance, info) => {
 下图说明错误怎样向上传递。
 
 <Figure caption="错误从出错组件的父组件开始向上传递。任何钩子返回 false，传递停止。都没有返回 false 时，才调用 errorHandler。">
-<Fig2FalseErrorHandler />
+<ErrorPropagation />
 </Figure>
 
 <Lab id="demo-app-plugin" title="实验台：插件和错误边界" note="真实的 createApp、app.use 和 onErrorCaptured">

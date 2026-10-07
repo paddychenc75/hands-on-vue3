@@ -7,8 +7,8 @@ desc: 渲染函数、PatchFlags、Block Tree
 ---
 
 <script setup>
-import Fig1TransformPatchFlagsPatch from '../figures/15-compiler/Fig1TransformPatchFlagsPatch.vue'
-import Fig2BlockDynamicChildrenVue from '../figures/15-compiler/Fig2BlockDynamicChildrenVue.vue'
+import PatchFlagsPipeline from '../figures/15-compiler/PatchFlagsPipeline.vue'
+import BlockDynamicChildren from '../figures/15-compiler/BlockDynamicChildren.vue'
 import OnlineCompile from '../labs/15-compiler/OnlineCompile.vue'
 import BlockTree from '../labs/15-compiler/BlockTree.vue'
 </script>
@@ -65,7 +65,7 @@ Block
 下图说明编译时和运行时的分工。
 
 <Figure caption="transform 在编译时添加 PatchFlags。运行时的 patch 读取这些标记，跳过不会改变的部分。">
-<Fig1TransformPatchFlagsPatch />
+<PatchFlagsPipeline />
 </Figure>
 
 用 Vite 构建时，前三步在构建时完成。浏览器只运行后两步。所以默认的 `vue` 包是运行时版本，不包含编译器。
@@ -173,7 +173,7 @@ function patchElement(n1, n2) {
 `openBlock()` 开始收集动态节点。Block 是一个虚拟节点。它有一个 `dynamicChildren` 数组，数组中是这个 Block 内部所有带 PatchFlag 的后代，没有层级。更新时，Vue 只比较 dynamicChildren，不遍历整棵树。下图显示一个 Block 怎样收集动态节点。
 
 <Figure caption="Block 把所有动态后代平铺到 dynamicChildren。更新时，Vue 只比较 p 的文字和 li 的 class，跳过静态节点和中间层级。">
-<Fig2BlockDynamicChildrenVue />
+<BlockDynamicChildren />
 </Figure>
 
 结构可能改变的地方必须创建新的 Block：

@@ -7,7 +7,7 @@ desc: 选项式 ↔ 组合式对照、破坏性变化、@vue/compat
 ---
 
 <script setup>
-import Fig1API from '../figures/25-migrate/Fig1API.vue'
+import OptionsVsCompositionLayout from '../figures/25-migrate/OptionsVsCompositionLayout.vue'
 import MigCounterLab from '../labs/25-migrate/MigCounterLab.vue'
 </script>
 
@@ -55,7 +55,7 @@ import MigCounterLab from '../labs/25-migrate/MigCounterLab.vue'
 选项式 API 按选项类型组织代码：数据、方法和侦听器分开写。组合式 API 按功能组织代码：一个功能的数据和函数写在一起。下图用底色标出同一个功能。
 
 <Figure caption="选项式 API 把同一个功能的代码分到多个选项中。组合式 API 把它们放在一起。同一种底色表示同一个功能。">
-<Fig1API />
+<OptionsVsCompositionLayout />
 </Figure>
 
 Vue 3 仍然支持选项式 API。两种 API 使用同一个响应式系统，可以在一个项目中混用。所以你可以逐个组件改写。按下表找到每个选项的对应写法：

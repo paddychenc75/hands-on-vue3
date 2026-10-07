@@ -7,9 +7,9 @@ desc: 头尾同步 + 最长递增子序列
 ---
 
 <script setup>
-import Fig1ABKey from '../figures/16-diff/Fig1ABKey.vue'
-import Fig2LISCD from '../figures/16-diff/Fig2LISCD.vue'
-import Fig3XIndexKey from '../figures/16-diff/Fig3XIndexKey.vue'
+import HeadTailSync from '../figures/16-diff/HeadTailSync.vue'
+import LongestIncreasingSubsequence from '../figures/16-diff/LongestIncreasingSubsequence.vue'
+import IndexKeyVsIdKey from '../figures/16-diff/IndexKeyVsIdKey.vue'
 import DiffSimulator from '../labs/16-diff/DiffSimulator.vue'
 </script>
 
@@ -96,11 +96,11 @@ key 用错时，行的状态会错位。16.4 说明原因。下面先看 Vue 怎
 下图用一个例子说明第 5 步。
 
 <Figure caption="头尾同步：第 1 步从头比较，a、b 的 key 相同，Vue 直接 patch。第 2 步从尾比较，g、f 也直接 patch。剩下中间部分：旧 c d e，新 e c d h。">
-<Fig1ABKey />
+<HeadTailSync />
 </Figure>
 
 <Figure caption="中间部分：每个新节点记下“旧下标 + 1”，得到 [5, 3, 4, 0]。0 表示没有旧节点。最长递增子序列（LIS）是 3、4，所以 c 和 d 不动。Vue 只移动 e，并挂载 h。">
-<Fig2LISCD />
+<LongestIncreasingSubsequence />
 </Figure>
 
 LIS 中的节点相对顺序没有改变。所以 DOM 移动次数最少。
@@ -220,7 +220,7 @@ const resetKey = ref(0)
 用 index 作为 key 时，结果相同。key 跟着位置走，不跟着数据走。所以 Vue 按位置复用节点。下图说明用 index 作为 key 时在头部插入一项的结果。
 
 <Figure caption="在头部插入 X。用 index 作为 key 时，Vue 把旧的第 0 行改为 X，输入框的值留在原处。用 id 时，Vue 新建 X，A 的行保持不变。虚线框是新挂载的行。">
-<Fig3XIndexKey />
+<IndexKeyVsIdKey />
 </Figure>
 
 <Exercise id="fbDiff" />

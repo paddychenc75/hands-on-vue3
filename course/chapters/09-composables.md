@@ -7,7 +7,7 @@ desc: setup、useXxx 逻辑复用
 ---
 
 <script setup>
-import Fig1Ref from '../figures/09-composables/Fig1Ref.vue'
+import ComposableOwnState from '../figures/09-composables/ComposableOwnState.vue'
 import ComposeDemo from '../labs/09-composables/ComposeDemo.vue'
 import FetchDemo from '../labs/09-composables/FetchDemo.vue'
 </script>
@@ -87,7 +87,7 @@ const { x, y } = useMouse(box)
 每次调用都创建新的数据。一个组件可以调用多个组合式函数，每个函数提供一种功能。下图说明两个组件调用同一个函数的结果。
 
 <Figure caption="两个组件调用同一个组合式函数，各自得到新的 ref。钩子注册到调用它的组件上。">
-<Fig1Ref />
+<ComposableOwnState />
 </Figure>
 
 在 setup 顶层同步调用组合式函数。onMounted 把钩子注册到“当前组件”。在 setTimeout 回调中，或普通 setup 的 await 之后，没有当前组件，钩子不运行。要在组件之间共享同一份数据，使用 Pinia（[第 18 章](/chapters/18-pinia)）。

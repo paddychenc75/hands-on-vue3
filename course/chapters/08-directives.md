@@ -7,8 +7,8 @@ desc: 钩子、binding、v-click-outside、v-lazy
 ---
 
 <script setup>
-import Fig1MountedUnmountedBeforeUpdate from '../figures/08-directives/Fig1MountedUnmountedBeforeUpdate.vue'
-import Fig2VIfDocument from '../figures/08-directives/Fig2VIfDocument.vue'
+import DirectiveHooks from '../figures/08-directives/DirectiveHooks.vue'
+import ClickOutsideVIfRace from '../figures/08-directives/ClickOutsideVIfRace.vue'
 import DirPlay from '../labs/08-directives/DirPlay.vue'
 import DirOutside from '../labs/08-directives/DirOutside.vue'
 </script>
@@ -200,7 +200,7 @@ function apply(el, { value, arg = 'top', modifiers }) {
 下图把这些钩子放在元素的生命周期上。
 
 <Figure caption="指令钩子跟随元素的生命周期。在 mounted 中添加监听，在 unmounted 中删除监听。组件每次更新都调用 beforeUpdate 和 updated。">
-<Fig1MountedUnmountedBeforeUpdate />
+<DirectiveHooks />
 </Figure>
 
 每个钩子接收 4 个参数：`el`、`binding`、`vnode` 和 `prevVnode`。prevVnode 只在 beforeUpdate 和 updated 中有值。
@@ -303,7 +303,7 @@ export const vClickOutside = {
 第 3 点的原因见下图。用户点击按钮后，Vue 在微任务中挂载菜单。菜单的指令马上在 document 上添加监听。这时同一个点击事件还没有冒泡到 document。新的监听收到这个事件，菜单立即关闭。
 
 <Figure caption="指令放在 v-if 的菜单上时，菜单先挂载。同一个点击事件随后到达 document，所以菜单立即关闭。">
-<Fig2VIfDocument />
+<ClickOutsideVIfRace />
 </Figure>
 
 <Lab id="demo-dir-outside" title="实验台：v-click-outside 和监听泄漏" note="运行真实的 Vue">

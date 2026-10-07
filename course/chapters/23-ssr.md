@@ -7,8 +7,8 @@ desc: renderToString、水合、不匹配
 ---
 
 <script setup>
-import Fig1SSRHTML from '../figures/23-ssr/Fig1SSRHTML.vue'
-import Fig2Vue from '../figures/23-ssr/Fig2Vue.vue'
+import SsrTimeline from '../figures/23-ssr/SsrTimeline.vue'
+import HydrationMatching from '../figures/23-ssr/HydrationMatching.vue'
 import HydrationDemo from '../labs/23-ssr/HydrationDemo.vue'
 </script>
 
@@ -56,7 +56,7 @@ SSR 像**先寄来一张房子的照片**，让你马上看到样子；水合就
 下图按时间顺序显示 SSR 的过程。
 
 <Figure caption="SSR 先发送 HTML，用户马上看到内容。水合完成后，按钮等元素才能交互。">
-<Fig1SSRHTML />
+<SsrTimeline />
 </Figure>
 
 SSR 按下面的步骤工作：
@@ -89,7 +89,7 @@ setup 也在服务器上运行。服务器上没有 window 和 document。浏览
 水合不创建新的 DOM。Vue 遍历虚拟节点，同时遍历已有的 DOM 节点。下图说明水合怎样比较节点。
 
 <Figure caption="水合时，Vue 逐个比较虚拟节点和已有的 DOM 节点。匹配时复用节点。不匹配时按类型处理。">
-<Fig2Vue />
+<HydrationMatching />
 </Figure>
 
 - 节点匹配时，Vue 把虚拟节点的 el 指向这个 DOM 节点，并添加事件监听。

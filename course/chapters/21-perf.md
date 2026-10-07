@@ -7,8 +7,8 @@ desc: 虚拟列表、props 稳定性、懒加载
 ---
 
 <script setup>
-import Fig1 from '../figures/21-perf/Fig1.vue'
-import Fig2VueProps from '../figures/21-perf/Fig2VueProps.vue'
+import VirtualListWindow from '../figures/21-perf/VirtualListWindow.vue'
+import UnstablePropsRerender from '../figures/21-perf/UnstablePropsRerender.vue'
 import VirtualList from '../labs/21-perf/VirtualList.vue'
 import PropsStable from '../labs/21-perf/PropsStable.vue'
 import VMemoLab from '../labs/21-perf/VMemoLab.vue'
@@ -83,7 +83,7 @@ v-memo
 下图显示虚拟列表的结构。
 
 <Figure caption="内层容器有全部行的高度。DOM 中只有可见区域和缓冲区中的行。滚动时，这些行换成新的内容。">
-<Fig1 />
+<VirtualListWindow />
 </Figure>
 
 按下面的步骤实现虚拟列表：
@@ -123,7 +123,7 @@ const visible = computed(() => {
 父组件更新时，Vue 比较每个子组件的新旧 props。props 相同时，Vue 不更新子组件。下图说明这个比较。
 
 <Figure caption="Vue 比较子组件的新旧 props。模板中的对象字面量每次都是新对象，所以子组件每次都更新。">
-<Fig2VueProps />
+<UnstablePropsRerender />
 </Figure>
 
 在模板中写对象字面量时，每次渲染都创建一个新对象。新对象和旧对象不相等。所以子组件每次都更新。

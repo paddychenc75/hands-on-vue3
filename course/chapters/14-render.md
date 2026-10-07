@@ -7,7 +7,7 @@ desc: h()、函数式组件、JSX 的代价
 ---
 
 <script setup>
-import Fig1HVNodeVue from '../figures/14-render/Fig1HVNodeVue.vue'
+import TemplateAndHToVNode from '../figures/14-render/TemplateAndHToVNode.vue'
 import RenderTree from '../labs/14-render/RenderTree.vue'
 </script>
 
@@ -59,7 +59,7 @@ JSX
 下图显示两种写法得到同一种 VNode 树。
 
 <Figure caption="模板和 h() 都得到同一种 VNode 树。写渲染函数时，你跳过 ①，直接写 ②。">
-<Fig1HVNodeVue />
+<TemplateAndHToVNode />
 </Figure>
 
 `h()` 创建虚拟节点。它的参数如下：

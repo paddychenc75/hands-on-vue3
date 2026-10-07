@@ -7,8 +7,8 @@ desc: Transition、KeepAlive、Teleport、Suspense、异步组件
 ---
 
 <script setup>
-import Fig1ActiveFrom from '../figures/07-builtins/Fig1ActiveFrom.vue'
-import Fig2KeepAliveA from '../figures/07-builtins/Fig2KeepAliveA.vue'
+import TransitionClasses from '../figures/07-builtins/TransitionClasses.vue'
+import KeepAliveCachesInstance from '../figures/07-builtins/KeepAliveCachesInstance.vue'
 import BuiltinsPlayground from '../labs/07-builtins/BuiltinsPlayground.vue'
 import KeepAliveModes from '../labs/07-builtins/KeepAliveModes.vue'
 import SuspenseAsync from '../labs/07-builtins/SuspenseAsync.vue'
@@ -88,7 +88,7 @@ Vue 一共使用 6 个类名。设置 `name="fade"` 后，前缀 `v-` 变为 `fa
 下图按时间顺序显示这 6 个类名。
 
 <Figure caption="进入和离开各用 3 个类名。active 覆盖整个过程，from 只存在 1 帧，to 一直保留到动画结束。">
-<Fig1ActiveFrom />
+<TransitionClasses />
 </Figure>
 
 **场景：“编辑”按钮和“保存”按钮在同一位置切换。**默认模式下，新元素进入和旧元素离开同时进行，两个按钮会短暂重叠。`mode="out-in"` 让旧元素先离开。两个元素的标签相同时，给它们不同的 key。
@@ -254,7 +254,7 @@ const current = ref('Home')
 切换组件时，Vue 卸载旧组件。旧组件的状态丢失，例如输入框中的文字。`<KeepAlive>` 不卸载旧组件。它把旧组件的实例和 DOM 保存在缓存中。组件再次显示时，Vue 直接使用缓存。下图比较两种结果。
 
 <Figure caption="没有 KeepAlive 时，切回 A 会创建新实例。有 KeepAlive 时，A 进入缓存，切回时恢复原来的实例。">
-<Fig2KeepAliveA />
+<KeepAliveCachesInstance />
 </Figure>
 
 <Exercise id="keepTab" />

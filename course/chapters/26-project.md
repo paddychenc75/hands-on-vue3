@@ -7,7 +7,7 @@ desc: 五步完成一个任务看板
 ---
 
 <script setup>
-import Fig1UseTasksAppProps from '../figures/26-project/Fig1UseTasksAppProps.vue'
+import TaskAppDataFlow from '../figures/26-project/TaskAppDataFlow.vue'
 import TaskBoard from '../labs/26-project/TaskBoard.vue'
 </script>
 
@@ -63,7 +63,7 @@ import TaskBoard from '../labs/26-project/TaskBoard.vue'
 下图显示本章应用的数据流。
 
 <Figure caption="数据和方法在 useTasks 中。App 用 props 把任务传给 TaskItem。TaskItem 用事件通知 App 修改数据。">
-<Fig1UseTasksAppProps />
+<TaskAppDataFlow />
 </Figure>
 
 按下面的步骤学习本章：

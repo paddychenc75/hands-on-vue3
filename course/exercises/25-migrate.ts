@@ -1,5 +1,11 @@
 import type { Exercise } from './types'
 
+// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
+function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
+  return src.replace(from, to)
+}
+
 export const migrateVModel: Exercise = {
   title: '迁移：输入框是空的，输入后问候语不变', ch: 25,
   task: '<p>NameInput 是一个 Vue 2 写法的组件。它用 prop value 和事件 input 支持 v-model。在 Vue 3 中，输入框是空的，输入文字后问候语也不变。</p><ol><li>只修改 NameInput。</li><li>按 Vue 3 的约定，改用 prop modelValue 和事件 update:modelValue。</li><li>在 emits 中声明这个事件。</li></ol>',
@@ -32,6 +38,13 @@ return { name, components: { NameInput } }`,
     const p = () => ((T.$('p') || {}).textContent || '').trim();
     T.ok(!!input, '渲染出输入框');
     if (!input) return;
+    // 题目要求在 emits 中声明事件（数组或对象写法都可以）
+    const root = T.$(':scope > div');
+    const inst = root && (root as any)._vnode && (root as any)._vnode.component;
+    const C = inst && inst.appContext.components.NameInput;
+    const em = C && C.emits;
+    const declared = Array.isArray(em) ? em.includes('update:modelValue') : !!em && 'update:modelValue' in em;
+    T.ok(declared, '在 emits 中声明了 update:modelValue');
     T.ok(input.value === 'Vue', '输入框显示 name 的初始值 Vue（当前：“' + input.value + '”）');
     input.value = 'Ann';
     input.dispatchEvent(new Event('input'));
@@ -72,3 +85,15 @@ return { title, components: { TitleInput } }`,
     T.ok(p() === '标题：Vue 3 迁移', '输入后，显示“标题：Vue 3 迁移”（当前：' + p() + '）');
   }
 }
+
+// ===== 错误解法（基于参考答案做小改动）=====
+migrateVModel.wrong = [
+  { js: sub(migrateVModel.solJs, "  emits: ['update:modelValue'],\n", ""), why: '没有在 emits 中声明 update:modelValue。页面能用，但 Vue 3 要求声明组件发出的事件，否则它会被当成原生事件监听，还会出现警告。' },
+  { js: sub(migrateVModel.solJs, "$emit(\\'update:modelValue\\'", "$emit(\\'input\\'"), why: '只改了 prop，事件名还是 Vue 2 的 input。父组件监听的是 update:modelValue，输入后问候语不变。' },
+  { js: sub(sub(migrateVModel.solJs, "props: ['modelValue']", "props: ['value']"), ":value=\"modelValue\"", ":value=\"value\""), why: '只改了事件名，prop 还是 Vue 2 的 value。父组件传的是 modelValue，输入框一开始是空的。' }
+]
+
+fbMigrate.wrong = [
+  { tpl: sub(fbMigrate.solTpl, 'v-model:title="title"', 'v-model="title"'), why: '去掉了参数。v-model 默认绑定 modelValue 和 update:modelValue，子组件用的是 title 和 update:title，两边对不上。' },
+  { tpl: sub(fbMigrate.solTpl, 'v-model:title="title"', ':title="title"'), why: '只传了 prop，没有监听 update:title 事件。这是单向绑定，输入后标题不变。' }
+]

@@ -1,6 +1,12 @@
 import type { Exercise } from './types'
 import { nextTick } from 'vue'
 
+// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
+function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
+  return src.replace(from, to)
+}
+
 export const kanbanItem: Exercise = {
   title: '拆出 TaskItem 组件：props 向下，事件向上', ch: 26,
   task: '<p>下面的看板已经拆成父组件和 TaskItem。父组件有数据和 toggle、remove 两个方法。TaskItem 还没写完。</p><ol><li>TODO 1：声明 props。<code>task</code> 是对象，必填。</li><li>TODO 2：声明两个事件：<code>toggle</code> 和 <code>remove</code>。</li><li>TODO 3：点击复选框时，发出 <code>toggle</code>，参数是任务的 id。点击“删除”时，发出 <code>remove</code>，参数是任务的 id。</li></ol><p>TaskItem 不修改 <code>task</code>。修改数据是父组件的事。页面下方的计数显示父组件收到了几次事件。</p>',
@@ -341,6 +347,11 @@ return { tasks, sorted }`,
     const order = () => T.$$('li').map(li => ((li.querySelector('.text') || {}).textContent || '').trim()).join(' → ');
     const row = n => T.$$('li').find(li => ((li.querySelector('.text') || {}).textContent || '').trim() === n);
     const setDue = async (n, v) => { const i = row(n) && row(n).querySelector('input'); if (!i) return false; i.value = v; i.dispatchEvent(new Event('input')); await nextTick(); return true; };
+    // computed 里不能修改源数据：tasks 的原始顺序必须保持 1、2、3
+    const rootEl: any = T.$(':scope > div');
+    const inst = rootEl && rootEl._vnode && rootEl._vnode.component;
+    const src = inst && inst.setupState.tasks;
+    T.ok(Array.isArray(src) && src.map((t: any) => t.id).join() === '1,2,3', '没有修改源数据 tasks 的顺序（当前：' + (Array.isArray(src) ? src.map((t: any) => t.id).join() : '找不到 tasks') + '）');
     T.ok(order() === '完成练习 → 写一个 useFetch → 读完响应式原理', '初始顺序：完成练习 → 写一个 useFetch → 读完响应式原理（当前：' + order() + '）');
     const d = row('读完响应式原理') && row('读完响应式原理').querySelector('.due');
     T.ok(!!d && d.textContent.trim() === '无', '没有日期的“读完响应式原理”显示“无”');
@@ -542,3 +553,27 @@ return { route, push, tasks, task }`,
     T.ok(!T.$('h4') && /任务不存在/.test(T.text()), '打开 /task/99 时，显示“任务不存在”');
   }
 }
+
+// ===== 错误解法（基于参考答案做小改动）=====
+kanbanSave.wrong = [
+  { js: sub(kanbanSave.solJs, ', { deep: true })', ')'), why: 'watch 没有加 deep。push 和 remove 会保存，但勾选只修改某一项的 done，不触发保存。刷新后勾选状态丢了。' },
+  { js: sub(kanbanSave.solJs, ', { deep: true })', ', { deep: 1 })'), why: 'deep: 1 只往下看一层，能发现数组元素的增减，发现不了元素里 done 的变化。勾选的状态没有保存。' },
+  { js: sub(kanbanSave.solJs, 'watch(tasks, v =>', 'watch(tasks.value, v =>'), why: '侦听 tasks.value，侦听的是创建时的那个数组。remove 把 tasks.value 换成了新数组，之后的修改不再被侦听，删除和勾选都没有保存。' },
+  { js: sub(kanbanSave.solJs, 'tasks.value = tasks.value.filter(t => t.id !== id)', 'tasks.value.splice(id, 1)'), why: '把 id 当成了数组下标。id 从 1 开始，删除“完成练习”（id 2）时，实际删掉了下标 2 的任务。' }
+]
+
+kanbanDue.wrong = [
+  { js: sub(kanbanDue.solJs, "(a.due || LAST).localeCompare(b.due || LAST)", "a.due.localeCompare(b.due)"), why: '没有处理空日期。空字符串小于任何日期，没有日期的任务排在了最前面。' },
+  { js: sub(kanbanDue.solJs, "const sorted = computed(() =>\n  [...tasks.value].sort(", "const sorted = [...tasks.value].sort(").replace("LAST))\n)", "LAST))"), why: 'sorted 不是 computed，只在 setup 里排了一次。修改日期后，列表不会重新排序。' },
+  { js: sub(kanbanDue.solJs, "[...tasks.value].sort(", "tasks.value.sort("), why: '在 computed 里直接对 tasks.value 排序。sort 会修改原数组，computed 不应该修改数据。页面看起来正常，但源数据的顺序被改了。' }
+]
+
+kanbanStore.wrong = [
+  { js: sub(kanbanStore.solJs, "const { left } = storeToRefs(store)   // left 仍是 ref，保持响应", "const { left } = store"), why: 'LeftCount 直接解构 store。left 只得到当前的数字，以后不再更新。添加或勾选后，“还剩”不变。要用 storeToRefs。' },
+  { js: sub(kanbanStore.solJs, "const { tasks } = storeToRefs(store)      // state：用 storeToRefs\nconst { add, toggle, remove } = store     // action：直接解构", "const { tasks, add, toggle, remove } = store   // 全部直接解构"), why: 'state 也直接解构了。tasks 拿到的是当时的数组。remove 把 store 里的 tasks.value 换成了新数组，App 手里的还是旧数组，页面上的任务删不掉。' }
+]
+
+kanbanRoute.wrong = [
+  { js: sub(kanbanRoute.solJs, "const task = computed(() => tasks.value.find(t => t.id === Number(route.params.id)))", "const task = tasks.value.find(t => t.id === Number(route.params.id))"), why: 'task 不是 computed，只在 setup 运行时求值一次。那时 route.params 是空的，之后路由变化，task 不再更新。' },
+  { js: sub(kanbanRoute.solJs, "tasks.value.find(t => t.id === Number(route.params.id))", "tasks.value[route.params.id]"), why: '把路由参数当成了数组下标。/task/1 取到的是第二个任务。id 是任务自己的标识，要用 find 按 id 查找。' }
+]

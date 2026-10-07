@@ -22,7 +22,11 @@ export const emit: Exercise = {
     T.ok(/total\s*=\s*1\b/.test(p()), '点 +1 后 total = 1');
     await T.click(T.btn('+5'));
     T.ok(/total\s*=\s*6\b/.test(p()), '再点 +5 后 total = 6');
-  }
+  },
+  wrong: [
+    { js: 'const StepButton = {\n  props: [\'step\'],\n  emits: [\'add\'],\n  template: \'<button @click="$emit(\\\'add\\\')">+{{ step }}</button>\'\n}\n\nconst total = ref(0)\nfunction onAdd(n) {\n  total.value += n\n}\n\nreturn { total, onAdd, components: { StepButton } }', why: '发出事件时没有带参数 step。父组件的 onAdd 收到 undefined，total 变成 NaN。' },
+    { tpl: '<p>total = {{ total }}</p>\n<StepButton :step="1" @add="total++" />\n<StepButton :step="5" @add="total++" />', why: '父组件的监听写成 total++，忽略了子组件传来的 step。每个按钮都只加 1，+5 按钮不对。' }
+  ]
 }
 
 export const modelInput: Exercise = {
@@ -129,5 +133,9 @@ export const scopedSlot: Exercise = {
     T.ok(a.length === 2 && b.length === 2, '两个列表各有 2 项（class 透传到 ul 上）');
     T.ok(a[0] === 'Alice（30 岁）' && a[1] === 'Bob（25 岁）', '第一个列表显示“姓名（年龄 岁）”（当前：' + a.join(' / ') + '）');
     T.ok(b[0] === 'Alice' && b[1] === 'Bob', '第二个列表显示后备内容：只有姓名（当前：' + b.join(' / ') + '）');
-  }
+  },
+  wrong: [
+    { js: 'const UserList = {\n  props: [\'users\'],\n  template: \'<ul><li v-for="u in users" :key="u.id"><slot :user="u"></slot></li></ul>\'\n}\n\nconst users = ref([\n  { id: 1, name: \'Alice\', age: 30 },\n  { id: 2, name: \'Bob\', age: 25 }\n])\n\nreturn { users, components: { UserList } }', why: '去掉了 slot 里的后备内容。没有提供插槽内容的第二个列表什么也不显示。' },
+    { tpl: '<UserList :users="users" class="custom">\n  <template #default="user">{{ user.name }}（{{ user.age }} 岁）</template>\n</UserList>\n<UserList :users="users" class="plain" />', why: '#default="user" 得到的是整个插槽 props 对象 { user: u }。user.name 是 undefined，要解构 { user }，或写 user.user.name。' }
+  ]
 }

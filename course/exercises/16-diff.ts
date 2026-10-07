@@ -1,6 +1,12 @@
 import type { Exercise } from './types'
 import { nextTick } from 'vue'
 
+// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
+function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
+  return src.replace(from, to)
+}
+
 export const fbDiff: Exercise = {
   title: '补全：给列表加上 key', ch: 16,
   task: '<p>点击“在开头插入 X”，列表头部多出一行。现在 &lt;li&gt; 没有 key。Vue 因此按下标比较，只修改每一行的文字。输入框的内容留在原来的位置。</p><ol><li>只补全模板中的 TODO：在 &lt;li&gt; 上加 :key，值是 it.id。</li><li>在 A 行的输入框中输入文字。</li><li>点击“在开头插入 X”。确认文字仍在 A 行。</li></ol>',
@@ -179,3 +185,14 @@ return { items }`,
     T.ok(name(rows()[0]) === 'A 写周报' && rows()[0].querySelector('input').value === 'A 的备注', '再倒序一次，A 回到第一行，备注仍在');
   }
 }
+
+// ===== 错误解法（基于参考答案做小改动）=====
+fbDiff.wrong = [
+  { tpl: sub(fbDiff.solTpl, ':key="it.id"', ':key="index"').replace('v-for="it in items"', 'v-for="(it, index) in items"'), why: '用下标作 key。插入后，每一行的下标都变了，Vue 仍按位置复用，输入框的文字留在原来的位置。key 要跟着数据走。' },
+  { tpl: sub(fbDiff.solTpl, '<li v-for="it in items" :key="it.id">', '<li v-for="it in items">').replace('<span>{{ it.name }}</span>', '<span :key="it.id">{{ it.name }}</span>'), why: 'key 写在了 span 上，不在 v-for 的那个 li 上。li 仍然没有 key。' }
+]
+
+diffKey.wrong = [
+  { tpl: sub(diffKey.solTpl, ':key="it.id"', ':key="Math.random()"'), why: '每次渲染都生成新的 key。Vue 认为每一行都是新节点，全部卸载再挂载，B 行的输入框也被清空。key 要稳定，并且跟着数据走。' },
+  { tpl: sub(diffKey.solTpl, '<li v-for="it in items" :key="it.id">', '<li v-for="(it, index) in items" :key="it.id + \'-\' + index">'), why: 'key 里混入了下标。删除 A 后，B 的下标变了，key 也变了，Vue 认为 B 是新节点，输入框被清空。' }
+]

@@ -1,5 +1,11 @@
 import type { Exercise } from './types'
 
+// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
+function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
+  return src.replace(from, to)
+}
+
 export const flagBitFill: Exercise = {
   title: '补全：用按位与检查 PatchFlag', ch: 15,
   task: '<p>这是第 15 章深入部分 patchElement 的迷你版。CLASS 的检查已经写好：<code>flag &amp; PatchFlags.CLASS</code>。只补全两个 TODO 条件。</p><ol><li>TODO 1：检查 STYLE 这一位。</li><li>TODO 2：检查 TEXT 这一位。</li><li>确认 PatchFlag 1 只更新文字，4 只更新 style，7 = TEXT | CLASS | STYLE 三者都更新。</li></ol>',
@@ -177,3 +183,14 @@ return { html, update }`,
     T.ok(r.cls === 'c3' && r.text === '文字3', 'PatchFlag 3：文字和 class 都更新（当前 class="' + r.cls + '"，文字“' + r.text + '”）');
   }
 }
+
+// ===== 错误解法（基于参考答案做小改动）=====
+flagBitFill.wrong = [
+  { js: sub(sub(flagBitFill.solJs, 'flag & PatchFlags.STYLE', 'flag === PatchFlags.STYLE'), 'flag & PatchFlags.TEXT', 'flag === PatchFlags.TEXT'), why: '用 === 比较整个数。flag 是 7 时，7 既不等于 4，也不等于 1，STYLE 和 TEXT 都不更新。要用按位与检查某一位。' },
+  { js: sub(sub(flagBitFill.solJs, 'flag & PatchFlags.STYLE', 'flag | PatchFlags.STYLE'), 'flag & PatchFlags.TEXT', 'flag | PatchFlags.TEXT'), why: '把按位与写成了按位或。结果恒不为 0，条件总是成立，PatchFlag 1 也会更新 style。' }
+]
+
+patchFlagFix.wrong = [
+  { js: sub(sub(patchFlagFix.solJs, 'flag & PatchFlags.CLASS', 'flag | PatchFlags.CLASS'), 'flag & PatchFlags.TEXT', 'flag | PatchFlags.TEXT'), why: '把按位与写成了按位或。结果恒不为 0，所以每个标记都更新 class 和文字，没有“只更新标记的部分”。' },
+  { js: sub(sub(patchFlagFix.solJs, 'flag & PatchFlags.CLASS', 'flag >= PatchFlags.CLASS'), 'flag & PatchFlags.TEXT', 'flag >= PatchFlags.TEXT'), why: '把“包含某一位”当成了“数值够大”。PatchFlag 2 也大于等于 1，所以只改 class 时文字也被更新。' }
+]

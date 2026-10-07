@@ -1,5 +1,11 @@
 import type { Exercise } from './types'
 
+// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
+function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
+  return src.replace(from, to)
+}
+
 export const testAwait: Exercise = {
   title: '修复：组件没有错误，测试却失败', ch: 22,
   task: '<p>说明：练习台不能运行 Vitest。脚本中有一个迷你的 mount 和 expect，它们模仿 @vue/test-utils 和 Vitest。trigger 和真实的版本一样，返回一个 Promise。</p><ol><li>阅读测试 testCounter。Counter 组件没有错误，但是测试失败。</li><li>只修改 testCounter，让测试通过。不要修改 expect 的期望值。</li></ol>',
@@ -235,3 +241,14 @@ return { good, broken }`,
     T.ok(/开/.test(b), '失败信息说明期望包含“开”（当前：' + b + '）');
   }
 }
+
+// ===== 错误解法（基于参考答案做小改动）=====
+testAwait.wrong = [
+  { js: sub(testAwait.solJs, "  await wrapper.find('button').trigger('click')   // 等待 DOM 更新\n  expect(wrapper.text()).toContain('点了 1 次')", "  const text = wrapper.text()                     // 先读文字\n  await wrapper.find('button').trigger('click')\n  expect(text).toContain('点了 1 次')"), why: '在点击之前就读了文字，等待更新之后断言的还是旧文字。要在 await 之后再读 wrapper.text()。' },
+  { js: sub(testAwait.solJs, "  await wrapper.find('button').trigger('click')   // 等待 DOM 更新", "  const btn = await wrapper.find('button')        // await 加错了位置\n  btn.trigger('click')"), why: 'await 加在了 find 上。find 返回的不是 Promise，没有等待任何东西。要等的是 trigger 返回的 Promise。' }
+]
+
+fbTooling.wrong = [
+  { js: sub(fbTooling.solJs, "  expect(wrapper.text()).toContain('开')          // 没有这一行，测试总是通过", "  expect(wrapper.text()).toContain('关')"), why: '照抄上一行，没有把期望改成“开”。点击后文字应该是“开”，这个断言让 Toggle 反而失败，并且发现不了 BrokenToggle。' },
+  { js: sub(fbTooling.solJs, "  expect(wrapper.text()).toContain('关')\n  await wrapper.find('button').trigger('click')   // await：等待 DOM 更新\n  expect(wrapper.text()).toContain('开')          // 没有这一行，测试总是通过", "  expect(wrapper.text()).toContain('关')\n  expect(wrapper.text()).toContain('开')          // 断言放在点击之前\n  await wrapper.find('button').trigger('click')"), why: '断言放在了点击之前。这时文字还是“关”，两个组件的测试都失败，测试检查的不是点击的效果。' }
+]

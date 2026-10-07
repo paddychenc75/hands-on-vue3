@@ -1,6 +1,27 @@
 import type { Exercise } from './types'
 import { h } from 'vue'
 
+// 判题辅助：沿输出区挂载根的 vnode 树，收集满足条件的 vnode（生产构建里也可用 _vnode）
+function collectVNodes(T: any, pred: (v: any) => boolean): any[] {
+  let el: any = T.$('ul') || T.$('div')
+  while (el && !el._vnode) el = el.parentElement
+  const out: any[] = []
+  const walk = (v: any) => {
+    if (!v || typeof v !== 'object') return
+    if (Array.isArray(v)) { v.forEach(walk); return }
+    if (pred(v)) out.push(v)
+    if (v.component) walk(v.component.subTree)
+    else walk(v.children)
+  }
+  walk(el && el._vnode)
+  return out
+}
+// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
+function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
+  return src.replace(from, to)
+}
+
 export const hListFill: Exercise = {
   title: '补全：用 h() 渲染列表项', ch: 14,
   task: '<p>TagList 用渲染函数显示标签。外层的 div、ul 和“选中”段落已经写好。只补全一行 TODO。</p><ol><li>TODO：为每个 t 返回一个 &lt;li&gt;。写 key。点击时，把 picked 设为 t。li 的文字是 t。</li><li>点击“添加”，列表多一项。点击一个标签，显示“选中：标签名”。</li></ol><p>运行器的参数中没有 h。脚本第一行从全局 Vue 中取出它。</p>',
@@ -51,6 +72,8 @@ return { tags, components: { TagList } }`,
     const picked = () => ((T.$('p.picked') || {}).textContent || '').trim();
     T.ok(lis().length === 2, 'ul 中有 2 个 li（当前 ' + lis().length + ' 个）');
     if (lis().length !== 2) return;
+    const lv = collectVNodes(T, v => v.type === 'li');
+    T.ok(lv.length === 2 && lv.every(v => v.key != null), '每个 li 都有 key（当前：' + (lv.map(v => v.key == null ? '无' : v.key).join('、') || '找不到') + '）');
     T.ok(lis()[0].textContent.trim() === 'vue' && lis()[1].textContent.trim() === 'h()', 'li 的文字是标签名：vue、h()');
     await T.click(lis()[1]);
     T.ok(picked() === '选中：h()', '点击“h()”后，显示“选中：h()”（当前：' + picked() + '）');
@@ -77,6 +100,8 @@ export const renderFn: Exercise = {
     T.ok(!!h2, '渲染出 <h2 class="title">');
     T.ok(!!h2 && /第\s*2\s*级标题/.test(h2.textContent), 'h2 的内容是插槽：第 2 级标题');
     T.ok(T.$$('ul > li').length === 2, 'ul 中有 2 个 li（当前 ' + T.$$('ul > li').length + ' 个）');
+    const lv = collectVNodes(T, v => v.type === 'li');
+    T.ok(lv.length === 2 && lv.every(v => v.key != null), '每个 li 都有 key（当前：' + (lv.map(v => v.key == null ? '无' : v.key).join('、') || '找不到') + '）');
     const next = T.btn('下一级');
     if (!next) { T.ok(false, '找到“下一级”按钮'); return; }
     await T.click(next);
@@ -258,3 +283,14 @@ return { tasks, columns, components: { TaskTable } }`, why: '在模板中写 :is
     T.ok(!!b2 && b2.dataset.mount === m2, '删除后，“修复登录”的徽章没有重新挂载（挂载编号 ' + m2 + ' → ' + (b2 ? b2.dataset.mount : '无') + '）');
   }
 }
+
+// ===== 错误解法（基于参考答案做小改动）=====
+hListFill.wrong = [
+  { js: sub(hListFill.solJs, "{ key: t, onClick:", "{ onClick:"), why: '没有写 key。页面看起来正常，但 Vue 只能按位置复用 li，没法识别列表项。' },
+  { js: sub(hListFill.solJs, "picked.value = t", "picked = t"), why: '在函数里给 ref 赋值时漏了 .value。picked 是 const，赋值会报错，也不会改变显示的文字。' }
+]
+
+renderFn.wrong = [
+  { js: sub(renderFn.solJs, "h('li', { key: t }, t)", "h('li', t)"), why: 'li 没有 key。界面和答案一样，但 Vue 只能按位置复用 li。' },
+  { js: sub(sub(renderFn.solJs, "    // 在渲染函数内部读取 props.level，level 改变时重新渲染\n    return () => h('h' + props.level,", "    const tag = 'h' + props.level   // 在 setup 里读一次\n    return () => h(tag,"), "setup(props, { slots }) {", "setup(props, { slots }) {"), why: '在 setup 中读取 props.level，只读了一次。点击“下一级”后标题级别不变。要在返回的渲染函数内部读取 props。' }
+]

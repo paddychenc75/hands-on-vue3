@@ -54,7 +54,11 @@ return { first, last, tick, full, getRuns: () => runs }`,
     if (!b) { T.ok(false, '找到 tick++ 按钮'); return; }
     await T.click(b); await T.click(T.btn('tick++'));
     T.ok(runs() === r1, '点击 tick++ 两次，getter 不运行，使用缓存（' + r1 + ' → ' + runs() + ' 次）');
-  }
+  },
+  wrong: [
+    { js: 'const first = ref(\'Evan\')\nconst last = ref(\'You\')\nconst tick = ref(0)      // 和全名无关的数据\nlet runs = 0             // getter 的运行次数\n\n// 已给出：getter。从 first 和 last 计算全名\nfunction getFull() {\n  runs++\n  return first.value + \' \' + last.value\n}\n\nconst full = getFull()   // 传入函数本身，不调用它\n\nreturn { first, last, tick, full, getRuns: () => runs }', why: '只调用了一次 getFull。full 是普通字符串，改名字后不会更新。要把函数本身传给 computed。' },
+    { tpl: '<input class="first" v-model="first">\n<input class="last" v-model="last">\n<p class="full">{{ full() }} · {{ full() }} · {{ full() }}</p>\n<button @click="tick++">无关状态 tick++（{{ tick }}）</button>', js: 'const first = ref(\'Evan\')\nconst last = ref(\'You\')\nconst tick = ref(0)      // 和全名无关的数据\nlet runs = 0             // getter 的运行次数\n\n// 已给出：getter。从 first 和 last 计算全名\nfunction getFull() {\n  runs++\n  return first.value + \' \' + last.value\n}\n\nconst full = getFull   // 传入函数本身，不调用它\n\nreturn { first, last, tick, full, getRuns: () => runs }', why: '把 getter 当方法用，模板调用 full()。结果正确，但每次渲染、每次读取都重新运行，没有缓存：模板读 3 次就运行 3 次。' }
+  ]
 }
 
 export const cart: Exercise = {
@@ -77,7 +81,11 @@ export const cart: Exercise = {
     T.ok(/总价：\s*40\b/.test(p()), '键盘 +1 后总价为 40');
     await T.click(T.$$('button').filter(b => b.textContent.trim() === '+')[1]);
     T.ok(/总价：\s*60\b/.test(p()), '鼠标 +1 后总价为 60');
-  }
+  },
+  wrong: [
+    { js: 'const items = ref([\n  { name: \'键盘\', price: 10, qty: 1 },\n  { name: \'鼠标\', price: 20, qty: 1 }\n])\n\nconst total = items.value.reduce((sum, it) => sum + it.price * it.qty, 0)\n\nreturn { items, total }', why: '没有用 computed，只算了一次。total 是普通数字，点击 + 后不会更新。' },
+    { js: 'const items = ref([\n  { name: \'键盘\', price: 10, qty: 1 },\n  { name: \'鼠标\', price: 20, qty: 1 }\n])\n\nconst total = computed(() =>\n  items.value.reduce((sum, it) => sum + it.price, 0)\n)\n\nreturn { items, total }', why: '求和时忘了乘数量 qty。初始每项数量都是 1，总价看起来对，点击 + 后总价不变。' }
+  ]
 }
 
 export const phenoFilter: Exercise = {

@@ -23,7 +23,11 @@ export const keepTab: Exercise = {
     T.ok(/关于页/.test(p()), '切换后显示关于页');
     await T.click(T.btn('计数页'));
     T.ok(/计数：\s*3/.test(p()), '切换回来后计数仍是 3（当前：' + p().replace(/\+1/, '').trim() + '）');
-  }
+  },
+  wrong: [
+    { tpl: '<button @click="cur = \'Counter\'">计数页</button>\n<button @click="cur = \'About\'">关于页</button>\n\n<KeepAlive :max="1">\n  <component :is="tabs[cur]" />\n</KeepAlive>', why: ':max="1" 最多缓存 1 个实例。切到 About 时，Counter 被淘汰，切回来计数归零。' },
+    { tpl: '<button @click="cur = \'Counter\'">计数页</button>\n<button @click="cur = \'About\'">关于页</button>\n\n<KeepAlive include="About">\n  <component :is="tabs[cur]" />\n</KeepAlive>', why: 'include 只缓存名字匹配的组件。把它当成“额外缓存 About”，Counter 反而没有被缓存。' }
+  ]
 }
 
 export const keepAliveFill: Exercise = {
@@ -64,7 +68,11 @@ return { tabs, cur, getCreated: () => created }`,
     const v = inp() ? inp().value : '';
     T.ok(v === 'hello', '切回 TabA 后，输入框中仍是“hello”（当前：' + (v || '空') + '）');
     T.ok(created() === 1, 'TabA 只创建 1 次实例，切回时使用缓存（当前 ' + created() + ' 次）');
-  }
+  },
+  wrong: [
+    { tpl: '<button @click="cur = \'TabA\'">TabA</button>\n<button @click="cur = \'TabB\'">TabB</button>\n\n<KeepAlive include="TabB">\n  <component :is="tabs[cur]" />\n</KeepAlive>', why: 'include 限定了只缓存 TabB。TabA 没有被缓存，切回来输入的文字丢失。' },
+    { tpl: '<button @click="cur = \'TabA\'">TabA</button>\n<button @click="cur = \'TabB\'">TabB</button>\n\n<KeepAlive :max="1">\n  <component :is="tabs[cur]" />\n</KeepAlive>', why: ':max="1" 最多缓存 1 个实例。切到 TabB 时 TabA 被淘汰，切回来要重新创建。' }
+  ]
 }
 
 export const teleportFill: Exercise = {

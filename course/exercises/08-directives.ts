@@ -1,5 +1,27 @@
 import type { Exercise } from './types'
 
+// 沿 vnode 树找到 setup 返回了 open 的组件实例（Dropdown）
+function findDropdown(v: any): any {
+  if (!v) return null
+  if (v.component) {
+    const st = v.component.setupState
+    if (st && st.open !== undefined) return v.component
+    return findDropdown(v.component.subTree)
+  }
+  if (Array.isArray(v.children)) {
+    for (const c of v.children) { const r = findDropdown(c); if (r) return r }
+  }
+  return null
+}
+
+// 卸载后，把 open 重新设为 true，再点击外部。监听没有被真正删除时，旧的监听会把它改回 false
+async function leakedAfterUnmount(T: any, dd: any): Promise<boolean> {
+  if (!dd) return false
+  dd.setupState.open = true
+  await T.click(T.$('.outside'))
+  return dd.setupState.open !== true
+}
+
 export const dirBinding: Exercise = {
   title: '补全：v-tag 读取 arg 和 modifiers', ch: 8,
   task: '<p>这是实验台“binding 和钩子”中的 v-tag。apply 在 mounted 和 updated 中运行，它已经用 binding.value 设置了文字。只补全两行 TODO。</p><ol><li>TODO 1：用冒号后面的参数设置 <code>el.style.textAlign</code>。没有参数时，用 \'left\'。</li><li>TODO 2：有修饰符 .bold 时，<code>el.style.fontWeight</code> 是 \'700\'，否则是 \'400\'。</li><li>在输入框中输入文字。确认三行文字都更新，对齐和粗细不变。</li></ol>',
@@ -192,13 +214,19 @@ return { show, components: { Dropdown } }`,
     T.ok(T.$$('.dropdown li').length === 2, '点击菜单内部时，菜单不关闭');
     await T.click(T.$('.outside'));
     T.ok(T.$$('.dropdown li').length === 0, 'TODO 1：点击外部区域后，菜单关闭');
+    const dd = findDropdown((T.$(':scope > div') as any)?._vnode)
     const orig = document.removeEventListener;
     let removed = 0;
     document.removeEventListener = function (type, fn, opt) { if (type === 'click') removed++; return orig.call(this, type, fn, opt); };
     try { await T.click(T.btn('卸载')); } finally { document.removeEventListener = orig; }
     T.ok(!T.$('.dropdown'), 'Dropdown 已卸载');
     T.ok(removed > 0, 'TODO 2：卸载时，从 document 删除了 click 监听');
-  }
+    T.ok(!(await leakedAfterUnmount(T, dd)), '卸载后，点击外部不再触发旧的监听（删除监听时要传入添加时的同一个函数）');
+  },
+  wrong: [
+    { js: 'const show = ref(true)\n\nconst Dropdown = {\n  directives: {\n    clickOutside: {\n      mounted(el, binding) {\n        el._handler = e => {\n          if (e.target !== el) binding.value()   // 事件路径中没有 el：点击在外部\n        }\n        document.addEventListener(\'click\', el._handler)\n      },\n      unmounted(el) {\n        document.removeEventListener(\'click\', el._handler)      // 同一个函数，才能删除\n      }\n    }\n  },\n  setup() {\n    const open = ref(false)\n    const close = () => { open.value = false }\n    return { open, close }\n  },\n  template: \'<div class="dropdown" v-click-outside="close">\' +\n    \'<button @click="open = !open">菜单</button>\' +\n    \'<ul v-if="open"><li>编辑</li><li>删除</li></ul></div>\'\n}\n\nreturn { show, components: { Dropdown } }', why: '只比较 e.target 和 el。点击 el 里面的子元素（按钮、li）时，target 不是 el，菜单也被关闭。要判断 el 是否包含事件的目标或路径。' },
+    { js: 'const show = ref(true)\n\nconst Dropdown = {\n  directives: {\n    clickOutside: {\n      mounted(el, binding) {\n        el._handler = e => {\n          if (!e.composedPath().includes(el)) binding.value()   // 事件路径中没有 el：点击在外部\n        }\n        document.addEventListener(\'click\', el._handler)\n      },\n      unmounted(el) {\n        document.removeEventListener(\'click\', e => binding.value())      // 同一个函数，才能删除\n      }\n    }\n  },\n  setup() {\n    const open = ref(false)\n    const close = () => { open.value = false }\n    return { open, close }\n  },\n  template: \'<div class="dropdown" v-click-outside="close">\' +\n    \'<button @click="open = !open">菜单</button>\' +\n    \'<ul v-if="open"><li>编辑</li><li>删除</li></ul></div>\'\n}\n\nreturn { show, components: { Dropdown } }', why: '删除监听时传入了新写的箭头函数。removeEventListener 按函数引用匹配，新函数删不掉 el._handler，卸载后监听仍留在 document 上。' }
+  ]
 }
 
 export const clickOutside: Exercise = {
@@ -224,11 +252,18 @@ export const clickOutside: Exercise = {
     await T.click(menu());
     await T.click(menu());
     T.ok(T.$$('.dropdown li').length === 0, '再次点击“菜单”时，菜单关闭');
+    const dd = findDropdown((T.$(':scope > div') as any)?._vnode)
     const orig = document.removeEventListener;
     let removed = 0;
     document.removeEventListener = function (type, fn, opt) { if (type === 'click') removed++; return orig.call(this, type, fn, opt); };
     try { await T.click(T.btn('卸载')); } finally { document.removeEventListener = orig; }
     T.ok(!T.$('.dropdown'), 'Dropdown 已卸载');
     T.ok(removed > 0, '卸载时，从 document 删除了 click 监听');
-  }
+    T.ok(!(await leakedAfterUnmount(T, dd)), '卸载后，点击外部不再触发旧的监听（删除监听时要传入添加时的同一个函数）');
+  },
+  wrong: [
+    { js: 'const show = ref(true)\n\nconst Dropdown = {\n  directives: {\n    clickOutside: {\n      mounted(el, binding) {\n        el._fn = binding.value\n        el._handler = e => {\n          if (e.target !== el) el._fn(e)   // 点击在外部\n        }\n        document.addEventListener(\'click\', el._handler)\n      },\n      updated(el, binding) {\n        el._fn = binding.value      // 保存最新的回调\n      },\n      unmounted(el) {\n        document.removeEventListener(\'click\', el._handler)\n      }\n    }\n  },\n  setup() {\n    const open = ref(false)\n    return { open }\n  },\n  template: `<div class="dropdown" v-click-outside="() => { open = false }">\n    <button @click="open = !open">菜单</button>\n    <ul v-if="open"><li>编辑</li><li>删除</li></ul>\n  </div>`\n}\n\nreturn { show, components: { Dropdown } }', why: '只比较 e.target 和 el。点击菜单里的 li 时 target 不是 el，菜单被误关。要判断点击是否发生在 el 内部，例如 el.contains(e.target)。' },
+    { js: 'const show = ref(true)\n\nconst Dropdown = {\n  directives: {\n    clickOutside: {\n      mounted(el, binding) {\n        el._fn = binding.value\n        el._handler = e => {\n          if (!e.composedPath().includes(el)) el._fn(e)   // 点击在外部\n        }\n        document.addEventListener(\'click\', el._handler)\n      },\n      updated(el, binding) {\n        el._fn = binding.value      // 保存最新的回调\n      },\n      unmounted(el) {\n      }\n    }\n  },\n  setup() {\n    const open = ref(false)\n    return { open }\n  },\n  template: `<div class="dropdown" v-click-outside="() => { open = false }">\n    <button @click="open = !open">菜单</button>\n    <ul v-if="open"><li>编辑</li><li>删除</li></ul>\n  </div>`\n}\n\nreturn { show, components: { Dropdown } }', why: 'unmounted 里没有删除监听。组件卸载后，document 上的 click 监听还在，造成泄漏。' },
+    { js: 'const show = ref(true)\n\nconst Dropdown = {\n  directives: {\n    clickOutside: {\n      mounted(el, binding) {\n        el._fn = binding.value\n        el._handler = e => {\n          if (!e.composedPath().includes(el)) el._fn(e)   // 点击在外部\n        }\n        document.addEventListener(\'click\', el._handler)\n      },\n      updated(el, binding) {\n        el._fn = binding.value      // 保存最新的回调\n      },\n      unmounted(el) {\n        document.removeEventListener(\'click\', e => {})\n      }\n    }\n  },\n  setup() {\n    const open = ref(false)\n    return { open }\n  },\n  template: `<div class="dropdown" v-click-outside="() => { open = false }">\n    <button @click="open = !open">菜单</button>\n    <ul v-if="open"><li>编辑</li><li>删除</li></ul>\n  </div>`\n}\n\nreturn { show, components: { Dropdown } }', why: '删除监听时传入了新写的函数。必须传入添加时的同一个函数 el._handler，否则删不掉。' }
+  ]
 }

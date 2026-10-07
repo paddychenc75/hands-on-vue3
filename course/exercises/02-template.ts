@@ -69,7 +69,11 @@ export const classBind: Exercise = {
     await T.click(lis()[2])
     T.ok(act().length === 1 && act()[0] === '关于', '点击“关于”后，只有“关于”有 active 类')
     T.ok(lis().every(li => li.classList.contains('item')), '每个 li 仍有 item 类')
-  }
+  },
+  wrong: [
+    { tpl: '<ul>\n  <li v-for="t in tabs" :key="t" class="item"\n      :class="{ active: current }"\n      @click="current = t">\n    {{ t }}\n  </li>\n</ul>\n<p>当前：{{ current }}</p>', why: '条件只写了 current。它始终有值，所以每个 li 都有 active 类。条件要比较 current 和这一项 t。' },
+    { tpl: '<ul>\n  <li v-for="t in tabs" :key="t" \n      :class="current === t ? \'active\' : \'item\'"\n      @click="current = t">\n    {{ t }}\n  </li>\n</ul>\n<p>当前：{{ current }}</p>', why: '用三元表达式代替了静态类：当前项只有 active，丢了 item。静态 class 和 :class 可以同时写，Vue 会合并。' }
+  ]
 }
 
 export const modelFill: Exercise = {

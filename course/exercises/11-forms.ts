@@ -48,7 +48,17 @@ return { form, errors, valid }`,
     await type('email', 'tom@example.com');
     T.ok(t('err-email') === '', '邮箱改为 tom@example.com 后，邮箱的错误消失');
     T.ok(t('state') === '可以提交', 'TODO 2：没有错误时，显示“可以提交”（当前：' + t('state') + '）');
-  }
+    await type('name', '');
+    T.ok(t('state') === '还有错误', '只有姓名有错误时，也显示“还有错误”（valid 要看 errors 的所有键）');
+    await type('name', 'Tom');
+    await type('email', 'tom');
+    T.ok(t('state') === '还有错误', '只有邮箱有错误时，也显示“还有错误”（valid 要看 errors 的所有键）');
+  },
+  wrong: [
+    { js: 'const form = reactive({ name: \'\', email: \'\' })\n\nconst errors = computed(() => {\n  const e = {}\n  if (!form.name) e.name = \'请输入姓名\'\n  if (!form.email.includes(\'@\')) e.email = \'邮箱格式不正确\'\n  return e\n})\n\nconst valid = computed(() => !errors.value.email)\n\nreturn { form, errors, valid }', why: 'valid 只检查了 email 一个键。姓名为空时仍显示“可以提交”。要检查 errors 里是否有任何键。' },
+    { js: 'const form = reactive({ name: \'\', email: \'\' })\n\nconst errors = computed(() => {\n  const e = {}\n  if (!form.name) e.name = \'请输入姓名\'\n  if (!form.email) e.email = \'邮箱格式不正确\'\n  return e\n})\n\nconst valid = computed(() => Object.keys(errors.value).length === 0)\n\nreturn { form, errors, valid }', why: '只检查邮箱是否为空。“tom” 这样没有 @ 的邮箱会通过，格式校验没有做。' },
+    { js: 'const form = reactive({ name: \'\', email: \'\' })\n\nconst errors = computed(() => {\n  const e = {}\n  if (!form.name) e.name = \'请输入姓名\'\n  if (!form.email.includes(\'@\')) e.email = \'邮箱格式不正确\'\n  return e\n})\n\nconst valid = Object.keys(errors.value).length === 0\n\nreturn { form, errors, valid }', why: '没有用 computed。valid 只在 setup 时算一次（此时有错误，是 false），之后输入再正确它也不变。' }
+  ]
 }
 
 export const formValid: Exercise = {
@@ -78,7 +88,21 @@ export const formValid: Exercise = {
     T.ok(txt('.err-email') === '', '输入有效邮箱后，邮箱的错误消失');
     await T.click(T.btn('提交'));
     T.ok(txt('.msg') === '已提交：Ann', '有效时提交成功，显示“已提交：Ann”');
-  }
+    await fill('.email', 'bad');
+    await T.click(T.btn('提交'));
+    T.ok(txt('.msg') === '请修改错误', '只有邮箱无效时，也不提交（当前：' + (txt('.msg') || '空') + '）');
+    await fill('.email', 'ann@example.com');
+    await T.click(T.btn('提交'));
+    T.ok(txt('.msg') === '已提交：Ann', '改正后再次提交成功（valid 是计算属性，随输入更新）');
+    await fill('.name', '');
+    await T.click(T.btn('提交'));
+    T.ok(txt('.msg') === '请修改错误', '只有姓名为空时，也不提交（当前：' + (txt('.msg') || '空') + '）');
+  },
+  wrong: [
+    { js: 'const form = reactive({ name: \'\', email: \'\' })\nconst submitted = ref(false)\nconst msg = ref(\'\')\n\nconst errors = computed(() => {\n  const e = {}\n  if (!form.name) e.name = \'请输入姓名\'\n  if (!form.email.includes(\'@\')) e.email = \'邮箱格式不正确\'\n  return e\n})\n\nconst valid = Object.keys(errors.value).length === 0\n\nfunction submit() {\n  submitted.value = true\n  if (!valid.value) {\n    msg.value = \'请修改错误\'\n    return\n  }\n  msg.value = \'已提交：\' + form.name\n}\n\nreturn { form, submitted, msg, errors, submit }', why: 'valid 不是计算属性，只在 setup 时算一次。此时表单是空的，valid 永远是 false，改正后也无法提交。' },
+    { js: 'const form = reactive({ name: \'\', email: \'\' })\nconst submitted = ref(false)\nconst msg = ref(\'\')\n\nconst errors = computed(() => {\n  const e = {}\n  if (!form.name) e.name = \'请输入姓名\'\n  if (!form.email.includes(\'@\')) e.email = \'邮箱格式不正确\'\n  return e\n})\n\nconst valid = computed(() => !errors.value.name)\n\nfunction submit() {\n  submitted.value = true\n  if (!valid.value) {\n    msg.value = \'请修改错误\'\n    return\n  }\n  msg.value = \'已提交：\' + form.name\n}\n\nreturn { form, submitted, msg, errors, submit }', why: 'valid 只检查了 name。邮箱无效时也会提交成功。要检查 errors 里是否有任何键。' },
+    { js: 'const form = reactive({ name: \'\', email: \'\' })\nconst submitted = ref(false)\nconst msg = ref(\'\')\n\nconst errors = computed(() => {\n  const e = {}\n  if (!form.name) e.name = \'请输入姓名\'\n  if (!form.email.includes(\'@\')) e.email = \'邮箱格式不正确\'\n  return e\n})\n\nconst valid = computed(() => Object.keys(errors.value).length === 0)\n\nfunction submit() {\n  submitted.value = true\n  if (!valid.value) {\n    msg.value = \'请修改错误\'\n  }\n  msg.value = \'已提交：\' + form.name\n}\n\nreturn { form, submitted, msg, errors, submit }', why: '提示后没有 return。无效时先显示“请修改错误”，下一行又被覆盖成“已提交”。' }
+  ]
 }
 
 export const phenoClip: Exercise = {

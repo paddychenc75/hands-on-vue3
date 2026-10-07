@@ -1,5 +1,11 @@
 import type { Exercise } from './types'
 
+// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
+function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
+  return src.replace(from, to)
+}
+
 export const fbTs: Exercise = {
   title: '补全：带默认值的 prop 的编译结果', ch: 20,
   task: '<p>说明：练习台不能运行 TypeScript。本题练习编译器做的那一步：把类型和默认值改写为运行时的 props 声明。</p><p>Stepper 在 .vue 文件中的写法是：</p><pre class="sc-code">const { label, step = 1 } = defineProps&lt;{ label: string; step?: number }&gt;()</pre><ol><li>label 的声明已经写好。</li><li>只补全一行 TODO：写出 step 的声明，包括 type、required 和 default。</li><li>确认“加一”每次加 1，“加五”每次加 5。</li></ol>',
@@ -98,3 +104,15 @@ return { components: { Badge } }`,
     T.ok(!!isObj && !!P.size && P.size.type === String && !P.size.required, 'size 声明为 { type: String, required: false }');
   }
 }
+
+// ===== 错误解法（基于参考答案做小改动）=====
+fbTs.wrong = [
+  { js: sub(fbTs.solJs, 'step: { type: Number, required: false, default: 1 }', 'step: Number'), why: '只写了类型，丢了默认值。没有传 step 时，step 是 undefined，n += undefined 得到 NaN。解构里的默认值要变成 default。' },
+  { js: sub(fbTs.solJs, 'step: { type: Number, required: false, default: 1 }', 'step: { type: String, required: false, default: 1 }'), why: 'number 应该生成 Number，不是 String。' }
+]
+
+tsProps.wrong = [
+  { js: sub(tsProps.solJs, "props: {\n    title: { type: String, required: true },    // title: string\n    size: { type: String, required: false }     // size?: 'sm' | 'md'。字面量联合类型生成 String\n  }", "props: ['title', 'size']"), why: '数组写法能让 size 成为 prop，页面看起来正常，但没有 type 和 required。这不是编译器生成的声明。' },
+  { js: sub(tsProps.solJs, 'size: { type: String, required: false }', 'size: { type: String, required: true }'), why: 'size 带 ?，是可选的，required 应该是 false。写成 true 后，第二个 Badge 没有传 size 会警告。' },
+  { js: sub(tsProps.solJs, 'title: { type: String, required: true }', 'title: { type: String }'), why: 'title 没有 ?，是必填的。漏写 required: true，编译器生成的声明不是这样。' }
+]

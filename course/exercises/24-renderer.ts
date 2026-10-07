@@ -1,5 +1,11 @@
 import type { Exercise } from './types'
 
+// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
+function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
+  return src.replace(from, to)
+}
+
 export const rendererInsert: Exercise = {
   title: '修复：插入 B 后，顺序是 A C B', ch: 24,
   task: '<p>脚本用 createRenderer 把组件渲染到一棵普通的 JavaScript 对象树。页面上的文字是这棵树中 item 的顺序。</p><p>现在点击“插入 B”后，顺序是 A C B。原因：diff 挂载 B 时传入 anchor（C），要求插在 C 前面。insert 忽略了 anchor。</p><ol><li>只修改 nodeOps.insert。</li><li>有 anchor 时，把 child 插到 anchor 前面。没有 anchor 时，放到最后。</li></ol>',
@@ -273,3 +279,15 @@ return { dump, rename, removeC }`,
     T.ok(order() === 'A B2', '删除 C 后，对象树是 A B2（当前：' + (order() || '空') + '）');
   }
 }
+
+// ===== 错误解法（基于参考答案做小改动）=====
+rendererInsert.wrong = [
+  { js: sub(rendererInsert.solJs, "const i = anchor ? list.indexOf(anchor) : -1\n    if (i === -1) list.push(child)      // 没有 anchor：放到最后\n    else list.splice(i, 0, child)       // 有 anchor：插到它前面", "list.splice(list.indexOf(anchor), 0, child)"), why: '没有处理“没有 anchor”的情况。anchor 是 null 时，indexOf 返回 -1，splice(-1, 0, child) 把节点插到倒数第一个前面，而不是最后。挂载 A C 时顺序就错了。' },
+  { js: sub(rendererInsert.solJs, "list.splice(i, 0, child)       // 有 anchor：插到它前面", "list.splice(i + 1, 0, child)   // 插到它后面"), why: 'insert 的约定是“插到 anchor 前面”。这里插到了 anchor 后面，B 出现在 C 后面。' },
+  { js: sub(rendererInsert.solJs, "  insert(child, parent, anchor) {\n    detach(child)\n", "  insert(child, parent, anchor) {\n"), why: '插入前没有先把节点从原位置摘下来。“把 C 移到最前”时，C 同时出现在旧位置和新位置。移动节点用的也是 insert。' }
+]
+
+fbRenderer.wrong = [
+  { js: sub(fbRenderer.solJs, "remove(node) {\n    detach(node)\n  }", "remove(node) {\n    node.parent = null\n  }"), why: '只把 node 的 parent 清空，没有把 node 从父节点的 children 里删掉。对象树里 C 还在。要用 detach。' },
+  { js: sub(fbRenderer.solJs, "el.props[key] = next", "el[key] = next"), why: '把属性写到了 el 本身，不是 el.props。显示用的是 node.props.name，读不到，对象树里每个 item 都是空的。' }
+]

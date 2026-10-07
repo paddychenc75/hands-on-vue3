@@ -72,7 +72,11 @@ return { ticks, resizes, show, components: { Clock } }`,
     T.ok(v1 === v2, 'TODO 1：卸载后，ticks 不再增加（' + v1 + ' → ' + v2 + '）');
     window.dispatchEvent(new Event('resize')); await nextTick();
     T.ok(num('resizes') === 1, 'TODO 2：卸载后，resize 不再被记录（当前 ' + num('resizes') + ' 次）');
-  }
+  },
+  wrong: [
+    { js: 'const ticks = ref(0)\nconst resizes = ref(0)\nconst show = ref(true)\n\nconst Clock = {\n  setup() {\n    let timer = null\n    function onResize() { resizes.value++ }\n    onMounted(() => {\n      timer = setInterval(() => { ticks.value++ }, 30)\n      window.addEventListener(\'resize\', onResize)\n    })\n    onUnmounted(() => {\n      clearInterval(timer)                              // 和 setInterval 成对\n    })\n    return {}\n  },\n  template: \'<div>Clock 正在运行</div>\'\n}\n\nreturn { ticks, resizes, show, components: { Clock } }', why: '只清除了定时器，没有删除 window 上的 resize 监听。卸载后，resize 仍然会增加次数，监听器泄漏。' },
+    { js: 'const ticks = ref(0)\nconst resizes = ref(0)\nconst show = ref(true)\n\nconst Clock = {\n  setup() {\n    let timer = null\n    function onResize() { resizes.value++ }\n    onMounted(() => {\n      timer = setInterval(() => { ticks.value++ }, 30)\n      window.addEventListener(\'resize\', onResize)\n    })\n    onUnmounted(() => {\n      clearInterval(timer)                              // 和 setInterval 成对\n      window.removeEventListener(\'resize\', () => { resizes.value++ })   // 和 addEventListener 成对，使用同一个函数\n    })\n    return {}\n  },\n  template: \'<div>Clock 正在运行</div>\'\n}\n\nreturn { ticks, resizes, show, components: { Clock } }', why: '删除监听时传入了一个新写的函数。addEventListener 和 removeEventListener 必须用同一个函数引用，新函数删不掉原来的监听。' }
+  ]
 }
 
 export const timerLeak: Exercise = {
@@ -101,7 +105,11 @@ export const timerLeak: Exercise = {
     const v2 = val();
     T.ok(!/Ticker 正在运行/.test(T.text()), 'Ticker 已卸载');
     T.ok(v1 === v2, 'Ticker 卸载后，ticks 不再增加（' + v1 + ' → ' + v2 + '）');
-  }
+  },
+  wrong: [
+    { js: 'const ticks = ref(0)\nconst show = ref(true)\n\nconst Ticker = {\n  setup() {\n    let timer = null\n    onMounted(() => {\n      setInterval(() => { ticks.value++ }, 30)\n    })\n    onUnmounted(() => {\n      clearInterval(timer)        // 卸载时清除\n    })\n    return {}\n  },\n  template: \'<div>Ticker 正在运行</div>\'\n}\n\nreturn { ticks, show, components: { Ticker } }', why: '没有保存 setInterval 返回的 id。clearInterval(timer) 清除的是 null，定时器仍在运行。' },
+    { js: 'const ticks = ref(0)\nconst show = ref(true)\n\nconst Ticker = {\n  setup() {\n    let timer = null\n    onMounted(() => {\n      timer = setInterval(() => { ticks.value++ }, 30)\n    })\n    onUnmounted(clearInterval(timer))\n    return {}\n  },\n  template: \'<div>Ticker 正在运行</div>\'\n}\n\nreturn { ticks, show, components: { Ticker } }', why: '把 clearInterval(timer) 直接写成了 onUnmounted 的参数，它在 setup 里立即执行，那时 timer 还是 null。要传入一个函数 () => clearInterval(timer)。' }
+  ]
 }
 
 export const tickReadFill: Exercise = {
@@ -153,5 +161,8 @@ return { count, out, before, after, run }`,
     T.ok(val('after') === '3', '第一次点击：等待之后读取，DOM 是 3（当前 ' + (val('after') || '空') + '）');
     await T.click(T.btn('count++')); await settle();
     T.ok(val('before') === '3' && val('after') === '6', '第二次点击：先读到 3，等待之后读到 6（当前 ' + val('before') + ' 和 ' + val('after') + '）');
-  }
+  },
+  wrong: [
+    { js: 'const count = ref(0)\nconst out = ref(null)      // 模板中 ref="out" 的元素\nconst before = ref(\'\')\nconst after = ref(\'\')\n\nasync function run() {\n  count.value++\n  count.value++\n  count.value++\n  before.value = out.value.textContent   // 这时 DOM 还没有更新\n  nextTick()                        // 等待更新队列运行完成\n  after.value = out.value.textContent\n}\n\nreturn { count, out, before, after, run }', why: 'nextTick() 返回 Promise，但没有 await。下一行立即读取，DOM 还没更新，读到的仍是 0。' }
+  ]
 }

@@ -36,7 +36,11 @@ return { state, count, countRef }`,
     T.ok(num('s') === 3, '点击 3 次后，state.count = 3');
     T.ok(num('r') === 3, '点击 3 次后，countRef = 3，跟随 state.count（当前 ' + num('r') + '）');
     T.ok(num('c') === 0, '直接解构的 count 仍是 0（当前 ' + num('c') + '）');
-  }
+  },
+  wrong: [
+    { js: 'const state = reactive({ count: 0 })\n\n// 已给出：直接解构。count 是数字 0 的副本\nlet { count } = state\n\n// toRefs 为每个属性创建 ref。这个 ref 读写 state.count\nconst countRef = toRef(state.count)\n\nreturn { state, count, countRef }', why: 'toRef(state.count) 传入的是数字 0，不是对象和属性名。它创建一个独立的新 ref，和 state 没有连接。要写 toRef(state, \'count\') 或 toRefs(state)。' },
+    { js: 'const state = reactive({ count: 0 })\n\n// 已给出：直接解构。count 是数字 0 的副本\nlet { count } = state\n\n// toRefs 为每个属性创建 ref。这个 ref 读写 state.count\nconst { count: countRef } = state\n\nreturn { state, count, countRef }', why: '直接解构 reactive 对象，得到的是数字的副本，和 state 断开。要先用 toRefs 把属性变成 ref。' }
+  ]
 }
 
 export const fixReactive: Exercise = {
@@ -59,5 +63,9 @@ export const fixReactive: Exercise = {
     T.ok(/count\s*=\s*1/.test(p()), '点击一次后显示 count = 1');
     await T.click(T.btn('+1'));
     T.ok(/count\s*=\s*2/.test(p()), '再点一次显示 count = 2');
-  }
+  },
+  wrong: [
+    { js: 'const state = reactive({ count: 0 })\nconst count = ref(state.count)   // 用 toRefs 保持响应\n\nfunction add() {\n  state.count++\n}\n\nreturn { count, add }', why: 'ref(state.count) 把当前的数字 0 复制进一个新 ref。state.count 改变时，这个 ref 不跟着变。要用 toRefs 或 toRef 创建指向 state 的 ref。' },
+    { js: 'const state = reactive({ count: 0 })\nlet { count } = state\n\nfunction add() {\n  state.count++\n  count = state.count   // 手动同步\n}\n\nreturn { count, add }', why: '改 add 手动同步 count。count 是返回给模板的普通数字，重新赋值后模板拿到的仍是 return 时的旧值，页面不更新。根源在于解构丢失了响应性。' }
+  ]
 }

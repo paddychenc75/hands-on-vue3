@@ -1,5 +1,11 @@
 import type { Exercise } from './types'
 
+// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
+function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
+  return src.replace(from, to)
+}
+
 export const fbPinia: Exercise = {
   title: '补全：迷你 defineStore 只创建一次 store', ch: 18,
   task: '<p>说明：练习台不能运行真实的 Pinia。脚本中的 defineStore 是一个简化版，和第 18 章实验台中的相同。</p><p>现在点击“加入”后，购物车的数量不变。原因：每次调用 useCart，都创建一个新 store。</p><ol><li>只补全 useStore 中的一行 TODO：把新建的 store 存入 stores，键是 id。</li><li>确认点击后，CartBadge 显示新的数量和总价。</li></ol>',
@@ -158,3 +164,14 @@ return { components: { AddButton, CartBadge } }`,
     T.ok(/购物车：\s*2\s*件/.test(p()), '再点一次，CartBadge 显示 2 件');
   }
 }
+
+// ===== 错误解法（基于参考答案做小改动）=====
+fbPinia.wrong = [
+  { js: sub(fbPinia.solJs, "    let store = stores.get(id)\n    if (!store) {\n      store = reactive(setup())   // reactive 自动解包内部的 ref\n      stores.set(id, store)       // 保存。下一次调用时直接返回它\n    }\n    return store", "    const store = reactive(setup())   // reactive 自动解包内部的 ref\n    stores.set(id, store)             // 保存了，但从不读取\n    return store"), why: '保存了 store，但每次调用都直接创建新的，没有先从 stores 里找。stores 里只有最后一个，各组件拿到的不是同一个 store。' },
+  { js: sub(fbPinia.solJs, "const stores = new Map()   // id → store\n\nfunction defineStore(id, setup) {\n  return function useStore() {", "function defineStore(id, setup) {\n  return function useStore() {\n    const stores = new Map()   // 每次调用都重新创建"), why: '把 Map 放进了 useStore 里面。每次调用 useStore 都得到一个空的 Map，永远找不到上一次的 store。缓存要放在函数外面。' }
+]
+
+sharedStore.wrong = [
+  { js: sub(sharedStore.solJs, 'const cart = reactive({ count: 0 })', 'const cart = { count: 0 }   // 普通对象'), why: '状态只创建一次了，但用的是普通对象，不是 reactive。点击后数据变了，页面不更新。' },
+  { js: sub(sharedStore.solJs, 'function useCart() {\n  return cart\n}', 'function useCart() {\n  return reactive({ ...cart })   // 每次返回一份拷贝\n}'), why: '每次返回一份拷贝。AddButton 改的是自己的拷贝，CartBadge 读的是另一份，两个组件没有共享同一个对象。' }
+]

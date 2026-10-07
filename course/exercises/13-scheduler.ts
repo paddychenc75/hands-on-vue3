@@ -39,5 +39,9 @@ return { name, editing, inputRef, startEdit }`,
     const input = T.$('input');
     T.ok(!!input, '点击“编辑”后显示输入框');
     T.ok(!!input && document.activeElement === input, '输入框获得焦点');
-  }
+  },
+  wrong: [
+    { js: 'const name = ref(\'Vue\')\nconst editing = ref(false)\nconst inputRef = ref(null)   // 模板中 ref="inputRef" 的元素\n\nasync function startEdit() {\n  editing.value = true\n  nextTick()         // 等待 DOM 更新。这时 input 已在页面上\n  inputRef.value.focus()\n}\n\nreturn { name, editing, inputRef, startEdit }', why: '调用了 nextTick() 但没有 await。下一行立即执行，输入框还没创建，inputRef.value 是 null，报错。' },
+    { js: 'const name = ref(\'Vue\')\nconst editing = ref(false)\nconst inputRef = ref(null)   // 模板中 ref="inputRef" 的元素\n\nasync function startEdit() {\n  await nextTick()\n  editing.value = true\n  inputRef.value.focus()\n}\n\nreturn { name, editing, inputRef, startEdit }', why: 'await nextTick() 放在了修改 editing 之前。它等的是上一轮更新，修改之后的这一轮 DOM 更新没有等，inputRef 仍是 null。' }
+  ]
 }

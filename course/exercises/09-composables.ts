@@ -45,7 +45,11 @@ return { likes, like, stars, star }`,
     T.ok(num('收藏') === 10, '“收藏”不受影响，仍是 10');
     await T.click(T.btn('收藏'));
     T.ok(num('收藏') === 11 && num('赞') === 1, '点击“收藏”后显示 11，“赞”仍是 1');
-  }
+  },
+  wrong: [
+    { js: 'const count = ref(0)   // 放在函数外，所有调用共享\nfunction useCounter(initial = 0) {\n  function inc() {\n    count.value++\n  }\n  return { count, inc }\n}\n\n// 已给出：调用两次，得到两个计数器\nconst { count: likes, inc: like } = useCounter(0)\nconst { count: stars, inc: star } = useCounter(10)\n\nreturn { likes, like, stars, star }', why: '把 ref 写在函数外面。两次调用共用同一个 count：点“赞”会同时改变“收藏”，初始值 initial 也没有用上。' },
+    { js: 'function useCounter(initial = 0) {\n  const count = ref(initial)   // 每次调用都创建新的 ref\n  function inc() {\n    count++\n  }\n  return { count, inc }\n}\n\n// 已给出：调用两次，得到两个计数器\nconst { count: likes, inc: like } = useCounter(0)\nconst { count: stars, inc: star } = useCounter(10)\n\nreturn { likes, like, stars, star }', why: '在脚本里对 ref 直接 count++，没有写 .value。这只是对 ref 对象做自增，不会改变它的值。' }
+  ]
 }
 
 export const toggle: Exercise = {
@@ -69,5 +73,9 @@ export const toggle: Exercise = {
     T.ok(/开/.test(bt().textContent), '蓝牙不受影响，仍然是开');
     await T.click(bt());
     T.ok(/关/.test(bt().textContent), '点击蓝牙后变为关');
-  }
+  },
+  wrong: [
+    { js: 'const on = ref(false)   // 放在函数外，所有调用共享\nfunction useToggle(initial = false) {\n  const toggle = () => { on.value = !on.value }\n  return { on, toggle }\n}\n\nconst { on: wifiOn, toggle: toggleWifi } = useToggle(false)\nconst { on: btOn, toggle: toggleBt } = useToggle(true)\n\nreturn { wifiOn, toggleWifi, btOn, toggleBt }', why: '把 ref 放在函数外面。两个开关共享同一个状态，点一个会改变另一个，initial 参数也不起作用。' },
+    { js: 'function useToggle(initial = false) {\n  const on = ref(initial)\n  const toggle = () => { on.value = !on.value }\n  return { on: on.value, toggle }\n}\n\nconst { on: wifiOn, toggle: toggleWifi } = useToggle(false)\nconst { on: btOn, toggle: toggleBt } = useToggle(true)\n\nreturn { wifiOn, toggleWifi, btOn, toggleBt }', why: '返回了 on.value，也就是一个普通布尔值，丢掉了 ref。点击后 toggle 改的是 ref，页面上的值不再更新。' }
+  ]
 }

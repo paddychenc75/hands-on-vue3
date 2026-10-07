@@ -1,5 +1,11 @@
 import type { Exercise } from './types'
 
+// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
+function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
+  return src.replace(from, to)
+}
+
 export const fbSsr: Exercise = {
   title: '补全：水合后再读取浏览器数据', ch: 23,
   lazy: true,
@@ -159,3 +165,14 @@ return { host }`,
 
 // 旧脚本在对象外面补充的字段（原样保留，需要的话可以整理进上面的对象）
 ssrMismatch.lazy = true;
+
+// ===== 错误解法（基于参考答案做小改动）=====
+fbSsr.wrong = [
+  { js: sub(fbSsr.solJs, "const mobile = ref(false)   // 和服务器相同的初始值，所以水合时没有不匹配\n    onMounted(() => {\n      mobile.value = browser.width < 768   // 水合完成后，在浏览器中读取\n    })", "const mobile = ref(browser.width < 768)   // 直接在 setup 中读取"), why: '在 setup 里直接读浏览器数据。第一次渲染是手机菜单，和服务器发来的桌面菜单不一致。水合时 Vue 不修正 class，页面的 class 仍是 desktop。要在 onMounted 中读取。' },
+  { js: sub(fbSsr.solJs, "onMounted(() => {\n      mobile.value = browser.width < 768", "Vue.onBeforeMount(() => {\n      mobile.value = browser.width < 768"), why: 'onBeforeMount 在水合之前运行。第一次渲染已经是手机菜单，和服务器不一致，class 不会被修正。要用 onMounted。' }
+]
+
+ssrMismatch.wrong = [
+  { js: sub(ssrMismatch.solJs, "const theme = ref('light')            // 和服务器相同的初始值\n    onMounted(() => {\n      theme.value = browserSettings.theme // 水合完成后，在浏览器中读取\n    })", "const theme = ref(typeof window !== 'undefined' ? browserSettings.theme : 'light')"), why: '用 typeof window 判断环境。这只让服务器不报错，但浏览器的第一次渲染读到 dark，和服务器的 light 不一致，水合后 class 仍是 light。' },
+  { js: sub(ssrMismatch.solJs, "onMounted(() => {\n      theme.value = browserSettings.theme", "Vue.onBeforeMount(() => {\n      theme.value = browserSettings.theme"), why: 'onBeforeMount 在水合之前运行。第一次渲染已经是 dark，和服务器的 light 不一致，class 不会被修正。要在 onMounted 中读取。' }
+]

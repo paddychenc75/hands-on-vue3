@@ -21,7 +21,11 @@ export const counter: Exercise = {
     T.ok(/点了\s*1\s*次/.test((T.$('button') as Element).textContent || ''), '点一次后显示“点了 1 次”')
     await T.click(T.$('button'))
     T.ok(/点了\s*2\s*次/.test((T.$('button') as Element).textContent || ''), '再点一次显示“点了 2 次”')
-  }
+  },
+  wrong: [
+    { tpl: '<button @click="count.value++">点了 {{ count }} 次</button>', why: '在模板里写了 .value。模板会自动解包 ref，count 已经是数字，不需要 .value；写了反而改不到 ref，计数不变。' },
+    { tpl: '<button @click="count++">点了 {{ count }} 次</button>', js: 'let count = 0\n\nreturn { count }', why: '用普通变量保存数据。Vue 不知道它改变了，点击后页面不更新。要用 ref 创建响应式数据。' }
+  ]
 }
 
 export const firstFill: Exercise = {
@@ -49,5 +53,9 @@ export const firstFill: Exercise = {
     T.ok(/点了\s*1\s*次/.test(p()), '点击一次后显示“点了 1 次”（当前：' + p().trim() + '）')
     await T.click(T.btn('+1'))
     T.ok(/点了\s*2\s*次/.test(p()), '再点一次显示“点了 2 次”')
-  }
+  },
+  wrong: [
+    { tpl: '<p>点了 {{ count }} 次</p>\n<button @click="count++">+1</button>', js: 'let count = 0   // 普通变量\n\nreturn { count }', why: '用普通变量代替 ref。count++ 会执行，但页面不会更新。' },
+    { tpl: '<p>点了 {{ count }} 次</p>\n<button @click="count + 1">+1</button>', why: '@click 里写了 count + 1。它只算出一个新值，没有赋值，count 不会改变。要写 count++ 或 count += 1。' }
+  ]
 }

@@ -1,6 +1,12 @@
 import type { Exercise } from './types'
 import { isReactive, nextTick } from 'vue'
 
+// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
+function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
+  return src.replace(from, to)
+}
+
 export const shallowBig: Exercise = {
   title: '用 shallowRef 保存大数组', ch: 21,
   task: '<p>items 有 20000 条数据。页面只整体替换这些数据。ref 会为读取到的每个元素创建响应式代理。</p><ol><li>把 <code>ref</code> 改为 <code>shallowRef</code>。</li><li>修改 refresh：不修改数组元素，而是创建新数组，然后赋值给 <code>items.value</code>。</li><li>点击“刷新”，确认第一条更新。</li></ol>',
@@ -262,3 +268,14 @@ return { keyword, requests }`, why: '.lazy 在 change 事件时才更新，也�
     T.ok(list().length === 2 && list()[1] === '搜索 vue3 教程', '再次输入并停止后，发送第 2 个请求（当前：' + (list().join('、') || '无') + '）');
   }
 }
+
+// ===== 错误解法（基于参考答案做小改动）=====
+shallowBig.wrong = [
+  { js: sub(shallowBig.solJs, 'shallowRef(list)', 'ref(list)'), why: '换成新数组了，但仍用 ref。ref 会为读取到的每个元素创建响应式代理，20000 条数据的开销没有省下。' },
+  { js: sub(shallowBig.solJs, "  const next = items.value.slice()                 // 新数组\n  next[0] = { ...next[0], name: '商品 0（第 ' + version + ' 次刷新）' }\n  items.value = next                               // 替换 .value，触发更新", "  items.value[0].name = '商品 0（第 ' + version + ' 次刷新）'"), why: '用了 shallowRef，却还是在原数组上修改元素。shallowRef 只跟踪 .value 的替换，修改内部不触发更新，页面不变。' }
+]
+
+fbPerf.wrong = [
+  { js: sub(fbPerf.solJs, 'shallowRef(list)', 'ref(list)'), why: '只补了 TODO 2，漏了 TODO 1。仍是 ref，20000 个元素都被代理，没有达到减少开销的目的。' },
+  { js: sub(fbPerf.solJs, 'items.value = next             // 替换 .value，触发更新', 'items.value.push(next[next.length - 1])   // 改的是内部'), why: '用了 shallowRef，却向原数组 push。shallowRef 只在 .value 被替换时触发更新，页面不变。' }
+]

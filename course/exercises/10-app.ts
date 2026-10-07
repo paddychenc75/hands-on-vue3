@@ -242,13 +242,23 @@ return { broken, count, components: { Weather, SafeBox } }`,
     T.ok(/天气：\s*晴/.test(T.text()), '初始显示“天气：晴，25 度”');
     const b = T.btn('出错');
     if (!b) { T.ok(false, '找到“让天气组件出错”按钮'); return; }
-    await T.click(b);
+    // 监听应用级 errorHandler：onErrorCaptured 没有返回 false 时，错误会继续传到这里
+    const cfg = ((T.$(':scope > div') as any)?._vnode?.component?.appContext?.config) || {};
+    const oldHandler = cfg.errorHandler;
+    let propagated = 0;
+    cfg.errorHandler = () => { propagated++; };
+    try { await T.click(b); } finally { cfg.errorHandler = oldHandler; }
     T.ok(/出错了：\s*接口数据错误/.test(T.text()), '出错后，SafeBox 显示“出错了：接口数据错误”');
+    T.ok(propagated === 0, '错误被 SafeBox 拦住，没有继续向上传递（onErrorCaptured 要返回 false；传到应用的次数：' + propagated + '）');
     const c = T.btn('count');
     if (!c) { T.ok(false, '找到 count 按钮'); return; }
     await T.click(c);
     T.ok(/count\s*=\s*1/.test(T.text()), '页面的其他部分仍然正常：count = 1');
-  }
+  },
+  wrong: [
+    { js: 'const { onErrorCaptured } = Vue   // 从全局 Vue 中取出\n\nconst Weather = {\n  props: [\'broken\'],\n  setup(props) {\n    function text() {\n      if (props.broken) throw new Error(\'接口数据错误\')\n      return \'晴，25 度\'\n    }\n    return { text }\n  },\n  template: \'<p>天气：{{ text() }}</p>\'\n}\n\n// 错误边界：子组件出错时，只在这里显示错误\nconst SafeBox = {\n  setup() {\n    const error = ref(null)\n    onErrorCaptured(err => {\n      error.value = err   // 模板显示错误信息\n    })\n    return { error }\n  },\n  template: \'<p v-if="error">出错了：{{ error.message }}</p><slot v-else></slot>\'\n}\n\nconst broken = ref(false)\nconst count = ref(0)\nreturn { broken, count, components: { Weather, SafeBox } }', why: '没有返回 false。错误被 SafeBox 显示后，仍继续向上传递到应用的 errorHandler，页面外层会报错。' },
+    { js: 'const { onErrorCaptured } = Vue   // 从全局 Vue 中取出\n\nconst Weather = {\n  props: [\'broken\'],\n  setup(props) {\n    function text() {\n      if (props.broken) throw new Error(\'接口数据错误\')\n      return \'晴，25 度\'\n    }\n    return { text }\n  },\n  template: \'<p>天气：{{ text() }}</p>\'\n}\n\n// 错误边界：子组件出错时，只在这里显示错误\nconst SafeBox = {\n  setup() {\n    const error = ref(null)\n    onErrorCaptured(err => {\n      error.value = err.message\n      return false        // 停止传递\n    })\n    return { error }\n  },\n  template: \'<p v-if="error">出错了：{{ error.message }}</p><slot v-else></slot>\'\n}\n\nconst broken = ref(false)\nconst count = ref(0)\nreturn { broken, count, components: { Weather, SafeBox } }', why: '保存的是错误信息字符串，但模板读取的是 error.message。字符串没有 message 属性，显示“出错了：”后面是空的。' }
+  ]
 }
 
 export const errorBoundary: Exercise = {
@@ -267,11 +277,21 @@ export const errorBoundary: Exercise = {
     T.ok(!/出错了/.test(T.text()), '初始不显示“出错了”');
     const b = T.btn('引爆');
     if (!b) { T.ok(false, '找到“引爆”按钮'); return; }
-    await T.click(b);
+    // 监听应用级 errorHandler：onErrorCaptured 没有返回 false 时，错误会继续传到这里
+    const cfg = ((T.$(':scope > div') as any)?._vnode?.component?.appContext?.config) || {};
+    const oldHandler = cfg.errorHandler;
+    let propagated = 0;
+    cfg.errorHandler = () => { propagated++; };
+    try { await T.click(b); } finally { cfg.errorHandler = oldHandler; }
     T.ok(/出错了：\s*炸弹爆炸了/.test(T.text()), '引爆后显示“出错了：炸弹爆炸了”');
+    T.ok(propagated === 0, '错误被 ErrorBoundary 拦住，没有继续向上传递（onErrorCaptured 要返回 false；传到应用的次数：' + propagated + '）');
     const c = T.btn('count');
     if (!c) { T.ok(false, '找到 count 按钮'); return; }
     await T.click(c);
     T.ok(/count\s*=\s*1/.test(T.text()), '页面的其他部分仍然正常：count = 1');
-  }
+  },
+  wrong: [
+    { js: 'const { onErrorCaptured } = Vue   // 从全局 Vue 中取出\n\nconst Bomb = {\n  props: [\'boom\'],\n  setup(props) {\n    function status() {\n      if (props.boom) throw new Error(\'炸弹爆炸了\')\n      return \'正常\'\n    }\n    return { status }\n  },\n  template: \'<p>炸弹：{{ status() }}</p>\'\n}\n\nconst ErrorBoundary = {\n  setup() {\n    const error = ref(null)\n    onErrorCaptured(err => {\n      error.value = err\n    })\n    return { error }\n  },\n  template: \'<p v-if="error">出错了：{{ error.message }}</p><slot v-else></slot>\'\n}\n\nconst boom = ref(false)\nconst count = ref(0)\nreturn { boom, count, components: { Bomb, ErrorBoundary } }', why: '没有返回 false。错误显示在边界里，但仍会继续向上传递到应用级的 errorHandler。' },
+    { js: 'const { onErrorCaptured } = Vue   // 从全局 Vue 中取出\n\nconst Bomb = {\n  props: [\'boom\'],\n  setup(props) {\n    function status() {\n      if (props.boom) throw new Error(\'炸弹爆炸了\')\n      return \'正常\'\n    }\n    return { status }\n  },\n  template: \'<p>炸弹：{{ status() }}</p>\'\n}\n\nconst ErrorBoundary = {\n  setup() {\n    const error = ref(null)\n    onErrorCaptured(err => {\n      error.value = err\n      return false            // 停止传递\n    })\n    return { error }\n  },\n  template: \'<p v-if="error">出错了：{{ error }}</p><slot v-else></slot>\'\n}\n\nconst boom = ref(false)\nconst count = ref(0)\nreturn { boom, count, components: { Bomb, ErrorBoundary } }', why: '直接显示 error 对象，会输出 “Error: 炸弹爆炸了”。要显示 error.message，才是“出错了：炸弹爆炸了”。' }
+  ]
 }

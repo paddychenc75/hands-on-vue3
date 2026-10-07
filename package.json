@@ -11,7 +11,7 @@
     "dev": "vitepress dev course",
     "build": "vitepress build course",
     "preview": "vitepress preview course",
-    "test:site": "vitepress build course && node tests/site/exercises.test.js"
+    "test:site": "vitepress build course && node tests/site/exercises.test.js && node tests/site/progress.test.js && node tests/site/quiz.test.js"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "6.20.3",

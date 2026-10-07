@@ -6,6 +6,7 @@ import container from 'markdown-it-container'
 import deflist from 'markdown-it-deflist'
 import { buildSidebar } from './sidebar.mts'
 import { cjkFriendlyEmphasis } from './markdown-cjk.mts'
+import { courseDataPlugin } from './course-data.mts'
 
 // ---- 并行测试用的环境变量（日常开发和正式构建不设）----
 //   COURSE_CHAPTERS=03-refs,04-computed  只构建这些章，其他章 srcExclude 掉
@@ -42,13 +43,14 @@ export default defineConfig({
   title: '动手学 Vue 3',
   description: 'Vue3 互动课程：每章有讲解、练习和自测',
   lang: 'zh-CN',
+  // 页面渲染前先读“隐藏类比”的选择，避免刷新时类比块闪一下
+  head: [['script', {}, "try{if(JSON.parse(localStorage.getItem('vue3deep:analogy'))===false)document.documentElement.classList.add('no-analogy')}catch(e){}"]],
   srcExclude: ['AUTHORING.md', ...excluded],
   outDir: process.env.COURSE_OUT_DIR || undefined,
   cacheDir: process.env.COURSE_CACHE_DIR || undefined,
-  ignoreDeadLinks: true, // 其他章还没迁移，链接暂时是死链
   lastUpdated: false,
   vite: {
-    plugins: [exerciseFilter],
+    plugins: [exerciseFilter, courseDataPlugin(COURSE_DIR)],
     build: { chunkSizeWarningLimit: 2000 }, // 带编译器的 Vue 和 CodeMirror 是按需加载的大块
     // 练习编辑器源码在仓库根目录的 editor/，在 course/ 之外
     server: { fs: { allow: ['..'] } }

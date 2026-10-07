@@ -5,6 +5,7 @@
 import { computed, inject, onMounted, provide, ref } from 'vue'
 import { useData } from 'vitepress'
 import { store, markStoreReady } from '../composables/store'
+import { autoDone } from '../composables/progress'
 import { scRegistry } from '../composables/registry'
 import { LabKey, ScKey } from '../composables/keys'
 
@@ -51,6 +52,7 @@ function pick(i: number) {
   const ans = store.get<Record<string, number>>('sc', {})
   ans[key] = i
   store.set('sc', ans)
+  autoDone(frontmatter.value.id) // 自测答完、练习也通过时，自动标记本章完成
 }
 
 function startGuess(i: number) {

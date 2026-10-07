@@ -4,7 +4,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { exercises } from '../../../exercises'
 import type { ExerciseHelper } from '../../../exercises/types'
+import { useData } from 'vitepress'
 import { store, storeRev, markStoreReady } from '../composables/store'
+import { autoDone } from '../composables/progress'
 
 const props = defineProps<{ id: string }>()
 const ex = exercises[props.id]
@@ -26,6 +28,7 @@ const allPassed = ref(false)
 const resNote = ref('')
 
 const hints = ex ? ex.hints : []
+const { frontmatter } = useData()
 const passed = computed(() => (void storeRev.value, store.get<Record<string, unknown>>('ex', {})[props.id]))
 const badge = computed(() => (passed.value === true ? '✓ 已通过' : passed.value ? '看过答案后通过' : '未完成'))
 const badgeTitle = computed(() => (passed.value && passed.value !== true ? '点“重置”，不看答案再写一次，就算通过' : ''))
@@ -137,6 +140,7 @@ async function check() {
     const p = store.get<Record<string, unknown>>('ex', {})
     if (p[props.id] !== true) p[props.id] = solSeen.value ? 'sol' : true
     store.set('ex', p)
+    autoDone(frontmatter.value.id) // 自测答完、练习也通过时，自动标记本章完成
   }
 }
 
@@ -184,6 +188,8 @@ onMounted(async () => {
   // 同时注册了模板编译器，所以 createApp({ template }) 能工作。
   // @ts-ignore 这个构建没有类型声明
   const [vm, cm] = await Promise.all([import('vue/dist/vue.esm-bundler.js'), import('../../../../editor/entry.js')])
+  // 编辑器还在加载时用户已经换了页：组件已卸载，不再往下做（否则会报“Cannot set properties of null”）
+  if (!root.value || !tplHost.value || !jsHost.value) return
   V = vm
   API = {
     ref: V.ref, reactive: V.reactive, computed: V.computed, watch: V.watch, watchEffect: V.watchEffect,

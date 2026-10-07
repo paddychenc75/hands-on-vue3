@@ -1,0 +1,26 @@
+{
+  "name": "vue3-course",
+  "version": "19.0.0",
+  "private": true,
+  "description": "Vue3 从零到专家：单文件互动课程",
+  "scripts": {
+    "build:editor": "esbuild editor/entry.js --bundle --minify --format=iife --target=es2019 --legal-comments=none --banner:js=\"/*! CodeMirror 6 (codemirror.net), MIT License, (c) Marijn Haverbeke and others. Bundled for this course. */\" --outfile=cm.min.js",
+    "start": "node server.js",
+    "test": "node tests/run-all.js",
+    "test:exercises": "node tests/exercises.test.js vue3-course.html"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "6.20.3",
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/lang-javascript": "6.2.5",
+    "@codemirror/lang-vue": "0.1.3",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/search": "6.7.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.14",
+    "@lezer/highlight": "1.2.5",
+    "esbuild": "0.28.2",
+    "playwright": "1.56.1",
+    "vue": "3.5.43"
+  }
+}

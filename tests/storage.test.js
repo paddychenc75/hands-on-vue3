@@ -1,0 +1,24 @@
+// 本地服务：进度写入 SQLite，换一个全新的浏览器（空 localStorage）后能恢复；CDN 不可用时使用本地 Vue
+const {chromium}=require('playwright'),path=require('path'),{spawn}=require('child_process'),fs=require('fs'),os=require('os');
+(async()=>{const R=[];const ok=(c,m)=>{R.push(c);console.log((c?'PASS ':'FAIL ')+m)};
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'vc-'));for(const f of ['vue3-course.html','cm.min.js','server.js'])fs.copyFileSync(path.resolve(f),path.join(tmp,f));
+fs.mkdirSync(path.join(tmp,'vendor'));fs.copyFileSync(path.resolve('vendor/vue.global.prod.js'),path.join(tmp,'vendor/vue.global.prod.js'));
+const port=18000+Math.floor(Math.random()*1000),srv=spawn(process.execPath,['server.js',String(port)],{cwd:tmp,stdio:'pipe'});
+await new Promise(r=>srv.stdout.on('data',r));const url='http://localhost:'+port+'/';
+const b=await chromium.launch();
+const open=async()=>{const ctx=await b.newContext({viewport:{width:1280,height:900}}),p=await ctx.newPage(),errs=[];p.on('pageerror',e=>errs.push(e.message));
+ await p.route('**/*',r=>/cdn\.jsdelivr/.test(r.request().url())?r.abort():r.continue());await p.goto(url);await p.waitForTimeout(1500);return {ctx,p,errs}};
+let {ctx,p,errs}=await open();
+ok(await p.evaluate(()=>!!window.Vue&&Vue.version==='3.5.43'),'CDN 不可用时使用本地 Vue');
+ok(/本地数据库/.test(await p.textContent('#syncTxt')),'状态：'+await p.textContent('#syncTxt'));
+await p.mouse.wheel(0,5);await p.click('#template .done-btn');await p.waitForTimeout(4000);
+const body=await (await fetch(url+'api/progress')).json();ok(body&&body.done&&body.done.template===true,'进度写入 SQLite '+JSON.stringify(body&&body.done));
+ok(!errs.length,'无页面错误 '+errs);await ctx.close();
+({ctx,p,errs}=await open());
+ok(await p.evaluate(()=>JSON.parse(localStorage.getItem('vue3deep:done')||'{}').template===true),'新浏览器从 SQLite 恢复进度');
+ok(/✓/.test(await p.textContent('#tocList a[href="#template"] .cnt')),'目录显示该章已完成');
+await p.click('#template .done-btn');await p.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+await p.evaluate(()=>Object.defineProperty(document,'visibilityState',{get:()=>'hidden'}));await p.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await p.waitForTimeout(500);
+const b2=await (await fetch(url+'api/progress')).json();ok(b2.done.template===false,'切走页面时立即写入 '+JSON.stringify(b2.done));
+ok((await fetch(url+'data/progress.db')).status===403,'数据库文件不能通过网页下载');
+await ctx.close();await b.close();srv.kill();console.log('合计',R.length,'通过',R.filter(Boolean).length);process.exit(R.every(Boolean)?0:1)})();

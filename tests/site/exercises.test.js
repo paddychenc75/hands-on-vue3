@@ -3,6 +3,7 @@
 //   1. 每道练习：初始代码不通过，答案通过，每个 wrong 都不通过
 //   2. 页面没有控制台报错
 //   3. 自测题点选后刷新页面，选择仍在
+//   4. 实验台（见下面的 LABS）：先猜之前实验台不显示，答完后出现，做一次有代表性的操作，断言结果
 const { chromium } = require('playwright')
 const { spawn } = require('child_process')
 const fs = require('fs')
@@ -38,6 +39,94 @@ async function waitUp(url) {
     await new Promise(r => setTimeout(r, 250))
   }
   throw new Error('preview 没有启动')
+}
+
+// ---- 实验台测试 ----
+// 每章的实验台：id 是 <Lab id>，pick 是“先猜”里点哪一项（任意一项都会打开实验台），run 里做操作并断言。
+// 新增实验台时，在这里给本章加一项。run 的参数：p 是页面，body 是实验台正文的 locator，ok(c, msg) 记一条结果。
+const LABS = {
+  '02-template': [
+    {
+      id: 'demo-classes', name: '勾选 hasError 后渲染出 class="item active error"', pick: 2,
+      async run(p, body, ok) {
+        await p.locator('#demo-classes .domview').waitFor()
+        ok(/class="item active"/.test(await body.locator('.domview').textContent()), '初始 class 是 item active')
+        await body.locator('label.ctl', { hasText: 'hasError' }).locator('input').check()
+        await p.waitForTimeout(100)
+        const txt = await body.locator('.domview').textContent()
+        ok(/class="item active error"/.test(txt), '勾选 hasError 后 class 是 item active error（当前：' + txt.split('\n')[0] + '）')
+        await body.locator('label.ctl', { hasText: '数组语法' }).locator('input').check()
+        await p.waitForTimeout(100)
+        ok(/class="item active error"/.test(await body.locator('.domview').textContent()), '切到数组语法后结果不变')
+      }
+    },
+    {
+      id: 'demo-directives', name: 'v-on 标签页：.once 点三次再普通 +1，count = 11', pick: 1,
+      async run(p, body, ok) {
+        await body.locator('.tabs button').first().waitFor()
+        const tabs = await body.locator('.tabs button').allTextContents()
+        ok(tabs.length === 6, '有 6 个标签页（' + tabs.join('、') + '）')
+        for (let i = 0; i < tabs.length; i++) {
+          await body.locator('.tabs button').nth(i).click()
+          const n = await body.locator('.box').evaluate(e => e.children.length)
+          ok(n >= 2, '标签页「' + tabs[i] + '」渲染出小组件')
+        }
+        await body.locator('.tabs button', { hasText: 'v-on' }).click()
+        for (let i = 0; i < 3; i++) await body.getByRole('button', { name: '.once +10' }).click()
+        await body.getByRole('button', { name: '普通 +1' }).click()
+        ok(/count = 11\b/.test(await body.locator('.box').textContent()), 'count = 11')
+        await body.locator('.tabs button', { hasText: 'v-model' }).click()
+        await body.locator('.box input.t').first().fill('  张三  ')
+        ok(/"name": "张三"/.test(await body.locator('.domview').textContent()), 'v-model.trim 去掉首尾空格')
+      }
+    },
+    {
+      id: 'demo-directive', name: '点“无关数据 n++”后日志新增两条 beforeUpdate 和两条 updated', pick: 0,
+      async run(p, body, ok) {
+        await body.locator('.log').waitFor()
+        const lines = async () => (await body.locator('.log > div').allTextContents()).map(t => t.replace(/^\S+\s+/, ''))
+        const count = (ls, hook) => ls.filter(t => t.startsWith(hook + ' ')).length
+        const before = await lines()
+        await body.getByRole('button', { name: /无关数据 n\+\+/ }).click()
+        await p.waitForTimeout(100)
+        const after = await lines()
+        ok(count(after, 'beforeUpdate') - count(before, 'beforeUpdate') === 2, '新增 2 条 beforeUpdate')
+        ok(count(after, 'updated') - count(before, 'updated') === 2, '新增 2 条 updated')
+        ok(count(after, 'unmounted') === count(before, 'unmounted'), '没有 unmounted')
+      }
+    }
+  ]
+}
+
+async function runLabs(browser, base, ch) {
+  for (const lab of LABS[ch] || []) {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const p = await ctx.newPage()
+    const errs = []
+    p.on('pageerror', e => errs.push(e.message))
+    p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) })
+    const fails = []
+    const ok = (c, msg) => { if (!c) fails.push(msg) }
+    try {
+      await p.goto(base + '/chapters/' + ch + '.html')
+      const box = p.locator('.lab', { has: p.locator('#' + lab.id) })
+      // 实验台在“深入”折叠块里时，先展开
+      const deep = box.locator('xpath=ancestor::details[1]')
+      if (await deep.count()) await deep.locator('> summary').click()
+      await box.scrollIntoViewIfNeeded()
+      await box.locator('.sc.predict .sc-o').first().waitFor({ timeout: 10000 })
+      ok(await box.evaluate(e => e.classList.contains('gated')), '答题前实验台是关着的')
+      ok(!(await p.locator('#' + lab.id).isVisible()), '答题前实验台正文不显示')
+      await box.locator('.sc.predict .sc-o').nth(lab.pick).click()
+      ok(!(await box.evaluate(e => e.classList.contains('gated'))), '选完后实验台打开')
+      const body = p.locator('#' + lab.id)
+      await body.waitFor({ state: 'visible', timeout: 10000 })
+      await lab.run(p, body, ok)
+      ok(errs.length === 0, '没有控制台报错 ' + errs.slice(0, 2).join(' | '))
+    } catch (e) { fails.push('异常：' + e.message.split('\n')[0]) }
+    log(fails.length === 0, `${ch}: 实验台 ${lab.id}：${lab.name}` + (fails.length ? ' → ' + fails.join('；') : ''))
+    await ctx.close()
+  }
 }
 
 ;(async () => {
@@ -143,6 +232,7 @@ async function waitUp(url) {
       log(errs.length === 0, `${ch}: 页面没有控制台报错` + (errs.length ? ' ' + errs.slice(0, 3).join(' | ') : ''))
       await ctx.close()
     }
+    for (const ch of chapters) await runLabs(browser, base, ch)
   } finally {
     await browser.close()
     srv.kill()

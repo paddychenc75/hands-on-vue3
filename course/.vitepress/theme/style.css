@@ -214,3 +214,34 @@
 .vp-doc .ed .cm-editor:not(.cm-focused) .cm-activeLine, .vp-doc .ed .cm-editor:not(.cm-focused) .cm-activeLineGutter { background: transparent; color: inherit; }
 @media (max-width: 900px) { .vp-doc .ed { --ed-fs: 16px; } }
 .cm-tooltip { z-index: 100; }
+
+/* ---- 实验台的其他控件（从旧版 vue3-course.html 第 5 到 429 行搬来，选择器加了 .vp-doc） ---- */
+.vp-doc .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.vp-doc .cols > * { min-width: 0; }
+.vp-doc button.b.on { background: var(--accent-soft); border-color: var(--accent); }
+.vp-doc input.t, .vp-doc select.t, .vp-doc textarea.t { font: inherit; font-size: 14px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); max-width: 100%; }
+.vp-doc input.t[type="number"] { width: 84px; font-variant-numeric: tabular-nums; }
+.vp-doc label.ctl { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.vp-doc .log { font-family: var(--f-mono); font-size: 12.5px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; height: 170px; overflow-y: auto; line-height: 1.6; }
+.vp-doc .log div { white-space: pre-wrap; overflow-wrap: anywhere; }
+.vp-doc .log .tg { color: var(--warn); } .vp-doc .log .tr { color: var(--info); } .vp-doc .log .rn { color: var(--accent); } .vp-doc .log .x { color: var(--bad); } .vp-doc .log .m { color: var(--muted); }
+.vp-doc .pill { display: inline-block; font-family: var(--f-mono); font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--sunken); border: 1px solid var(--line); line-height: 1.6; }
+.vp-doc .pill.g { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.vp-doc .box { border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.vp-doc .box > .cap:first-child { margin-bottom: 6px; display: block; }
+.vp-doc .tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.vp-doc .tabs button { font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 6px; border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer; font-family: var(--f-mono); }
+.vp-doc .tabs button:hover { color: var(--ink); }
+.vp-doc .tabs button.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.vp-doc .domview { font-family: var(--f-mono); font-size: 12px; background: var(--code-bg); color: var(--code-ink); padding: 8px 10px; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 40px; margin: 0; }
+.vp-doc pre.code { font-family: var(--f-mono); font-size: 13px; line-height: 1.6; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; tab-size: 2; }
+.vp-doc pre.code .k { color: var(--code-k); } .vp-doc pre.code .s { color: var(--code-s); } .vp-doc pre.code .c { color: var(--code-c); font-style: italic; } .vp-doc pre.code .n { color: var(--code-n); }
+
+/* 想一想（默认折叠的小问答，::: think 标题） */
+.vp-doc details.think { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin: 10px 0; }
+.vp-doc details.think > summary { cursor: pointer; padding: 9px 14px; font-weight: 500; font-size: 14.5px; list-style: none; display: flex; gap: 8px; }
+.vp-doc details.think > summary::-webkit-details-marker { display: none; }
+.vp-doc details.think > summary::before { content: "想一想"; font-size: 11.5px; padding: 1px 7px; border-radius: 4px; background: var(--navy-soft); color: var(--navy); flex: none; align-self: center; }
+.vp-doc details.think[open] > summary { border-bottom: 1px solid var(--line); }
+.vp-doc details.think > div { padding: 10px 14px; font-size: 14.5px; }
+.vp-doc details.think > div p { margin: 0; line-height: 1.8; }

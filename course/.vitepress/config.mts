@@ -61,6 +61,16 @@ export default defineConfig({
         }
       })
 
+      // ::: think 标题  想一想（默认折叠的小问答）
+      md.use(container, 'think', {
+        render(tokens: any[], idx: number) {
+          const t = tokens[idx]
+          if (t.nesting !== 1) return '</div></details>\n'
+          const title = t.info.trim().slice('think'.length).trim()
+          return `<details class="think"><summary>${md.renderInline(title)}</summary><div>\n`
+        }
+      })
+
       // :::: pair 里放两个 ::: col 说明文字，左右并排；窄屏上下排
       md.use(container, 'pair', {
         render: (tokens: any[], idx: number) => (tokens[idx].nesting === 1 ? '<div class="pair">\n' : '</div>\n')
@@ -116,12 +126,16 @@ export default defineConfig({
     }
   },
   themeConfig: {
-    nav: [{ text: '首页', link: '/' }, { text: '第 1 章', link: '/chapters/01-first' }],
+    nav: [{ text: '首页', link: '/' }, { text: '第 1 章', link: '/chapters/01-first' },
+      { text: '第 2 章', link: '/chapters/02-template' }],
     // 新增一章：在对应阶段的 items 末尾加一行
     sidebar: [
       {
         text: '阶段一 · 入门：使用 Vue',
-        items: [{ text: '1 第一个 Vue 应用', link: '/chapters/01-first' }]
+        items: [
+          { text: '1 第一个 Vue 应用', link: '/chapters/01-first' },
+          { text: '2 模板语法与指令', link: '/chapters/02-template' }
+        ]
       },
       { text: '阶段二 · 基础：编写组件', items: [] },
       { text: '阶段三 · 原理：内部原理', items: [] },

@@ -13,7 +13,7 @@ const SIMPLE: Record<string, [string, string]> = {
 }
 
 export default defineConfig({
-  title: 'Vue3 从零到专家',
+  title: '动手学 Vue 3',
   description: 'Vue3 互动课程：每章有讲解、练习和自测',
   lang: 'zh-CN',
   srcExclude: ['AUTHORING.md'],

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 // 实验台：指令演练场（旧版 #demo-directives）
-// 每个标签页是一个小组件，加一段展示代码。切换标签页时重新创建小组件（:key）。
-import { ref } from 'vue'
+// 每个标签页是一个小组件，加一段展示代码。外壳用通用的 <TabbedLab>（theme/components/TabbedLab.vue）。
 import DirInterpolation from './DirInterpolation.vue'
 import DirBind from './DirBind.vue'
 import DirOn from './DirOn.vue'
@@ -17,19 +16,8 @@ const TABS = [
   { name: 'v-for', comp: DirFor, tip: '每一项需要唯一并且稳定的 key。点击“打乱”。Vue 用 key 找到同一项，只移动 DOM，不重新创建。', code: '<li v-for="(f, i) in fruits" :key="f.id">\n  {{ i }}. {{ f.name }}\n  <button @click="remove(f.id)">×</button>\n</li>' },
   { name: 'v-model', comp: DirModel, tip: 'v-model 按表单类型选择属性和事件。右边显示当前的数据。', code: '<input v-model.trim="form.name">\n<input v-model.number="form.age" type="number">\n<input type="checkbox" v-model="form.agree">\n<input type="checkbox" value="vue" v-model="form.skills">\n<input type="radio" value="男" v-model="form.gender">\n<select v-model="form.city">…</select>' }
 ]
-const i = ref(0)
 </script>
 
 <template>
-  <div class="tabs">
-    <button v-for="(t, k) in TABS" :key="k" type="button" :class="{ on: i === k }" @click="i = k">{{ t.name }}</button>
-  </div>
-  <div class="cap">{{ TABS[i].tip }}</div>
-  <div class="cols">
-    <LabCode :code="TABS[i].code" style="margin: 0" />
-    <div class="box">
-      <span class="cap">运行效果</span>
-      <component :is="TABS[i].comp" :key="i" />
-    </div>
-  </div>
+  <TabbedLab :tabs="TABS" />
 </template>

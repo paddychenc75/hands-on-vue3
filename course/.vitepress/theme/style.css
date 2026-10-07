@@ -259,3 +259,82 @@
   .VPDoc .container { max-width: 1180px !important; }
   .VPDoc .content { max-width: 884px !important; }
 }
+
+/* ---- 第 3 章起各章用到的块和实验台控件（从旧版 vue3-course.html 第 5 到 429 行搬来，选择器加了 .vp-doc） ----
+   迁章节的人不要再改本文件。实验台里专属的新样式写在自己 SFC 的 <style scoped> 里。 */
+.vp-doc .steps-flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13.5px; margin: 10px 0; }
+.vp-doc .steps-flow span { padding: 3px 10px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); }
+.vp-doc .steps-flow i { font-style: normal; color: var(--muted); }
+.vp-doc .note { border-left: 3px solid var(--navy); background: var(--surface); padding: 10px 14px; margin: 14px 0; font-size: 14.5px; }
+.vp-doc .note.warn { border-color: var(--warn); }
+.vp-doc .note b { color: var(--navy); }
+.vp-doc .note.warn b { color: var(--warn); }
+.vp-doc textarea.t { font-family: var(--f-mono); font-size: 13px; width: 100%; min-height: 110px; resize: vertical; line-height: 1.55; tab-size: 2; }
+.vp-doc .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 14px; align-items: baseline; margin: 0; }
+.vp-doc .kv dt { color: var(--muted); }
+.vp-doc .kv dd { margin: 0; font-family: var(--f-mono); font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.vp-doc .flash { animation: flash .7s ease-out; }
+@keyframes flash { from { background: var(--warn-soft); } to { background: transparent; } }
+.vp-doc .tbl-wrap { overflow-x: auto; margin: 12px 0; }
+.vp-doc table.t { border-collapse: collapse; font-size: 13.5px; width: 100%; }
+.vp-doc table.t th, .vp-doc table.t td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.vp-doc table.t th { color: var(--muted); font-weight: 500; font-size: 12.5px; }
+.vp-doc table.t td code { white-space: nowrap; }
+.vp-doc .bucket { display: flex; flex-direction: column; gap: 6px; font-family: var(--f-mono); font-size: 13px; }
+.vp-doc .bucket .ln { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.vp-doc .bucket .key { min-width: 92px; color: var(--navy); }
+.vp-doc .bucket .ef { padding: 1px 8px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
+.vp-doc .bucket .none { color: var(--muted); }
+.vp-doc .keys { display: flex; flex-wrap: wrap; gap: 6px; min-height: 38px; align-items: center; padding-bottom: 14px; }
+.vp-doc .kbox { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 6px; font-family: var(--f-mono); font-weight: 600; border: 2px solid var(--line); background: var(--surface); position: relative; }
+.vp-doc .kbox.patch { border-color: var(--accent); background: var(--accent-soft); }
+.vp-doc .kbox.move { border-color: var(--warn); background: var(--warn-soft); }
+.vp-doc .kbox.mount { border-color: var(--info); background: var(--info-soft); }
+.vp-doc .kbox.unmount { border-color: var(--bad); background: var(--bad-soft); text-decoration: line-through; }
+.vp-doc .kbox.cur { box-shadow: 0 0 0 3px var(--ink); }
+.vp-doc .kbox sub { position: absolute; bottom: -16px; font-size: 10px; color: var(--muted); font-weight: 400; }
+.vp-doc .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--muted); }
+.vp-doc .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 2px solid; vertical-align: -2px; margin-right: 5px; }
+.vp-doc .ops { font-family: var(--f-mono); font-size: 12.5px; display: flex; flex-direction: column; gap: 3px; max-height: 240px; overflow-y: auto; }
+.vp-doc .ops div { padding: 2px 8px; border-radius: 4px; }
+.vp-doc .ops div.cur { background: var(--sunken); outline: 1px solid var(--ink); }
+.vp-doc .hook-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px; }
+.vp-doc .hook { font-family: var(--f-mono); font-size: 12.5px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); }
+.vp-doc .hook.lit { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.vp-doc .view { border: 1px solid var(--line); border-radius: 6px; padding: 12px; min-height: 84px; }
+.vp-doc .vl { height: 280px; overflow-y: auto; position: relative; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.vp-doc .vrow { height: 28px; line-height: 28px; padding: 0 10px; font-family: var(--f-mono); font-size: 12.5px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+.vp-doc .stepper { display: flex; flex-wrap: wrap; gap: 6px; }
+.vp-doc .stepper button { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.vp-doc .stepper button.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.vp-doc .stepper button.past { color: var(--ink); }
+.vp-doc .kanban { display: flex; flex-direction: column; gap: 8px; }
+.vp-doc .task { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.vp-doc .task.done span { text-decoration: line-through; color: var(--muted); }
+.vp-doc .q { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+.vp-doc .q h4 { margin: 0 0 10px; font-size: 15px; line-height: 1.6; }
+.vp-doc .q h4 .qn { font-family: var(--f-mono); color: var(--accent); margin-right: 6px; }
+.vp-doc .q h4 .lvl { font-size: 11.5px; font-weight: 400; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; margin-left: 6px; }
+.vp-doc .opts { display: flex; flex-direction: column; gap: 6px; }
+.vp-doc .opt { font: inherit; font-size: 14px; text-align: left; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); cursor: pointer; }
+.vp-doc .opt:hover:not([disabled]) { border-color: var(--accent); }
+.vp-doc .opt.right { border-color: var(--accent); background: var(--accent-soft); }
+.vp-doc .opt.wrong { border-color: var(--bad); background: var(--bad-soft); }
+.vp-doc .opt[disabled] { cursor: default; }
+.vp-doc .explain { margin-top: 10px; font-size: 14px; color: var(--muted); }
+.vp-doc .explain b { color: var(--ink); }
+.vp-doc .score { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; padding: 14px 16px; border-radius: 10px; background: var(--accent-soft); margin: 14px 0; }
+.vp-doc .score strong { font-family: var(--f-display); font-size: 28px; font-variant-numeric: tabular-nums; }
+.vp-doc details.cheatwrap > summary { cursor: pointer; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; font-weight: 600; }
+.vp-doc details.cheatwrap[open] > summary { margin-bottom: 12px; }
+.vp-doc textarea.t, .vp-doc .ed .gut, .vp-doc .ed .hlay { font-size: 16px; }
+.vp-doc table.t { display: table; }
+.vp-doc details.cheatwrap { margin: 12px 0; }
+.vp-doc .note p { margin: 0; line-height: 1.8; }
+.vp-doc .note p + p, .vp-doc .note ul { margin-top: 6px; }
+.vp-doc .note ul { margin-bottom: 0; }
+/* 想一想以外的小件：行内代码在图的标题里也要有样式 */
+.vp-doc .fig figcaption code { font-family: var(--f-mono); font-size: .9em; background: var(--sunken); border-radius: 4px; padding: 1px 5px; color: var(--ink); }
+/* html2md 生成的待改写实验台占位。看到它就说明这里还没迁完 */
+.vp-doc .lab-todo { border: 2px dashed var(--bad); border-radius: 8px; padding: 10px 14px; color: var(--bad); font-size: 14px; background: var(--bad-soft); }
+.vp-doc .fig figcaption p { margin: 0; line-height: inherit; }

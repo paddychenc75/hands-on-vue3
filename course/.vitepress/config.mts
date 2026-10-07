@@ -1,6 +1,32 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
 import container from 'markdown-it-container'
 import deflist from 'markdown-it-deflist'
+import { buildSidebar } from './sidebar.mts'
+import { cjkFriendlyEmphasis } from './markdown-cjk.mts'
+
+// ---- 并行测试用的环境变量（日常开发和正式构建不设）----
+//   COURSE_CHAPTERS=03-refs,04-computed  只构建这些章，其他章 srcExclude 掉
+//   COURSE_OUT_DIR / COURSE_CACHE_DIR    输出目录和缓存目录，每次运行用独立目录，互不覆盖
+const COURSE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const CHAPTERS_DIR = path.join(COURSE_DIR, 'chapters')
+const only = (process.env.COURSE_CHAPTERS || '').split(/[,\s]+/).map(s => s.replace(/\.md$/, '')).filter(Boolean)
+const allChapters = fs.existsSync(CHAPTERS_DIR) ? fs.readdirSync(CHAPTERS_DIR).filter(f => f.endsWith('.md')).map(f => f.replace(/\.md$/, '')) : []
+for (const c of only) if (!allChapters.includes(c)) throw new Error(`COURSE_CHAPTERS 里的章不存在：${c}（现有：${allChapters.join(' ')}）`)
+const excluded = only.length ? allChapters.filter(c => !only.includes(c)).map(c => `chapters/${c}.md`) : []
+
+// 只构建指定章时，exercises/index.ts 的 glob 也只放这些章的练习文件，别人写到一半的练习不会让构建失败
+const EX_GLOB = "['./*.ts', '!./index.ts', '!./types.ts']"
+const exerciseFilter = {
+  name: 'course-exercise-filter',
+  enforce: 'pre' as const,
+  transform(code: string, id: string) {
+    if (!only.length || !/exercises[\\/]index\.ts$/.test(id) || !code.includes(EX_GLOB)) return null
+    return code.replace(EX_GLOB, JSON.stringify(only.map(c => `./${c}.ts`)))
+  }
+}
 
 // 简单容器：<div class="类名"><div class="t">标题</div> … </div>
 const SIMPLE: Record<string, [string, string]> = {
@@ -16,10 +42,13 @@ export default defineConfig({
   title: '动手学 Vue 3',
   description: 'Vue3 互动课程：每章有讲解、练习和自测',
   lang: 'zh-CN',
-  srcExclude: ['AUTHORING.md'],
+  srcExclude: ['AUTHORING.md', ...excluded],
+  outDir: process.env.COURSE_OUT_DIR || undefined,
+  cacheDir: process.env.COURSE_CACHE_DIR || undefined,
   ignoreDeadLinks: true, // 其他章还没迁移，链接暂时是死链
   lastUpdated: false,
   vite: {
+    plugins: [exerciseFilter],
     build: { chunkSizeWarningLimit: 2000 }, // 带编译器的 Vue 和 CodeMirror 是按需加载的大块
     // 练习编辑器源码在仓库根目录的 editor/，在 course/ 之外
     server: { fs: { allow: ['..'] } }
@@ -27,13 +56,15 @@ export default defineConfig({
   markdown: {
     config(md) {
       md.use(deflist)
+      cjkFriendlyEmphasis(md)
 
       for (const [name, [cls, title]] of Object.entries(SIMPLE)) {
         md.use(container, name, {
           render(tokens: any[], idx: number) {
-            return tokens[idx].nesting === 1
-              ? `<div class="${cls}"><div class="t">${title}</div>\n`
-              : '</div>\n'
+            if (tokens[idx].nesting !== 1) return '</div>\n'
+            // 容器名后面写了文字，就用它当标题（例如 ::: pitfalls 注意：不要用 index 作为 key）
+            const custom = tokens[idx].info.trim().slice(name.length).trim()
+            return `<div class="${cls}"><div class="t">${custom ? md.renderInline(custom) : title}</div>\n`
           }
         })
       }
@@ -68,6 +99,24 @@ export default defineConfig({
           if (t.nesting !== 1) return '</div></details>\n'
           const title = t.info.trim().slice('think'.length).trim()
           return `<details class="think"><summary>${md.renderInline(title)}</summary><div>\n`
+        }
+      })
+
+      // ::: note  说明框（左边一条蓝灰线）。::: note warn 是橙色警示版
+      md.use(container, 'note', {
+        render: (tokens: any[], idx: number) =>
+          tokens[idx].nesting === 1
+            ? `<div class="note${/\bwarn\b/.test(tokens[idx].info) ? ' warn' : ''}">\n`
+            : '</div>\n'
+      })
+
+      // ::: cheat 标题  速查表外层的折叠块（旧版 details.cheatwrap）
+      md.use(container, 'cheat', {
+        render(tokens: any[], idx: number) {
+          const t = tokens[idx]
+          if (t.nesting !== 1) return '</details>\n'
+          const title = t.info.trim().slice('cheat'.length).trim()
+          return `<details class="cheatwrap"><summary>${md.renderInline(title)}</summary>\n`
         }
       })
 
@@ -128,19 +177,8 @@ export default defineConfig({
   themeConfig: {
     // 顶部导航只放固定入口。章节都在侧边栏，不要按章往这里加
     nav: [{ text: '首页', link: '/' }, { text: '课程', link: '/chapters/01-first', activeMatch: '^/chapters/' }],
-    // 新增一章：在对应阶段的 items 末尾加一行
-    sidebar: [
-      {
-        text: '阶段一 · 入门：使用 Vue',
-        items: [
-          { text: '1 第一个 Vue 应用', link: '/chapters/01-first' },
-          { text: '2 模板语法与指令', link: '/chapters/02-template' }
-        ]
-      },
-      { text: '阶段二 · 基础：编写组件', items: [] },
-      { text: '阶段三 · 原理：内部原理', items: [] },
-      { text: '阶段四 · 专家：生态和工程', items: [] }
-    ],
+    // 侧边栏自动生成：读 chapters/*.md 的 frontmatter（chapter stage title order），见 sidebar.mts
+    sidebar: buildSidebar(CHAPTERS_DIR, { only: only.length ? only : undefined }),
     outline: { level: [2, 3], label: '本页目录' },
     docFooter: { prev: '上一章', next: '下一章' },
     returnToTopLabel: '回到顶部',

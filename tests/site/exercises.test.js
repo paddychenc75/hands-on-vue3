@@ -1,29 +1,51 @@
-// 用法：node tests/site/exercises.test.js [章文件名 ...]   （先运行 npm run build；npm run test:site 会自动先构建）
+// 用法：
+//   node tests/site/exercises.test.js                      测全部章。用 course/.vitepress/dist，要先 npm run build（npm run test:site 会自动先构建）
+//   node tests/site/exercises.test.js 03-refs 04-computed   只测指定章。自己构建：只构建这些章，输出到独立的临时目录，端口自动选空闲的。
+//                                                           多个 agent 同时跑互不影响，别人写到一半的章不会让构建失败
 // 起 vitepress preview，对每章页面：
 //   1. 每道练习：初始代码不通过，答案通过，每个 wrong 都不通过
 //   2. 页面没有控制台报错
 //   3. 自测题点选后刷新页面，选择仍在
-//   4. 实验台（见下面的 LABS）：先猜之前实验台不显示，答完后出现，做一次有代表性的操作，断言结果
+//   4. 实验台：先猜之前实验台不显示，答完后出现，做一次有代表性的操作，断言结果。
+//      每章的实验台数据在 tests/site/labs/<章文件名>.js（见下面的 loadLabs），章里每个 <Lab id> 都必须有一项
+//   5. 练习 id 全局不重复
 const { chromium } = require('playwright')
-const { spawn } = require('child_process')
+const { spawn, spawnSync } = require('child_process')
+const os = require('os')
 const fs = require('fs')
 const net = require('net')
 const path = require('path')
 const esbuild = require('esbuild')
 
 const ROOT = path.resolve(__dirname, '../..')
+// 教学内容故意触发的控制台报错：第 23 章的“水合不一致”练习会让 Vue 打印 Hydration mismatch，不算页面报错
+const IGNORED_CONSOLE = [/Hydration (completed but contains mismatches|node mismatch|children mismatch|text content mismatch|class attribute mismatch|style mismatch|attribute mismatch)/i]
 let bad = 0
 const log = (ok, msg) => { if (!ok) bad++; console.log((ok ? 'PASS ' : 'FAIL ') + msg) }
 
-// 用 esbuild 把 TS 练习数据打成 CJS，在 Node 里读（check 函数用不到，只取数据）
-function loadExercises() {
-  const r = esbuild.buildSync({
-    entryPoints: [path.join(ROOT, 'course/exercises/index.ts')],
-    bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue']
-  })
-  const m = { exports: {} }
-  new Function('module', 'exports', 'require', r.outputFiles[0].text)(m, m.exports, require)
-  return m.exports.exercises
+// 用 esbuild 把每个 TS 练习文件打成 CJS，在 Node 里读（check 函数用不到，只取数据）。
+// 不走 exercises/index.ts：它用 import.meta.glob，esbuild 不认。这里自己扫目录，同时检查 id 是否重复。
+function loadExercises(only) {
+  const dir = path.join(ROOT, 'course/exercises')
+  const files = fs.readdirSync(dir).filter(f => f.endsWith('.ts') && f !== 'index.ts' && f !== 'types.ts')
+    .filter(f => !only || only.includes(f.replace(/\.ts$/, '')))
+  const all = {}, owner = {}
+  for (const f of files) {
+    const r = esbuild.buildSync({ entryPoints: [path.join(dir, f)], bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'] })
+    const m = { exports: {} }
+    new Function('module', 'exports', 'require', r.outputFiles[0].text)(m, m.exports, require)
+    for (const [id, ex] of Object.entries(m.exports)) {
+      if (id in all) log(false, `练习 id 重复：${id}（${owner[id]} 和 ${f}）`)
+      all[id] = ex; owner[id] = f
+    }
+  }
+  return all
+}
+
+// 每章的实验台测试数据：tests/site/labs/<章文件名>.js，module.exports = [{ id, name, pick, async run(p, body, ok) {} }, ...]
+function loadLabs(ch) {
+  const f = path.join(__dirname, 'labs', ch + '.js')
+  return fs.existsSync(f) ? require(f) : []
 }
 
 function freePort() {
@@ -42,69 +64,14 @@ async function waitUp(url) {
 }
 
 // ---- 实验台测试 ----
-// 每章的实验台：id 是 <Lab id>，pick 是“先猜”里点哪一项（任意一项都会打开实验台），run 里做操作并断言。
-// 新增实验台时，在这里给本章加一项。run 的参数：p 是页面，body 是实验台正文的 locator，ok(c, msg) 记一条结果。
-const LABS = {
-  '02-template': [
-    {
-      id: 'demo-classes', name: '勾选 hasError 后渲染出 class="item active error"', pick: 2,
-      async run(p, body, ok) {
-        await p.locator('#demo-classes .domview').waitFor()
-        ok(/class="item active"/.test(await body.locator('.domview').textContent()), '初始 class 是 item active')
-        await body.locator('label.ctl', { hasText: 'hasError' }).locator('input').check()
-        await p.waitForTimeout(100)
-        const txt = await body.locator('.domview').textContent()
-        ok(/class="item active error"/.test(txt), '勾选 hasError 后 class 是 item active error（当前：' + txt.split('\n')[0] + '）')
-        await body.locator('label.ctl', { hasText: '数组语法' }).locator('input').check()
-        await p.waitForTimeout(100)
-        ok(/class="item active error"/.test(await body.locator('.domview').textContent()), '切到数组语法后结果不变')
-      }
-    },
-    {
-      id: 'demo-directives', name: 'v-on 标签页：.once 点三次再普通 +1，count = 11', pick: 1,
-      async run(p, body, ok) {
-        await body.locator('.tabs button').first().waitFor()
-        const tabs = await body.locator('.tabs button').allTextContents()
-        ok(tabs.length === 6, '有 6 个标签页（' + tabs.join('、') + '）')
-        for (let i = 0; i < tabs.length; i++) {
-          await body.locator('.tabs button').nth(i).click()
-          const n = await body.locator('.box').evaluate(e => e.children.length)
-          ok(n >= 2, '标签页「' + tabs[i] + '」渲染出小组件')
-        }
-        await body.locator('.tabs button', { hasText: 'v-on' }).click()
-        for (let i = 0; i < 3; i++) await body.getByRole('button', { name: '.once +10' }).click()
-        await body.getByRole('button', { name: '普通 +1' }).click()
-        ok(/count = 11\b/.test(await body.locator('.box').textContent()), 'count = 11')
-        await body.locator('.tabs button', { hasText: 'v-model' }).click()
-        await body.locator('.box input.t').first().fill('  张三  ')
-        ok(/"name": "张三"/.test(await body.locator('.domview').textContent()), 'v-model.trim 去掉首尾空格')
-      }
-    },
-    {
-      id: 'demo-directive', name: '点“无关数据 n++”后日志新增两条 beforeUpdate 和两条 updated', pick: 0,
-      async run(p, body, ok) {
-        await body.locator('.log').waitFor()
-        const lines = async () => (await body.locator('.log > div').allTextContents()).map(t => t.replace(/^\S+\s+/, ''))
-        const count = (ls, hook) => ls.filter(t => t.startsWith(hook + ' ')).length
-        const before = await lines()
-        await body.getByRole('button', { name: /无关数据 n\+\+/ }).click()
-        await p.waitForTimeout(100)
-        const after = await lines()
-        ok(count(after, 'beforeUpdate') - count(before, 'beforeUpdate') === 2, '新增 2 条 beforeUpdate')
-        ok(count(after, 'updated') - count(before, 'updated') === 2, '新增 2 条 updated')
-        ok(count(after, 'unmounted') === count(before, 'unmounted'), '没有 unmounted')
-      }
-    }
-  ]
-}
-
+// run 的参数：p 是页面，body 是实验台正文的 locator，ok(c, msg) 记一条结果。
 async function runLabs(browser, base, ch) {
-  for (const lab of LABS[ch] || []) {
+  for (const lab of loadLabs(ch)) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })
     const p = await ctx.newPage()
     const errs = []
     p.on('pageerror', e => errs.push(e.message))
-    p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) })
+    p.on('console', m => { if (m.type() === 'error' && !IGNORED_CONSOLE.some(re => re.test(m.text()))) errs.push(m.text()) })
     const fails = []
     const ok = (c, msg) => { if (!c) fails.push(msg) }
     try {
@@ -130,12 +97,31 @@ async function runLabs(browser, base, ch) {
 }
 
 ;(async () => {
-  const EX = loadExercises()
-  const chapters = process.argv.length > 2
-    ? process.argv.slice(2)
-    : fs.readdirSync(path.join(ROOT, 'course/chapters')).filter(f => f.endsWith('.md')).map(f => f.replace(/\.md$/, ''))
+  const args = process.argv.slice(2).map(a => a.replace(/\.md$/, '').replace(/^.*chapters\//, ''))
+  const allChapters = fs.readdirSync(path.join(ROOT, 'course/chapters')).filter(f => f.endsWith('.md')).map(f => f.replace(/\.md$/, ''))
+  for (const a of args) if (!allChapters.includes(a)) { console.error('没有这一章：' + a + '。现有：' + allChapters.join(' ')); process.exit(2) }
+  const chapters = args.length ? args : allChapters
+  // 只测指定章：自己构建到独立的临时目录（只构建这些章），多个运行互不覆盖
+  const env = { ...process.env }
+  let tmp = null
+  if (args.length) {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vp-site-'))
+    env.COURSE_CHAPTERS = args.join(',')
+    env.COURSE_OUT_DIR = path.join(tmp, 'dist')
+    env.COURSE_CACHE_DIR = path.join(tmp, 'cache')
+    const b = spawnSync(process.execPath, [path.join(ROOT, 'node_modules/vitepress/bin/vitepress.js'), 'build', 'course'], { cwd: ROOT, env, encoding: 'utf8' })
+    if (b.status !== 0) {
+      console.error(b.stdout + b.stderr)
+      console.error('构建失败（只构建了 ' + args.join('、') + '）')
+      fs.rmSync(tmp, { recursive: true, force: true })
+      process.exit(1)
+    }
+  } else if (!fs.existsSync(path.join(ROOT, 'course/.vitepress/dist/index.html'))) {
+    console.error('没有构建产物。先运行 npm run build，或者用 npm run test:site'); process.exit(2)
+  }
+  const EX = loadExercises(args.length ? args : null)
   const port = await freePort()
-  const srv = spawn(process.execPath, [path.join(ROOT, 'node_modules/vitepress/bin/vitepress.js'), 'preview', 'course', '--port', String(port), '--strictPort'], { cwd: ROOT, stdio: 'ignore' })
+  const srv = spawn(process.execPath, [path.join(ROOT, 'node_modules/vitepress/bin/vitepress.js'), 'preview', 'course', '--port', String(port), '--strictPort'], { cwd: ROOT, env, stdio: 'ignore' })
   const base = 'http://127.0.0.1:' + port
   const browser = await chromium.launch()
   try {
@@ -145,7 +131,7 @@ async function runLabs(browser, base, ch) {
       const p = await ctx.newPage()
       const errs = []
       p.on('pageerror', e => errs.push(e.message))
-      p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) })
+      p.on('console', m => { if (m.type() === 'error' && !IGNORED_CONSOLE.some(re => re.test(m.text()))) errs.push(m.text()) })
       p.on('requestfailed', r => errs.push('请求失败 ' + r.url()))
       const url = base + '/chapters/' + ch + '.html'
       await p.goto(url)
@@ -154,7 +140,8 @@ async function runLabs(browser, base, ch) {
 
       // ---- 练习 ----
       const ids = await p.$$eval('.ex[data-ex]', es => es.map(e => e.dataset.ex))
-      const placeholders = await p.$$eval('.ex-ph, .ex-err', es => es.length)
+      // 占位（.ex-ph）和“找不到练习”（p.ex-err）算没渲染；练习起始代码自己报错（div.ex-err）是正常的，要用户补全
+      const placeholders = await p.$$eval('.ex-ph, p.ex-err', es => es.length)
       log(placeholders === 0, `${ch}: 所有练习都已渲染（${ids.join(', ') || '无'}）`)
       async function runWith(id, tpl, js) {
         return p.evaluate(async ([id, tpl, js]) => {
@@ -232,10 +219,17 @@ async function runLabs(browser, base, ch) {
       log(errs.length === 0, `${ch}: 页面没有控制台报错` + (errs.length ? ' ' + errs.slice(0, 3).join(' | ') : ''))
       await ctx.close()
     }
-    for (const ch of chapters) await runLabs(browser, base, ch)
+    for (const ch of chapters) {
+      // 章里每个 <Lab id> 都要有测试数据
+      const md = fs.readFileSync(path.join(ROOT, 'course/chapters', ch + '.md'), 'utf8')
+      const have = new Set(loadLabs(ch).map(l => l.id))
+      for (const m of md.matchAll(/<Lab\s+id="([^"]+)"/g)) log(have.has(m[1]), `${ch}: 实验台 ${m[1]} 有测试数据（tests/site/labs/${ch}.js）`)
+      await runLabs(browser, base, ch)
+    }
   } finally {
     await browser.close()
     srv.kill()
+    if (tmp) fs.rmSync(tmp, { recursive: true, force: true })
   }
   console.log(bad ? '有 ' + bad + ' 项失败' : '全部通过')
   process.exit(bad ? 1 : 0)

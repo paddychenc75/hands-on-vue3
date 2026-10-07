@@ -2,19 +2,10 @@
 // 实验台：自定义指令的钩子（旧版 #demo-directive）
 // 日志直接写进 DOM，不用响应式数据。原因：钩子在渲染过程中运行，
 // 如果钩子里修改响应式数据，会触发新的渲染，新的渲染又运行钩子，形成死循环。
+import { domLog } from '../_shared'
 import { onMounted, ref } from 'vue'
 
 let logEl: HTMLElement | null = null
-function domLog(el: HTMLElement | null, cls: string, msg: string) {
-  if (!el) return
-  const d = document.createElement('div')
-  d.className = cls
-  const t = new Date()
-  d.textContent = String(t.getSeconds()).padStart(2, '0') + '.' + String(t.getMilliseconds()).padStart(3, '0') + '  ' + msg
-  el.prepend(d)
-  while (el.children.length > 80) el.lastChild!.remove()
-}
-
 const COLORS: Record<string, string> = { yellow: 'var(--warn-soft)', blue: 'var(--info-soft)' }
 const L = (hook: string, binding: any) =>
   domLog(

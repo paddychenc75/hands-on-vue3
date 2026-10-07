@@ -1,78 +1,116 @@
 # 写作约定：把旧章节迁到 VitePress
 
-本文给迁移章节的人（或 agent）用。只读本文就能迁一章。第 1 章（`chapters/01-first.md`）是完整样例，不确定时照着它写。
+本文是迁移章节的人（或 agent）的唯一依据。只读本文就能迁一章。第 1、2 章（`chapters/01-first.md`、`02-template.md`）是完整样例，不确定时照着写。
+
+多个 agent 会同时各迁几章。所以：**迁一章只新增这一章自己的文件，不改任何共享文件**（见第 2 节）。
 
 铁律：
 
 1. 正文文字逐字迁移。不润色，不改写，不增删。只改标记形式（HTML 变 Markdown）。
 2. 练习的数据（`tpl js solTpl solJs hints check wrong`）原样复用。不改题目。
 3. 自测题已有的只能在末尾追加。不能删除、调序、改题干和答案。
-4. 不碰旧文件：`vue3-course.html`、`server.js`、`cm.min.js`、`vendor/`、`tests/` 下旧测试。迁完全部章节后才会删。
+4. 不碰旧文件：`vue3-course.html`、`server.js`、`cm.min.js`、`vendor/`、`tests/` 下旧测试（`tests/site/` 除外）、根目录 `CLAUDE.md`、`README.md`。迁完全部章节后才会删。
+5. 5199 端口有给用户看的开发服务器，不要关，不要占。本机 shell 设了 HTTP 代理，访问 localhost 时加 `NO_PROXY=localhost,127.0.0.1`。
 
-## 1. 目录约定
+## 1. 迁一章的流程
+
+下面的 `NN-id` 是新文件名（章号两位 + 旧 section id，例如 `03-refs`），`id` 是旧 section id（例如 `refs`）。`node scripts/html2md.mjs --list` 列出全部 id 和章号。
+
+1. **跑转换脚本**，得到初稿：
+   ```bash
+   node scripts/html2md.mjs refs               # 生成 course/chapters/03-refs.md 和 course/figures/03-refs/*.vue
+   node scripts/html2md.mjs --exercises refs   # 生成 course/exercises/03-refs.ts
+   ```
+   文件已存在时不覆盖，要重新生成加 `--force`（会覆盖你的修改，先确认）。脚本的标准输出是本章清单：各种块的数量、示意图、**待人工改写的实验台**（附旧 HTML 和旧脚本的行号）、**未识别结构**（脚本原样保留成 HTML，要人工处理，不会悄悄丢掉）、练习的提示和注意。
+2. **通读初稿**，对照旧 `<section>`（按行号范围读，不要整文件读 `vue3-course.html`）。脚本做了机械转换，要看的地方：
+   - 示意图文件名是 `Fig1…` 加几个英文词，可以改成好懂的名字（同时改 `.md` 里的导入和标签）。
+   - 代码块语言是猜的，选错只影响高亮，顺手改对。
+   - 未识别结构按第 4 节处理。
+3. **人工改写实验台**：每个 `<LabTodo …/>` 换成实验台 SFC（第 3.11 节、第 5 节）。旧脚本里的挂载代码行号在清单里。改写后删掉 `<LabTodo>`。给每个实验台写测试数据 `tests/site/labs/NN-id.js`（第 6 节）。
+4. **核对练习文件** `exercises/NN-id.ts`：脚本把字段原样搬来，把 `hint`/`HINTS` 合并成 `hints` 数组。要看：清单里的“注意”；`check` 里原来的 `Vue.nextTick` 等已改成从 `'vue'` 导入；旧脚本在对象外面补充的字段（`EX.x.solJs = …`、`EX.x.lazy = true`）原样放在导出之后。章里的每个 `<Exercise id>` 和 `Goal` 的 `ex:id` 要对得上。
+5. **跑该章测试**（只构建这一章，输出到独立临时目录，自动选端口）：
+   ```bash
+   NO_PROXY=localhost,127.0.0.1 node tests/site/exercises.test.js 03-refs
+   ```
+   可以同时写多章：`… 03-refs 04-computed`。测的内容：每道练习（初始不通过、答案通过、每个 `wrong` 不通过）、自测点选后刷新仍在、目标打勾、实验台、控制台无报错、练习 id 不重复、章里每个实验台都有测试数据。
+6. **跑对照脚本**（只构建这一章；没有输出差异、退出码 0 才算正文无丢失）：
+   ```bash
+   node scripts/compare.mjs refs --build
+   ```
+   它比较旧 `<section>` 和构建后的页面：数量（小节、代码块、深入块、想一想、自测、先猜、练习、实验台、示意图、表格、目标、术语）、文字（两边去标签去空白后逐段 diff）、自测解析（对照 `.md`）、残留标记（字面的 `**`、`&lt;`、`:::`、`TODO`、没改写的 `<LabTodo>`）。已排除的界面性差异见脚本开头。
+7. **截图自查**：
+   ```bash
+   node scripts/shot.mjs 03-refs
+   ```
+   输出浅色和深色两张整页图的路径，用 Read 工具看。脚本已展开深入块、点开实验台的“先猜”。图很高时看缩略图不够，需要细看就用 Playwright 自己截一段。
+8. **提交**。提交信息用中文，只 `git add` 你动过的路径（你的章、图、实验台、练习、测试数据）。
+
+不要运行 `npm run build` 和 `npm run test:site`：它们构建全站、输出到共享的 `course/.vitepress/dist`，会互相覆盖，别人写到一半的章还会让构建失败。主控会在最后统一跑。
+
+## 2. 不要碰的共享文件，以及需要共享改动时怎么办
+
+**不要改：**
+
+- `course/.vitepress/config.mts`、`sidebar.mts`、`markdown-cjk.mts`
+- `course/.vitepress/theme/index.ts`、`style.css`、`theme/components/*`、`theme/composables/*`
+- `course/exercises/index.ts`、`exercises/types.ts`
+- `tests/site/exercises.test.js`
+- `scripts/` 下的所有脚本
+- 其他章的任何文件
+- `course/labs/_shared/*`（共用辅助函数。只导入，不改）
+
+这些文件已经做到：侧边栏自动从 `chapters/*.md` 的 frontmatter 生成；练习自动汇总 `exercises/*.ts`；测试自动发现章节和 `tests/site/labs/*.js`；所有旧版块级 class 和实验台控件 class 已有样式。
+
+**需要共享改动时**（例如某个组件缺功能、样式缺一条、转换脚本有 bug、测试脚本不支持你的实验台）：不要自己改。在最终报告里单独写一节“需要主控处理的共享改动”，写清：哪个文件、要什么、为什么、你临时怎么绕过。能绕过的先绕过（例如实验台私有的样式写在自己 SFC 的 `<style scoped>` 里）。
+
+## 3. 目录、frontmatter 和章号
 
 ```
 course/
   .vitepress/
-    config.mts            站点配置、侧边栏、自定义容器（注意扩展名是 .mts）
-    theme/
-      index.ts            扩展默认主题，自动全局注册 components/*.vue
-      style.css           旧色板和课程块样式
-      components/         通用组件：Exercise Sc Opt Goal Lab LabCode Figure ChapterHead
-      composables/        store.ts（localStorage）、registry.ts、keys.ts
+    config.mts            站点配置、自定义容器、中文粗体修复、并行构建用的环境变量
+    sidebar.mts           从 chapters/*.md 的 frontmatter 生成侧边栏
+    markdown-cjk.mts      markdown-it 插件：中文标点旁的 **粗体** 也能生效
+    theme/                主题：style.css、components/*.vue（自动全局注册）、composables/*
   index.md                首页
   chapters/NN-id.md       一章一个文件。NN = 两位章号，id = 旧的 section id
   figures/NN-id/*.vue     示意图，每张一个 SFC，只含 template
-  labs/NN-id/*.vue        实验台，每个一个 SFC（一个实验台含多个标签页时，每页再拆一个小 SFC）
-  exercises/NN-id.ts      该章的练习；exercises/index.ts 汇总；exercises/types.ts 是类型
-  AUTHORING.md            本文（不会生成页面）
+  labs/NN-id/*.vue        实验台，每个一个 SFC（多标签页的每页再拆一个小 SFC）
+  labs/_shared/           各章实验台共用的辅助函数（domLog、dLogBuf、useMouse、useDebounced）
+  exercises/NN-id.ts      该章的练习（自动汇总）；exercises/types.ts 是类型
+  AUTHORING.md            本文
+scripts/
+  html2md.mjs             转换脚本（--list 列章，--exercises 抽练习，--stats 规模表）
+  compare.mjs             对照脚本
+  shot.mjs                截图脚本
+tests/site/
+  exercises.test.js       站点测试（共享，不要改）
+  labs/NN-id.js           每章的实验台测试数据（你写）
 ```
 
-命令：
-
-- `npm run dev`：开发服务器。
-- `npm run build`：构建到 `course/.vitepress/dist`。
-- `npm run test:site`：先构建，再用 Playwright 测每章的练习、自测、控制台报错。
-
-## 2. 章节文件
-
-文件开头是 frontmatter，然后是一级标题。标题文字必须等于 `title`。
+### frontmatter 和章号
 
 ```md
 ---
-title: 第一个 Vue 应用
-id: first
-stage: 1
-chapter: 1
-desc: 声明式渲染、createApp、单文件组件
+title: 响应式基础
+id: refs
+stage: 2
+chapter: 3
+desc: ref、reactive、toRefs
 ---
-
-<script setup>
-import ImperativeVsDeclarative from '../figures/01-first/ImperativeVsDeclarative.vue'
-</script>
-
-# 第一个 Vue 应用
 ```
 
+- `title`：旧的 `data-title`，短名。侧边栏、上一章/下一章、页面标题用它。**不要求等于一级标题**：一级标题 `# …` 逐字用旧 `<h2>` 的文字（例如“响应式基础：ref 和 reactive”）。
 - `id`：旧的 section id。自测答案的存储键用它，**不能改**。
-- `stage`：1 到 4。`chapter`：章号。`desc`：旧的 data-desc。
-- 页面顶部的“第 N 章”小字由 `chapter` 自动生成。
-- 章内用到的示意图和实验台，在 `<script setup>` 里导入。通用组件（`Sc` `Opt` `Goal` `Lab` `LabCode` `Figure` `Exercise`）不用导入。实验台 SFC 里也能直接用 `<LabCode>`。
-- 旧的“下一章”链接不用迁。VitePress 自动生成上一章和下一章。
+- `stage`：1 到 4。`desc`：旧的 `data-desc`。值里有 `: ` 之类 YAML 特殊字符时加双引号（脚本会自动处理）。
+- `chapter`：章号，决定侧边栏里的先后和页面上的“第 N 章”小字。旧版章号按出现顺序：第 1–25 章是 first … migrate，**综合实战（project）是第 26 章，综合测验（quiz）是第 27 章**，所以它们的文件是 `26-project.md`、`27-quiz.md`，写 `chapter: 26`、`chapter: 27`。
+- **没有章号的页面**（只有速查表 `cheat`，旧版标“附录”）：文件名不带数字（`cheat.md`），frontmatter 不写 `chapter`，写 `order: 100`。侧边栏里它排在同阶段所有有章号的页面之后；几个无章号页面之间按 `order` 从小到大，侧边栏文字就是 `title`，页面上没有“第 N 章”小字。
+- 页面顶部“第 N 章”由 `chapter` 自动生成。旧的“下一章”链接不迁，VitePress 按侧边栏顺序自动生成。
+- 章内用到的示意图和实验台，在章开头的 `<script setup>` 里导入。通用组件（`Sc` `Opt` `Goal` `Lab` `LabCode` `Figure` `Exercise` `Flow` `TabbedLab` `LabTodo`）不用导入。
 
-章内块的顺序（和旧版相同）：
+章内块的顺序（和旧版相同）：目标、阅读时间、类比、本章术语、为什么需要它、小节 `### N.M 标题`（含正文、代码、图、实验台、练习、深入块、注意框）、注意、自测、小结。
 
-1. 目标（`::: goals`）
-2. 阅读时间（`::: rt`）
-3. 类比（`::: analogy`）
-4. 本章术语（`::: terms`）
-5. 为什么需要它（`::: why`）
-6. 小节 `### N.M 标题`，每个小节里有正文、代码、图、实验台、练习、深入块
-7. 注意（`::: pitfalls`）
-8. 自测（`::: selfcheck`）
-9. 小结（`::: summary`）
-
-## 3. 每种写法的完整示例
+## 3A. 每种写法的完整示例（子节 3.1 到 3.11）
 
 ### 3.1 小节标题
 
@@ -230,7 +268,7 @@ let count = 0
 </Figure>
 ```
 
-- `caption` 是旧的 `<figcaption>` 文字。它是普通属性，只能放纯文字。旧的 `<figcaption>` 里如果有 `<code>`，迁移后只剩文字，没有代码样式（这是已知的小损失）。
+- `caption` 是纯文字属性。旧的 `<figcaption>` 里有 `<code>` 时，用 `#caption` 插槽（见第 5 节），行内代码样式就保留了。
 - 这三行之间不要有空行（见第 6 节）。
 - SVG 里的颜色用 `var(--muted)`、`var(--ink)`、`var(--accent)`、`var(--accent-soft)`、`var(--surface)` 等。浅色和深色模式都有定义。不要写死颜色。
 - **SVG 里的 `{{ }}` 会被 Vue 当成插值。** 图里常有这样的文字（例如 `<text>{{ name }}</text>`）。给这个 `<text>` 加 `v-pre`：`<text v-pre>{{ name }}</text>`。围栏代码和行内代码已自动处理，SFC 里的标签不会。
@@ -335,9 +373,9 @@ let count = 0
 - 有“先猜”题时：猜之前实验台正文不显示。选择后实验台打开，出现“核对我的猜测”按钮，点它才显示答案。也可以点“跳过，直接打开实验台”。
 - 默认插槽放实验台组件。它只在浏览器里渲染，并且接近视口时才挂载。实验台组件不用自己处理这两点。
 - 实验台组件里可以直接 `import { ref } from 'vue'`，用普通的 SFC 写法（`<script setup>` + `<template>`）。需要运行时编译模板字符串时，才用带编译器的构建（见 Exercise）。
-- 实验台里的通用控件类名已在 `style.css` 里：`.row` `.b`（含 `.pri` `.on`）`.cap` `.cols` `.box` `.t`（`input.t` `select.t`）`.ctl` `.tabs` `.log` `.pill` `.domview` `pre.code`。还没搬的有 `.kv` `.flash` `.task` 等。用到时，从旧 CSS（`vue3-course.html` 第 5 到 429 行）搬到 `style.css`，选择器前加 `.vp-doc `，并把它加进这一条。
+- 实验台里的通用控件类名已在 `style.css` 里，完整列表见第 5 节“样式”。
 - 实验台里展示一段代码（旧版的 `<pre class="code" v-html="hl(code)">`）用 `<LabCode :code="字符串" />`。代码是动态的（随开关变化）或属于某个标签页时用它；章节正文里的静态代码仍用围栏代码块。
-- **多标签页实验台**（旧版 `TABS = [{name, tip, code, comp}]`）：每个标签页的 `comp` 拆成一个独立的小 SFC，放在同一个 `labs/NN-id/` 目录，文件名用统一前缀（第 2 章用 `Dir*.vue`）。再写一个外壳 SFC，里面保留 `TABS` 数组（`name` `tip` `code` 和导入的组件），用 `<component :is="TABS[i].comp" :key="i" />` 切换。`code` 字段的字符串原样沿用。
+- **多标签页实验台**：用通用组件 `<TabbedLab :tabs>`，见第 5 节。
 - **读 DOM 的实验台**（旧版里“渲染出的属性”“当前 HTML”）：用 `ref` 拿元素，`onMounted` 和 `watch(…, { flush: 'post' })` 里读 `getAttribute` 或 `innerHTML`。要在 `<div>` 里显示多行文字时，写成表达式 `{{ 'class="' + cls + '"\nstyle="' + sty + '"' }}`。模板里直接换行会被压成一个空格。
 - **指令钩子的日志不能用响应式数据。** 钩子在渲染中运行，钩子里改响应式数据会触发新的渲染，新的渲染又运行钩子，形成死循环。旧版用 `document.createElement` 直接往 DOM 里加日志，SFC 里照做：模板里放一个空的 `<div ref="logRef">`，钩子里用普通函数往里 `prepend`。
 - 自定义指令在 `<script setup>` 里写成 `const vXxx = {…}`，模板里就是 `v-xxx`，不用注册。
@@ -345,43 +383,38 @@ let count = 0
 
 ## 4. 从旧 HTML 到新写法对照表
 
-| 旧 | 新 |
-|---|---|
-| `<section class="ch" id data-stage data-title data-desc>` | frontmatter：`id stage title desc`，加 `chapter` |
-| `<div class="kicker">第 N 章</div><h2>标题</h2>` | `# 标题`（kicker 自动生成） |
-| `<div class="goal"><ul><li data-checks="…">文字 <span class="gtag">…</span></li></ul></div>` | `::: goals` + `<Goal checks="…">文字</Goal>`，标签自动算 |
-| `<div class="rt">` | `::: rt` |
-| `<div class="analogy">` | `::: analogy` |
-| `<div class="terms"><dl>` | `::: terms` + 定义列表 |
-| `<div class="why">` | `::: why` |
-| `<h3><span class="step">N.M</span>标题</h3>` | `### N.M 标题` |
-| `<p>` `<code>` `<b>` `<ol>` `<ul>` | 普通段落、反引号、`**粗体**`、列表 |
-| `<script type="text/x-code">` | 围栏代码块，标语言 |
-| `<div class="code-pair">` | `:::: pair` + `::: col 说明` |
-| `<figure class="fig"><svg>…</svg><figcaption>` | `figures/…/X.vue` + `<Figure caption>` |
-| `<div class="ex" data-ex="id">` | `<Exercise id="id" />` |
-| `<div class="lab gated">` + `.sc.predict` + `.lab-body` | `<Lab>` + `#predict` + 实验台 SFC |
-| `<details class="deep"><summary>…` | `::: deep 标题` |
-| `<div class="tbl-wrap"><table class="t">` | Markdown 表格 |
-| `<div class="pitfalls"><ol>` | `::: pitfalls` + 有序列表 |
-| `<div class="selfcheck"><div class="sc" data-a>` | `::: selfcheck` + `<Sc :a>` |
-| `.sc-q` / `pre.sc-code` / `button.sc-o` / `.sc-x` | 题干段落 / 围栏代码 / `<Opt>` / `#explain` |
-| `<div class="summary"><ul>` | `::: summary` + 无序列表 |
-| `<a class="nextch">` | 不迁（自动生成） |
-| `<details class="think"><summary>问<div>答` | `::: think 问`（见 3.5.1） |
-| `<pre class="code" v-html="hl(…)">`（实验台里） | `<LabCode :code="…" />` |
-| `.note` `.steps-flow` 等其他块 | 本步未处理。遇到时先在 `style.css` 里加样式，再在 `config.mts` 里加容器，并更新本文。做法见第 2 章的 `think`：配置里 `md.use(container, 名字, { render })`，样式选择器加 `.vp-doc ` 前缀 |
+“脚本”列：转换脚本是否自动做。
+
+| 旧 | 新 | 脚本 |
+|---|---|---|
+| `<section class="ch" id data-stage data-title data-desc>` | frontmatter（`id stage title desc chapter`） | 是 |
+| `<h2>`（旧章标题） | `# 标题` | 是 |
+| `<div class="goal">` + `li[data-checks]` | `::: goals` + `<Goal checks>`（标签自动算） | 是 |
+| `.rt` `.analogy` `.terms>dl` `.why` `.pitfalls` `.summary` `.selfcheck` | `::: rt` `analogy` `terms`（定义列表）`why` `pitfalls` `summary` `selfcheck` | 是 |
+| 上面这些块的标题 `div.t` 和默认不同（例如“注意：不要用 index 作为 key”） | 写在容器名后面：`::: pitfalls 注意：不要用 index 作为 key` | 是 |
+| `<h3><span class="step">N.M</span>标题</h3>` | `### N.M 标题` | 是 |
+| `<p>` `<code>` `<b>` `<i>` `<a>` `<ol>` `<ul>` `<br>` | 段落、反引号、`**粗体**`、`*斜体*`、链接、列表、`<br>` | 是 |
+| `<a href="#comm">第 5 章</a>` | `[第 5 章](/chapters/05-comm)` | 是 |
+| `<script type="text/x-code">` 和 `pre.sc-code` | 围栏代码块（还原 `<\/script>`、`<\!--`，猜语言） | 是 |
+| `.code-pair` | `:::: pair` + `::: col 说明` | 是 |
+| `figure.fig>svg+figcaption` | `figures/…/X.vue` + `<Figure caption>`；标题里有 `<code>` 用 `#caption` 插槽 | 是 |
+| `<div class="ex" data-ex>` | `<Exercise id />` | 是 |
+| `div.lab.gated` + `.sc.predict` + `.lab-body` | `<Lab>` + `#predict` + `<LabTodo>` 占位，**人工**换成实验台 SFC | 外壳是，正文否 |
+| `details.deep` | `::: deep 标题` | 是 |
+| `details.think` | `::: think 问题` | 是 |
+| `div.tbl-wrap>table.t` | Markdown 表格；有 `rowspan`/`colspan` 或无表头时保留成 HTML 表格（脚本会报告） | 是 |
+| `div.note`（`.note.warn`） | `::: note`（`::: note warn`） | 是 |
+| `div.steps-flow>span+i` | `<Flow :steps="['setup', 'onMounted']" />` | 是 |
+| `details.cheatwrap` | `::: cheat 标题` | 是 |
+| `a.nextch` | 不迁 | 是 |
+| 旧 `div.score`、`#qzTabs`、`#qzList`（综合测验，由脚本生成内容） | `<LabTodo>`，人工做成组件 | 占位 |
+| 其他不认识的块 | 原样保留成 HTML，标准输出里报告行号。人工决定：改成上面某种写法，或原样留着（注意 `{{ }}` 要加 `v-pre`） | 报告 |
 
 ## 5. 新增练习、实验台、示意图
 
-### 跨章链接
+### 练习
 
-旧文字里的“第 8 章”如果是链接（`<a href="#directives">`），迁成 `[第 8 章](/chapters/08-directives)`。文件名 = 章号两位 + `-` + 旧的 section id。目标章还没迁时，这是死链（站点配置了 `ignoreDeadLinks`，不会报错），等那一章迁完就通了。不是链接的“第 4 章”“第 4.1 节”保持纯文字。
-
-### 新增练习
-
-1. 打开旧版里这道练习的定义：`EX.<id> = {…}`（`vue3-course.html` 约 9947 行起和 11918 行起），再找 `HINTS[id]`（约 10603 行起）。
-2. 在 `exercises/NN-id.ts` 里导出一个同名常量，类型是 `Exercise`：
+脚本已生成 `exercises/NN-id.ts`。人工核对要点见第 1 节第 4 步。格式：
 
 ```ts
 import type { Exercise } from './types'
@@ -389,67 +422,114 @@ import type { Exercise } from './types'
 export const counter: Exercise = {
   title: '做一个计数器',
   ch: 1,
-  task: '按钮显示“点了 N 次”。每次点击，N 加 1。只修改模板。',
+  task: '按钮显示“点了 N 次”。……',     // HTML 字符串，里面的 &lt; 要保留
   tpl: '<button>点我</button>',
   js: 'const count = ref(0)\n\nreturn { count }',
   solTpl: '<button @click="count++">点了 {{ count }} 次</button>',
-  hints: ['提示 1……', '提示 2……', '答案'],
-  async check(T) {
-    const b = T.$('button')
-    T.ok(!!b, '页面上有一个按钮')
-    // ……
-  },
+  hints: ['提示 1', '提示 2', '答案'],       // 只留一个 hints 数组，不写 hint 和 HINTS
+  async check(T) { /* … */ },
   wrong: [{ tpl: '…', why: '…' }]
 }
 ```
 
-3. 字段和旧版完全一致。字符串原样复制。
-4. 旧版的提示可能分散在 `hint`、`hints`、`HINTS[id]` 三处。优先级是 `ex.hints || HINTS[id] || [ex.hint]`。迁移时只留一个 `hints` 数组，内容取优先级最高的那个。不要写 `hint` 和 `HINTS`。
-5. 新章第一次迁时，在 `exercises/index.ts` 里加两行：`import * as ch02 from './02-xxx'` 和 `...ch02`。
-6. 判题里如果旧代码用了全局 `Vue.nextTick`，在文件顶部写 `import { nextTick } from 'vue'`，然后改用 `nextTick`。不要用全局变量。（`T.click` 已经会等 nextTick。）
-7. 练习脚本里可直接用的名字：`ref reactive computed watch watchEffect toRefs toRef shallowRef nextTick onMounted onUnmounted provide inject`。
-8. 每道新练习至少写 1 个 `wrong`（来自真实误解的错误解法）。迁移旧练习时，旧版有就保留，没有不补。
-9. 在章节里加 `<Exercise id="…" />`，并确认 `Goal` 的 `checks` 有 `ex:id`。
-10. `npm run test:site`：测试会自动测每道练习：初始代码不通过，答案通过，每个 `wrong` 不通过。
+- 字段和旧版完全一致，字符串原样。旧版提示优先级 `hints > HINTS[id] > [hint]`，只留优先级最高的那个。
+- 练习脚本里可直接用的名字：`ref reactive computed watch watchEffect toRefs toRef shallowRef nextTick onMounted onUnmounted provide inject`，还有**全局 `Vue`**（整个 Vue 命名空间，例如 `const { useModel } = Vue`、`Vue.createApp`）。这是旧版 `window.Vue` 的等价物，练习数据里的 `Vue.xxx` 不用改。
+- `check` 函数本身是模块里的代码，没有全局 `Vue`：用到时 `import { nextTick } from 'vue'`（脚本已自动改）。
+- 每道新练习至少写 1 个 `wrong`。迁移旧练习时，旧版有就保留，没有不补。
+- 练习 id 全站不能重复（开发环境会报错，测试也会查）。
+- 起始代码本身有 TODO 而报错是正常的，要用户补全。
+- 想让进入页面时不自动运行（例如运行会触发控制台报错的练习），设 `lazy: true`。
 
-### 新增示意图
+### 示意图
 
-见 3.8。每张图一个 SFC，放在 `figures/NN-id/`。
+脚本已抽到 `figures/NN-id/FigN….vue`。规则：
 
-### 新增实验台
+- 每张图一个 SFC，只含 `<template>` 和一个 `<svg>`。颜色用 `var(--muted)` `var(--ink)` `var(--accent)` `var(--accent-soft)` `var(--surface)`，不写死颜色。
+- **SVG 里的 `{{ }}` 会被 Vue 当插值**：给那个 `<text>` 加 `v-pre`（脚本已自动加）。
+- marker 的 `id` 在整页内不能重复。沿用旧的 `章id-名字`。
+- 正文里：
 
-1. 把旧版实验台的挂载函数（页面底部脚本里，用 `#demo-xxx` 找到）改写成一个 SFC：`labs/NN-id/名字.vue`。逻辑不变，只把命令式 DOM 操作改成模板。
-2. 在章节里用 `<Lab>` 包住（见 3.11）。
-3. 把旧版的“先猜”题搬进 `#predict` 插槽。`id` 沿用旧的 `data-lab`。
-
-### 把一章加进侧边栏
-
-1. 打开 `course/.vitepress/config.mts`，找到 `themeConfig.sidebar`。
-2. 在对应阶段（`stage`）的 `items` 末尾加一行：
-
-```ts
-{ text: '2 模板语法与指令', link: '/chapters/02-template' }
+```md
+<Figure caption="纯文字标题">
+<FigName />
+</Figure>
 ```
 
-3. 顶部导航 `nav` 只放固定入口（首页、课程）。迁章节时不用改它，章节只加进侧边栏。
-4. 上一章和下一章按侧边栏顺序自动生成。
+标题里有行内代码时：
 
-## 6. 迁一章的步骤清单
+```md
+<Figure>
+<FigName />
+<template #caption>
 
-1. 读旧章节：`vue3-course.html` 里 `<section class="ch" id="…">` 到 `</section>`。按行号范围读，不要整文件读。
-2. 建 `chapters/NN-id.md`，写 frontmatter 和 `# 标题`。
-3. 按顺序迁：目标、阅读时间、类比、术语、为什么、各小节、注意、自测、小结。一块一块对着旧文字迁。
-4. 迁代码块，还原转义，标语言。
-5. 迁示意图到 `figures/`，正文里用 `<Figure>`。
-6. 迁练习数据到 `exercises/NN-id.ts`，并更新 `exercises/index.ts`。
-7. 迁实验台（如果有）到 `labs/`，用 `<Lab>`。
-8. 把章加进侧边栏。
-9. 运行 `npm run build`。没有报错。
-10. 运行 `npm run test:site`。全部通过。
-11. 数量对照：小节数、代码块数（旧版 `text/x-code` 加 `pre.sc-code`）、深入块数、想一想数、自测题数（含“先猜”）、练习数、实验台数、示意图数、表格数，和旧版一致。逐段对照文字，没有丢段落。（可以写个小脚本：旧文字去掉标签、新页面 HTML 去掉标签，去掉所有空白后做 diff，只应剩下代码语言标签、“跳过，直接打开实验台”这类界面文字，和自测解析——解析在答题前不渲染。）
-12. 用 Playwright 给页面截图，浅色和深色各一张，看一遍版面。深色用 `browser.newContext({ colorScheme: 'dark' })`，站点默认跟随系统。实验台要先点“先猜”的一项才会出现；在深入块里的要先点开块。
-12.5. 给每个实验台在 `tests/site/exercises.test.js` 的 `LABS` 里加一项：`id`（Lab 的 id）、`pick`（“先猜”点哪一项）、`run(p, body, ok)`（做一次有代表性的操作并断言）。测试自动检查：答题前实验台关着、选完后打开、没有控制台报错。章节列表是自动读 `chapters/` 目录的，不用改。
-13. 提交。提交信息用中文。只 `git add` 动过的路径。
+大部分指令把数据送到 DOM。`@` 把事件送回代码。
+
+</template>
+</Figure>
+```
+
+`<Figure>` 和 `<FigName />` 之间不要空行。
+
+### 实验台
+
+脚本生成 `<Lab>` 外壳和“先猜”题：
+
+```md
+<Lab id="demo-refs" title="实验台：解构和浅层响应" note="运行真实的 Vue">
+<template #predict>
+<Sc predict :a="1">
+
+先猜：……
+
+<Opt>选项一</Opt>
+<Opt>选项二</Opt>
+
+<template #explain>
+
+解析：……
+
+</template>
+</Sc>
+</template>
+
+<LabTodo id="demo-refs" hint="旧脚本第 9539 行" />
+</Lab>
+```
+
+你要做的：把旧脚本里挂载这个实验台的代码（清单里有行号）改写成 `labs/NN-id/名字.vue`，把 `<LabTodo …/>` 换成 `<名字 />`，并在章开头导入。
+
+- `id`：旧 `.lab-body` 的 id，也是“先猜”答案的存储键（`p:id`）。必须唯一，不能改。
+- 没有 `#predict` 插槽的实验台一开始就是打开的。有时：猜之前正文不显示；选完后打开；出现“核对我的猜测”按钮，点它才显示解析。
+- 实验台正文只在浏览器里渲染，接近视口才挂载；放在折叠的 `::: deep` 里时，展开后才挂载（测试要先点开深入块）。`<Lab>` 的结束标签和 `:::` 之间要空一行。
+- 实验台 SFC 用普通写法（`<script setup>` + `<template>`），逻辑不变，只把命令式 DOM 操作改成模板。可直接用 `<LabCode>`（旧 `pre.code` + `hl()`）。
+- **样式**：控件类名已在 `style.css`：`.row .b(.pri .on) .cap .cols .box .t .ctl .tabs .log .pill .domview pre.code .kv .bucket .keys .kbox .legend .ops .hook-grid .hook .view .vl .vrow .stepper .kanban .task .q .opts .opt .explain .score .flash textarea.t`，旧版 CSS（`vue3-course.html` 5–429 行）里有的都已搬来。**实验台私有的、旧 CSS 里没有的样式**写在自己 SFC 的 `<style scoped>` 里。旧 CSS 里没有的类名（`.card` `.item` `.pheno-modal` 等）本来就没有样式，不用补。
+- **多标签页实验台**（旧版 `TABS = [{name, tip, code, comp}]`）：每个标签页的 `comp` 拆成一个小 SFC，放在同一个 `labs/NN-id/` 目录；外壳直接用通用组件 `<TabbedLab :tabs="TABS" />`（`name` `tip` `code` `comp`，`code` 省略就只显示运行效果；默认插槽参数 `{ tab, index }` 可在下面加内容）。第 2 章 `labs/02-template/DirectivePlayground.vue` 是样例。
+- **共用辅助函数**从 `labs/_shared` 导入：`import { domLog, dLogBuf, useMouse, useDebounced } from '../_shared'`。`domLog(el, 类, 消息)` 往一个 `<div class="log">` 里写日志（原生 DOM，不用响应式数组）；`dLogBuf()` 在日志元素出现前缓存；`useMouse`、`useDebounced` 是第 9 章的组合式函数示例。旧脚本里别的实验台共用的函数（`$`、`esc`、`hl` 等）：`hl` 对应 `<LabCode>`，其余用不到。要新增共用函数时记进报告，交给主控。
+- **读 DOM 的实验台**（“渲染出的属性”“当前 HTML”）：用 `ref` 拿元素，在 `onMounted` 和 `watch(…, { flush: 'post' })` 里读 `getAttribute` 或 `innerHTML`。多行文字写成表达式 `{{ 'a' + '\n' + 'b' }}`，模板里直接换行会被压成一个空格。
+- **指令钩子、生命周期钩子的日志不能用响应式数据**：钩子在渲染中运行，里面改响应式数据会触发新渲染，形成死循环。用 `domLog` 往空的 `<div class="log" ref="logRef">` 里写。
+- 自定义指令在 `<script setup>` 里写成 `const vXxx = {…}`，模板里就是 `v-xxx`。
+- 旧脚本里有 `safeMount` / `mountNow` / `lazyIO`：旧的按需挂载机制，`<Lab>` 已经自带，不用搬。
+- 手写的大型交互（响应式原理的手写响应式、diff 模拟器、宏编译对照、在线编译、综合实战看板、综合测验）：脚本行号范围在转换脚本的清单里。逻辑尽量原样搬，拆成几个小 SFC。
+
+## 6. 实验台测试数据 `tests/site/labs/NN-id.js`
+
+章里每个 `<Lab id>` 都要有一项（测试会检查）。CommonJS，导出数组：
+
+```js
+module.exports = [
+  {
+    id: 'demo-refs',                       // <Lab id>
+    name: '点“解构”按钮后 count 停在 0',     // 说明
+    pick: 1,                               // “先猜”点哪一项（任意一项都会打开实验台）
+    async run(p, body, ok) {               // p：Playwright 页面；body：实验台正文的 locator；ok(条件, 说明)
+      await body.getByRole('button', { name: '解构' }).click()
+      ok(/count = 0/.test(await body.textContent()), '解构后的 count 仍是 0')
+    }
+  }
+]
+```
+
+测试自动检查：答题前实验台关着（`.lab.gated`）、选完后打开、没有控制台报错；在深入块里的实验台会先自动点开。`run` 里做一次有代表性的操作并断言。第 2 章的 `tests/site/labs/02-template.js` 是样例。
 
 ## 7. 踩过的坑
 
@@ -459,10 +539,9 @@ export const counter: Exercise = {
    - `<Figure>` 里的三行不要空行，否则图会被拆开。
    - 块后面紧跟 `:::` 时，中间要空一行。否则 `:::` 会被当成块里的文字，容器不结束。
    - `<Goal>` 和 `<Opt>` 是例外：它们已被配置成行内组件，行内的反引号和粗体照常解析，所以可以一行一个、连续写。
-3. **`**粗体**` 后面紧跟汉字会失败。** 例如 `**场景：……。**后台页面` 不会变粗，星号会原样显示。原因：结尾的 `**` 前面是句号，后面是汉字。遇到时改用 `<b>场景：……。</b>`。文字不变。
-3.5. **`**粗体**` 前面紧跟汉字、里面又以中文引号开头也会失败。** 例如 `的**“小纸条”**，告诉` 不会变粗：开头的 `**` 前面是汉字、后面是引号，不算“左侧可粘连”。同样改用 `<b>“小纸条”</b>`。
+3. **中文粗体已修好。** `markdown-cjk.mts` 放宽了 `**` 的判断：中文标点和弯引号当普通文字，`**` 紧邻汉字时也允许贴着 ASCII 标点。所以 `**场景：……。**后台页面`、`的**“小纸条”**，告诉`、`**说明：**Vue` 都能直接写 `**`，不用 `<b>`（第 1、2 章里已有的 `<b>` 保留不动）。仍然失败的少数情况（例如 `**` 里面以空格开头）：`compare.mjs` 会报“字面的 **”，改用 `<b>…</b>`。
 4. **代码块外的 `<script>` 标签。** VitePress 会把行首的 `<script>` 当成页面脚本抽走。正文里讲 `<script setup>` 时，要么放进围栏代码块，要么放进行内代码（反引号）。只有每章开头那一个 `<script setup>` 是真的脚本。
-4.5. **正文文字里不要用 HTML 实体。** `&lt;p&gt;` 会被站点的文字规则再转义一次，页面上显示成字面的 `&lt;p&gt;`。旧文字里的 `&lt;p&gt;` 改写成行内代码 `` `<p>` ``（只多了代码样式，文字不变）。`Exercise` 的 `task` 字符串是 HTML，里面的 `&lt;` 仍然要保留。
+4.5. **正文文字里不要用 HTML 实体。** `&lt;p&gt;` 会被站点的文字规则再转义一次，页面上显示成字面的 `&lt;p&gt;`。脚本把旧文字里的 `&lt;` 输出成转义的 `\<`（页面上显示 `<`，没有代码样式）；如果旧文字这里本来是标签名，建议手工改成行内代码 `` `<p>` ``（第 2 章的做法，只多了代码样式，文字不变）。`Exercise` 的 `task` 字符串是 HTML，里面的 `&lt;` 仍然要保留。
 5. **围栏代码块里的 `</script>` 不用转义。** 旧的 `<\/script>` 和 `<\!--` 要改回正常写法。
 6. **容器嵌套要用更多的冒号。** `pair` 里套 `col`，外层四个冒号，内层三个。`deep` 里不要再套别的容器。
 7. **`::: deep` 的标题里可以写行内 Markdown**（反引号等）。但不要写 `{{ }}` 以外的特殊字符。
@@ -471,4 +550,7 @@ export const counter: Exercise = {
 10. **练习组件只在浏览器里渲染。** 服务端渲染出来的页面里只有占位。测试要等编辑器出现（`.ex[data-ex]`）。
 11. **进度只存 localStorage**，键前缀 `vue3deep:`。键的含义见 `composables/store.ts` 开头的注释。不要做服务端同步。
 12. **中文搜索**用的是 VitePress 本地搜索，对没有空格的中文分词一般。第 1 章没有处理。
-13. 本机 4173 端口可能被别的项目占用。`test:site` 自己选空闲端口，不受影响。手动 `npm run preview` 时用 `-- --port 4791`。
+13. 本机 4173 端口可能被别的项目占用。测试和截图脚本自己选空闲端口，不受影响。手动预览时用 `-- --port 4791`。
+14. **不要用 `npm run build` 或 `npm run test:site` 验证自己的章。** 它们构建全站、写共享的 `dist`。用 `tests/site/exercises.test.js 章名`、`compare.mjs … --build`、`shot.mjs`，它们只构建你的章到临时目录。原理：环境变量 `COURSE_CHAPTERS`（只构建这些章，其余 `srcExclude`）、`COURSE_OUT_DIR`、`COURSE_CACHE_DIR`。
+15. **别人写到一半的 `exercises/*.ts` 会让全站构建失败**，但只构建指定章时 `exercises/index.ts` 只加载这些章的练习文件，不受影响。你自己的练习文件有语法错误时，构建会报错。
+16. **实验台里用到 `<LabCode>`、`<TabbedLab>` 等通用组件时直接写标签**，主题已全局注册，不用导入。

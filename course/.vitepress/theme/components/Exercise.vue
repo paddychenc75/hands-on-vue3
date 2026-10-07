@@ -35,6 +35,9 @@ const hintBtn = computed(() => (hintLv.value > 0 && hintLv.value < hints.length 
 // ---- Vue（带编译器）和编辑器：挂载后才动态加载 ----
 let V: any = null
 let API: Record<string, unknown> = {}
+// 运行练习脚本时额外提供全局 Vue（旧版页面里 window.Vue 是全局的，练习代码里有 Vue.createApp 这样的写法）。
+// 不放进 API：API 的名字会进编辑器的自动补全，Vue 不需要。
+let RUN: Record<string, unknown> = {}
 let cmTpl: any = null
 let cmJs: any = null
 let app: any = null
@@ -77,7 +80,7 @@ function run(): boolean {
   out.appendChild(mountEl)
   let fn: (...a: unknown[]) => unknown
   try {
-    fn = new Function(...Object.keys(API), js.value) as any
+    fn = new Function(...Object.keys(RUN), js.value) as any
   } catch (e: any) {
     showErr('脚本语法错误：' + e.message)
     return false
@@ -87,7 +90,7 @@ function run(): boolean {
     app = V.createApp({
       template: tpl.value,
       setup() {
-        const r: any = fn(...Object.values(API))
+        const r: any = fn(...Object.values(RUN))
         if (!r || typeof r !== 'object') throw new Error('setup 必须返回一个对象，例如 return { count }')
         if (r.components) {
           Object.entries(r.components).forEach(([k, v]) => app.component(k, v))
@@ -187,6 +190,7 @@ onMounted(async () => {
     toRefs: V.toRefs, toRef: V.toRef, shallowRef: V.shallowRef, nextTick: V.nextTick,
     onMounted: V.onMounted, onUnmounted: V.onUnmounted, provide: V.provide, inject: V.inject
   }
+  RUN = { ...API, Vue: V }
   const mk = (host: HTMLElement, doc: string, lang: 'tpl' | 'js', onChange: (v: string) => void) =>
     cm.create({
       parent: host, doc, lang, api: Object.keys(API), onRun: () => onCheck(),

@@ -58,8 +58,13 @@ key
 
 指令是以 `v-` 开头的特殊属性。指令把数据连接到 DOM 元素。下图说明各种指令传递数据的方向。
 
-<Figure caption="大部分指令把数据送到 DOM。@ 把 DOM 事件送回代码。v-model 两个方向都做。">
+<Figure>
 <DirectiveFlow />
+<template #caption>
+
+大部分指令把数据送到 DOM。`@` 把 DOM 事件送回代码。`v-model` 两个方向都做。
+
+</template>
 </Figure>
 
 下表列出最常用的指令。后面每一节讲一组。
@@ -150,8 +155,13 @@ const disabled = ref(true)
 
 两者都按条件显示元素。条件为假时，它们隐藏元素的方式不同，见下图。
 
-<Figure caption="条件变为假时，v-if 删除元素，只留一个注释占位。v-show 保留元素，只设置 display: none。">
+<Figure>
 <IfVsShow />
+<template #caption>
+
+条件变为假时，v-if 删除元素，只留一个注释占位。v-show 保留元素，只设置 `display: none`。
+
+</template>
 </Figure>
 
 多个分支用 `v-else-if` 和 `v-else`。它们必须紧跟在 v-if 元素后面。中间有其他元素时，编译器报错。

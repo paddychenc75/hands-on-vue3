@@ -152,7 +152,7 @@ provide('theme', theme)   // 提供 ref 本身，后代拿到同一个 ref
 
 return { theme, components: { Layout } }`,
   hints: [
-    '原因：App 提供给后代的是 theme 当时的值，也就是字符串 \'light\'。字符串不是响应式数据。之后 theme 改变，后代拿到的仍是旧字符串。要把“能被跟踪的数据”本身交给后代。第 5 章 5.5 节最后的注意讲了它。',
+    '原因：App 提供给后代的是 theme 当时的值，也就是字符串 \'light\'。字符串不是响应式数据。之后 theme 改变，后代拿到的仍是旧字符串。要把“能被跟踪的数据”本身交给后代。第 5 章 5.6 节最后的注意讲了它。',
     '只改 App 中向后代提供数据的那一行。去掉 .value，提供 ref 本身。ThemeBadge 不用改：模板自动解包 ref。',
     "provide('theme', theme)"
   ],

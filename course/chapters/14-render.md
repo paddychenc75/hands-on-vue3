@@ -82,6 +82,24 @@ props 中的属性规则如下：
 - 事件写为 `onXxx`。例如 `onClick`、`onUpdate:modelValue`。
 - DOM 属性和组件 props 写在同一个对象中。
 
+`h('p', { class: 'x' }, 'hi')` 返回一个普通对象。下面只列常用字段：
+
+```js
+{
+  type: 'p',               // 标签名或组件对象
+  props: { class: 'x' },
+  children: 'hi',          // 文字、数组或插槽对象
+  key: null,
+  el: null,                // 挂载后指向真实 DOM
+  shapeFlag: 9,            // ELEMENT | TEXT_CHILDREN：这个节点和它的子节点是什么形态
+  patchFlag: 0,            // 手写 h() 没有标记（第 15 章）
+  dynamicChildren: null,   // 只有编译器生成的 Block 才有（第 15 章）
+  component: null          // 组件 vnode 挂载后指向组件实例
+}
+```
+
+后面的章节会用到这些字段。第 15 章读 `patchFlag` 和 `dynamicChildren`。第 16 章读 `type`、`key` 和 `el`，用它们判断两个节点能否复用。第 23、24 章读 `el`，它就是 vnode 对应的 DOM 节点。
+
 ### 14.1 在 setup 中返回渲染函数
 
 setup 可以返回一个函数。Vue 把这个函数作为组件的渲染函数。函数中读取的响应式数据成为渲染的依赖。

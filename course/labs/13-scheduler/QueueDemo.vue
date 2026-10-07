@@ -23,5 +23,5 @@ function run() {
 <template>
   <div class="row"><button class="b pri" @click="run">count++</button><span>父组件 count = {{ count }}</span><QueueChild :n="count" :log="L" /></div>
   <div class="log" ref="logRef" style="height: 220px"></div>
-  <div class="cap">从下向上读日志：前置任务 → 父组件更新 → 子组件更新 → 后置任务 → nextTick。</div>
+  <div class="cap">从下向上读日志：pre 侦听器 → 父组件更新（其中同步更新子组件）→ 后置任务（post 侦听器、子组件 onUpdated、父组件 onUpdated）→ nextTick。post 侦听器在数据改变时就入队，所以排在 onUpdated 之前。子组件的更新在父组件 patch 里完成，所以它的 onUpdated 先运行。</div>
 </template>

@@ -66,3 +66,36 @@ return { tabs, cur, getCreated: () => created }`,
     T.ok(created() === 1, 'TabA 只创建 1 次实例，切回时使用缓存（当前 ' + created() + ' 次）');
   }
 }
+
+export const teleportFill: Exercise = {
+  title: '补全：用 Teleport 把弹窗渲染到 body', ch: 7,
+  task: '<p>下面的弹窗放在一个 <code>overflow: hidden</code> 的卡片里，会被裁剪。只修改模板中的 TODO。</p><ol><li>TODO：用 <code>&lt;Teleport to="body"&gt;</code> 包住弹窗 <code>&lt;div class="modal"&gt;</code>，只包弹窗，不包按钮。</li><li>点击“打开弹窗”。弹窗是 body 的直接子元素，内容仍然显示组件的数据 msg。</li><li>点击“关闭”。弹窗消失。</li></ol>',
+  tpl: '<div class="card" style="overflow: hidden; height: 60px">\n  <button @click="open = true">打开弹窗</button>\n  <!-- TODO：用 <Teleport to="body"> 和 </Teleport> 包住弹窗 -->\n  <div v-if="open" class="modal">\n    <p>弹窗内容：{{ msg }}</p>\n    <button @click="open = false">关闭</button>\n  </div>\n</div>',
+  js: 'const open = ref(false)\nconst msg = ref(\'任务已保存\')\n\nreturn { open, msg }',
+  solTpl: '<div class="card" style="overflow: hidden; height: 60px">\n  <button @click="open = true">打开弹窗</button>\n  <Teleport to="body">\n    <div v-if="open" class="modal">\n      <p>弹窗内容：{{ msg }}</p>\n      <button @click="open = false">关闭</button>\n    </div>\n  </Teleport>\n</div>',
+  hints: [
+    '<Teleport> 把内容渲染到其他 DOM 位置，数据和事件仍然属于原来的组件。第 7 章“7.3 用 Teleport 把弹窗渲染到 body 中”讲了它。',
+    '只改模板。在 <div v-if="open" class="modal"> 的上一行写 <Teleport to="body">，在这个 div 的结束标签后写 </Teleport>。按钮留在 Teleport 外面。',
+    '<Teleport to="body">\n  <div v-if="open" class="modal">\n    <p>弹窗内容：{{ msg }}</p>\n    <button @click="open = false">关闭</button>\n  </div>\n</Teleport>'
+  ],
+  async check(T) {
+    const modal = () => document.body.querySelector(':scope > .modal') as HTMLElement | null
+    T.ok(!modal() && !T.$('.modal'), '初始没有弹窗')
+    const open = T.btn('打开弹窗')
+    if (!open) { T.ok(false, '卡片里有“打开弹窗”按钮（按钮不要放进 Teleport）'); return }
+    await T.click(open)
+    T.ok(!!modal(), '打开后，弹窗是 body 的直接子元素')
+    T.ok(!T.$('.modal'), '弹窗不在卡片里面')
+    T.ok(!!modal() && /任务已保存/.test(modal()!.textContent || ''), '弹窗仍然显示组件的数据 msg')
+    const close = modal() && ([...modal()!.querySelectorAll('button')].find(b => /关闭/.test(b.textContent || '')) as HTMLElement | undefined)
+    if (!close) { T.ok(false, '弹窗里有“关闭”按钮'); return }
+    close.click()
+    await nextTick()
+    T.ok(!modal(), '点击“关闭”后，弹窗消失')
+  },
+  wrong: [
+    { tpl: '<div class="card" style="overflow: hidden; height: 60px">\n  <Teleport to="body">\n    <button @click="open = true">打开弹窗</button>\n    <div v-if="open" class="modal">\n      <p>弹窗内容：{{ msg }}</p>\n      <button @click="open = false">关闭</button>\n    </div>\n  </Teleport>\n</div>', why: '这样把“打开弹窗”按钮也移到了 body。只把弹窗放进 Teleport，按钮留在原位置。' },
+    { tpl: '<div class="card" style="overflow: hidden; height: 60px">\n  <button @click="open = true">打开弹窗</button>\n  <Teleport to="body" disabled>\n    <div v-if="open" class="modal">\n      <p>弹窗内容：{{ msg }}</p>\n      <button @click="open = false">关闭</button>\n    </div>\n  </Teleport>\n</div>', why: 'disabled 让内容留在原位置，不移到 body。需要移动时不要写 disabled。' },
+    { tpl: '<div class="card" style="overflow: hidden; height: 60px">\n  <button @click="open = true">打开弹窗</button>\n  <Teleport to="#modal-root">\n    <div v-if="open" class="modal">\n      <p>弹窗内容：{{ msg }}</p>\n      <button @click="open = false">关闭</button>\n    </div>\n  </Teleport>\n</div>', why: '目标 #modal-root 在页面中不存在，Teleport 找不到目标，内容不显示。目标元素必须已经存在。' }
+  ]
+}

@@ -143,7 +143,7 @@ import { useId } from 'vue'
 const model = defineModel()                 // 3.4+：父组件的 v-model 绑定到这里
 const props = defineProps({ label: String, error: String })
 const id = useId()                           // 3.5+：生成唯一的 id，服务端和客户端一致
-defineOptions({ inheritAttrs: false })       // 透传属性放在 input 上，不放在根元素上
+defineOptions({ inheritAttrs: false })       // 透传属性放在 input 上，不放在根元素上（第 5.3 节）
 </script>
 
 <template>

@@ -2,14 +2,14 @@
 // 实验台：自定义指令的钩子（旧版 #demo-directive）
 // 日志直接写进 DOM，不用响应式数据。原因：钩子在渲染过程中运行，
 // 如果钩子里修改响应式数据，会触发新的渲染，新的渲染又运行钩子，形成死循环。
-import { domLog } from '../_shared'
+import { dLogBuf } from '../_shared'
 import { onMounted, ref } from 'vue'
 
-let logEl: HTMLElement | null = null
+// dLogBuf：日志元素出现之前先缓存。首屏挂载时 created、mounted 早于父组件的 onMounted，缓存才不丢日志
+const { L: log, attach } = dLogBuf()
 const COLORS: Record<string, string> = { yellow: 'var(--warn-soft)', blue: 'var(--info-soft)' }
 const L = (hook: string, binding: any) =>
-  domLog(
-    logEl,
+  log(
     hook.includes('nmount') ? 'x' : hook.includes('pdate') ? 'tg' : 'rn',
     hook + '  arg=' + binding.arg + '  value=' + binding.value + '  oldValue=' + binding.oldValue + '  modifiers=' + JSON.stringify(binding.modifiers)
   )
@@ -31,7 +31,7 @@ const on = ref(false)
 const show = ref(true)
 const n = ref(0)
 const logRef = ref<HTMLElement | null>(null)
-onMounted(() => { logEl = logRef.value })
+onMounted(() => attach(logRef.value))
 </script>
 
 <template>

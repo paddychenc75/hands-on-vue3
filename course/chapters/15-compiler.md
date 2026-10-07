@@ -146,7 +146,7 @@ function patchElement(n1, n2) {
   const { patchFlag, dynamicChildren } = n2
 
   if (dynamicChildren) patchBlockChildren(n1.dynamicChildren, dynamicChildren)  // 只比较动态后代
-  else fullDiffChildren(n1, n2)                                                    // 没有优化信息：全量比较
+  else fullDiffChildren(n1, n2)                                                    // 没有优化信息（手写 h()）：全量比较子节点
 
   if (patchFlag > 0) {
     if (patchFlag & PatchFlags.FULL_PROPS) patchProps(el, n1.props, n2.props)   // 比较所有属性
@@ -157,9 +157,13 @@ function patchElement(n1, n2) {
         for (const key of n2.dynamicProps) patchProp(el, key, n1.props[key], n2.props[key])  // 只比较列出的属性
     }
     if (patchFlag & PatchFlags.TEXT && n1.children !== n2.children) setElementText(el, n2.children)
+  } else if (!dynamicChildren) {
+    patchProps(el, n1.props, n2.props)                                               // 没有编译信息（手写 h()）：比较所有属性
   }
 }
 ```
+
+真实代码的条件还多检查一个 `optimized` 参数。它在 Block 更新时为 true，这里省略。
 :::
 
 下面两道练习在迷你版 patchElement 中用按位与检查标记。
@@ -170,7 +174,15 @@ function patchElement(n1, n2) {
 
 ### 15.3 Block Tree：只比较动态节点
 
-`openBlock()` 开始收集动态节点。Block 是一个虚拟节点。它有一个 `dynamicChildren` 数组，数组中是这个 Block 内部所有带 PatchFlag 的后代，没有层级。更新时，Vue 只比较 dynamicChildren，不遍历整棵树。下图显示一个 Block 怎样收集动态节点。
+`openBlock()` 把一个新数组压入栈顶。之后每创建一个 vnode，如果它的 patchFlag 大于 0，或者它是组件，就把自己推进这个数组。`createElementBlock` 创建 Block 节点时，把这个数组取下来，作为它的 `dynamicChildren`。
+
+所以 `dynamicChildren` 里有三类节点：
+
+- 带 PatchFlag 的元素。
+- 所有组件。组件 vnode 没有 PatchFlag，也一定被收集。父组件更新时，Vue 对每个子组件都会比较一次新旧 props，再决定要不要更新它（第 21 章）。
+- 嵌套的子 Block，例如 `v-if` 的分支和 `v-for` 的 Fragment。子 Block 内部的节点在它自己的 `dynamicChildren` 里，不平铺到外层。
+
+更新时，Vue 只比较 `dynamicChildren`，不遍历整棵树。下图显示一个 Block 怎样收集动态节点。
 
 <Figure caption="Block 把所有动态后代平铺到 dynamicChildren。更新时，Vue 只比较 p 的文字和 li 的 class，跳过静态节点和中间层级。">
 <BlockDynamicChildren />

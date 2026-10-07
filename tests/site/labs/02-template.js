@@ -44,6 +44,7 @@ module.exports = [
       const lines = async () => (await body.locator('.log > div').allTextContents()).map(t => t.replace(/^\S+\s+/, ''))
       const count = (ls, hook) => ls.filter(t => t.startsWith(hook + ' ')).length
       const before = await lines()
+      ok(count(before, 'created') === 2 && count(before, 'mounted') === 2, '首屏日志有 2 条 created 和 2 条 mounted')
       await body.getByRole('button', { name: /无关数据 n\+\+/ }).click()
       await p.waitForTimeout(100)
       const after = await lines()

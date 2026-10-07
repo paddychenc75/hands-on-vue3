@@ -20,6 +20,8 @@ module.exports = [
     async run(p, body, ok) {
       await body.locator('.hook-grid .hook').first().waitFor()
       ok((await body.locator('.hook-grid .hook').count()) === 9, '有 9 个钩子格')
+      const first = await body.locator('.log').textContent()
+      ok(/Child setup/.test(first) && /Child onBeforeMount/.test(first) && /Child onMounted/.test(first), '首屏日志有 Child 的 setup、onBeforeMount、onMounted')
       await body.getByRole('button', { name: /卸载 Child/ }).click()
       let log = await body.locator('.log').textContent()
       ok(/Child onBeforeUnmount/.test(log) && /Child onUnmounted/.test(log), '卸载时触发 onBeforeUnmount 和 onUnmounted')

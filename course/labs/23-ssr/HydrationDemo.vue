@@ -44,7 +44,7 @@ function hydrate() {
   const origErr = console.error
   const origWarn = console.warn
   let mism = false
-  // 开发版的 Vue 用 console.warn 报告不匹配；生产版不报告，所以下面再用 HTML 有没有变化补一道判断
+  // 开发版用 console.warn 报告每一处不匹配；生产版只用 console.error 报一句总结，所以再用 HTML 是否变化补一道判断
   console.error = (...a: any[]) => { if (String(a[0]).includes('ydration')) mism = true; else origErr(...a) }
   console.warn = (...a: any[]) => { if (String(a[0]).includes('ydration')) mism = true; else origWarn(...a) }
   try {

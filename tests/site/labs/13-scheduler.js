@@ -21,6 +21,7 @@ module.exports = [
       const order = ["flush: 'pre'", '父组件 onBeforeUpdate', '子组件 onBeforeUpdate', "flush: 'post'", 'nextTick 回调'].map(idx)
       ok(order.every(i => i >= 0), '五类日志都出现')
       ok(order.every((v, i) => i === 0 || v > order[i - 1]), '顺序正确：' + order.join(','))
+      ok(idx("flush: 'post'") < idx('子组件 onUpdated') && idx('子组件 onUpdated') < idx('父组件 onUpdated'), 'post 侦听器先于子组件 onUpdated，子组件 onUpdated 先于父组件')
       ok(idx('子组件 onUpdated') > 0 && idx('父组件 onUpdated') > 0 && idx('父组件 onUpdated') < idx('nextTick 回调'), '更新完成的钩子都在 nextTick 回调之前')
     }
   }

@@ -1,6 +1,176 @@
 import type { Exercise } from './types'
 import { nextTick } from 'vue'
 
+export const kanbanItem: Exercise = {
+  title: '拆出 TaskItem 组件：props 向下，事件向上', ch: 26,
+  task: '<p>下面的看板已经拆成父组件和 TaskItem。父组件有数据和 toggle、remove 两个方法。TaskItem 还没写完。</p><ol><li>TODO 1：声明 props。<code>task</code> 是对象，必填。</li><li>TODO 2：声明两个事件：<code>toggle</code> 和 <code>remove</code>。</li><li>TODO 3：点击复选框时，发出 <code>toggle</code>，参数是任务的 id。点击“删除”时，发出 <code>remove</code>，参数是任务的 id。</li></ol><p>TaskItem 不修改 <code>task</code>。修改数据是父组件的事。页面下方的计数显示父组件收到了几次事件。</p>',
+  tpl: '<ul>\n  <TaskItem v-for="t in tasks" :key="t.id" :task="t" @toggle="toggle" @remove="remove" />\n</ul>\n<p class="log">父组件收到：toggle {{ log.toggle }} 次，remove {{ log.remove }} 次</p>',
+  js: `// ---------- 父组件的数据和方法。不要修改。 ----------
+const tasks = ref([
+  { id: 1, text: '读完响应式原理', done: true },
+  { id: 2, text: '完成练习', done: false },
+  { id: 3, text: '写一个 useFetch', done: false }
+])
+const log = reactive({ toggle: 0, remove: 0 })
+function toggle(id) {
+  log.toggle++
+  const task = tasks.value.find(t => t.id === id)
+  if (task) task.done = !task.done
+}
+function remove(id) {
+  log.remove++
+  tasks.value = tasks.value.filter(t => t.id !== id)
+}
+
+// ---------- 子组件。补全三处 TODO。 ----------
+const TaskItem = {
+  // TODO 1：声明 props：task，对象，必填
+  props: {},
+  // TODO 2：声明事件 toggle 和 remove
+  emits: [],
+  template: \`
+    <li>
+      <input type="checkbox" :checked="task.done">
+      <span class="text">{{ task.text }}</span>
+      <span class="state">{{ task.done ? '已完成' : '未完成' }}</span>
+      <button>删除</button>
+    </li>\`
+  // TODO 3：在复选框上监听 change，在按钮上监听 click，用 $emit 通知父组件
+}
+
+return { tasks, log, toggle, remove, components: { TaskItem } }`,
+  solJs: `const tasks = ref([
+  { id: 1, text: '读完响应式原理', done: true },
+  { id: 2, text: '完成练习', done: false },
+  { id: 3, text: '写一个 useFetch', done: false }
+])
+const log = reactive({ toggle: 0, remove: 0 })
+function toggle(id) {
+  log.toggle++
+  const task = tasks.value.find(t => t.id === id)
+  if (task) task.done = !task.done
+}
+function remove(id) {
+  log.remove++
+  tasks.value = tasks.value.filter(t => t.id !== id)
+}
+
+const TaskItem = {
+  props: { task: { type: Object, required: true } },
+  emits: ['toggle', 'remove'],
+  template: \`
+    <li>
+      <input type="checkbox" :checked="task.done" @change="$emit('toggle', task.id)">
+      <span class="text">{{ task.text }}</span>
+      <span class="state">{{ task.done ? '已完成' : '未完成' }}</span>
+      <button @click="$emit('remove', task.id)">删除</button>
+    </li>\`
+}
+
+return { tasks, log, toggle, remove, components: { TaskItem } }`,
+  hints: [
+    '数据归父组件。子组件只做两件事：用 props 接收任务，用事件把用户的操作告诉父组件。父组件收到事件后修改数据，新数据再通过 props 流回子组件。第 5 章讲了这个单向数据流。',
+    'props 写成对象：{ task: { type: Object, required: true } }。emits 写成数组：[\'toggle\', \'remove\']。模板里，复选框写 @change="$emit(\'toggle\', task.id)"，删除按钮写 @click="$emit(\'remove\', task.id)"。',
+    "props: { task: { type: Object, required: true } },\nemits: ['toggle', 'remove'],\n// 复选框\n@change=\"$emit('toggle', task.id)\"\n// 删除按钮\n@click=\"$emit('remove', task.id)\""
+  ],
+  async check(T) {
+    const rows = () => T.$$('li');
+    const row = n => rows().find(li => ((li.querySelector('.text') || {}).textContent || '').trim() === n);
+    const state = n => ((row(n) && row(n).querySelector('.state')) || {}).textContent;
+    const logText = () => ((T.$('.log') || {}).textContent || '');
+    T.ok(rows().length === 3, '显示 3 个任务（当前 ' + rows().length + ' 个）');
+    if (rows().length !== 3 || !row('完成练习')) return;
+    const cb = row('完成练习').querySelector('input[type=checkbox]');
+    await T.click(cb);
+    T.ok(/toggle 1 次/.test(logText()), '点击复选框后，父组件收到 1 次 toggle 事件（当前：' + logText().trim() + '）');
+    T.ok(state('完成练习') === '已完成', '父组件修改数据后，“完成练习”显示“已完成”（当前：' + state('完成练习') + '）');
+    const del = row('写一个 useFetch') && row('写一个 useFetch').querySelector('button');
+    await T.click(del);
+    T.ok(/remove 1 次/.test(logText()), '点击“删除”后，父组件收到 1 次 remove 事件（当前：' + logText().trim() + '）');
+    T.ok(!row('写一个 useFetch') && rows().length === 2, '“写一个 useFetch”从列表中消失');
+    T.ok(/toggle 1 次/.test(logText()), 'toggle 仍然只有 1 次。子组件不直接修改 task');
+  },
+  wrong: [
+    {
+      js: `const tasks = ref([
+  { id: 1, text: '读完响应式原理', done: true },
+  { id: 2, text: '完成练习', done: false },
+  { id: 3, text: '写一个 useFetch', done: false }
+])
+const log = reactive({ toggle: 0, remove: 0 })
+function toggle(id) { log.toggle++ }
+function remove(id) { log.remove++; tasks.value = tasks.value.filter(t => t.id !== id) }
+const TaskItem = {
+  props: { task: { type: Object, required: true } },
+  emits: ['toggle', 'remove'],
+  template: \`
+    <li>
+      <input type="checkbox" :checked="task.done" @change="task.done = !task.done">
+      <span class="text">{{ task.text }}</span>
+      <span class="state">{{ task.done ? '已完成' : '未完成' }}</span>
+      <button @click="$emit('remove', task.id)">删除</button>
+    </li>\`
+}
+return { tasks, log, toggle, remove, components: { TaskItem } }`,
+      why: '子组件直接修改 props 里的对象。页面看起来能用，但父组件没有收到 toggle 事件。数据的修改散落在子组件里，很难追踪。要通过事件让父组件修改。'
+    },
+    {
+      js: `const tasks = ref([
+  { id: 1, text: '读完响应式原理', done: true },
+  { id: 2, text: '完成练习', done: false },
+  { id: 3, text: '写一个 useFetch', done: false }
+])
+const log = reactive({ toggle: 0, remove: 0 })
+function toggle(id) {
+  log.toggle++
+  const task = tasks.value.find(t => t.id === id)
+  if (task) task.done = !task.done
+}
+function remove(id) { log.remove++; tasks.value = tasks.value.filter(t => t.id !== id) }
+const TaskItem = {
+  props: { task: { type: Object, required: true } },
+  emits: ['toggle', 'remove'],
+  template: \`
+    <li>
+      <input type="checkbox" :checked="task.done" @change="$emit('toggle')">
+      <span class="text">{{ task.text }}</span>
+      <span class="state">{{ task.done ? '已完成' : '未完成' }}</span>
+      <button @click="$emit('remove')">删除</button>
+    </li>\`
+}
+return { tasks, log, toggle, remove, components: { TaskItem } }`,
+      why: '事件没有带参数。父组件收到了 toggle，但不知道是哪个任务，找不到要修改的数据。事件要带上 task.id。'
+    },
+    {
+      js: `const tasks = ref([
+  { id: 1, text: '读完响应式原理', done: true },
+  { id: 2, text: '完成练习', done: false },
+  { id: 3, text: '写一个 useFetch', done: false }
+])
+const log = reactive({ toggle: 0, remove: 0 })
+function toggle(id) {
+  log.toggle++
+  const task = tasks.value.find(t => t.id === id)
+  if (task) task.done = !task.done
+}
+function remove(id) { log.remove++; tasks.value = tasks.value.filter(t => t.id !== id) }
+const TaskItem = {
+  props: { task: { type: Object, required: true } },
+  emits: ['toggle', 'remove'],
+  template: \`
+    <li>
+      <input type="checkbox" :checked="task.done" @change="$emit('change', task.id)">
+      <span class="text">{{ task.text }}</span>
+      <span class="state">{{ task.done ? '已完成' : '未完成' }}</span>
+      <button @click="$emit('delete', task.id)">删除</button>
+    </li>\`
+}
+return { tasks, log, toggle, remove, components: { TaskItem } }`,
+      why: '事件名和父组件监听的名字不一致。父组件监听 @toggle 和 @remove，子组件发出了 change 和 delete，父组件收不到。'
+    }
+  ]
+}
+
 export const kanbanSave: Exercise = {
   title: '补上 remove，并把任务保存到 localStorage', ch: 26,
   task: '<p>下面是第 5 步的 useTasks 和看板组件。“删除”按钮没有作用。刷新后，任务恢复为示例数据。</p><ol><li>补上 remove。点击“删除”后，任务从列表中消失。</li><li>useTasks 创建 tasks 时，先从 localStorage 读取。没有数据时，用 seed()。</li><li>tasks 改变时，写入 localStorage。勾选复选框也要保存。</li></ol><p>只修改 useTasks 函数。不要修改 key。点击“模拟刷新”检查结果。原因：模拟刷新会重新创建看板，useTasks 重新运行，和刷新页面相同。</p>',

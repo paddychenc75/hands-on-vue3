@@ -67,6 +67,8 @@ nextTick
 3. 当前同步代码运行完成。
 4. Vue 在一个微任务中按顺序运行所有任务。
 
+父组件重新渲染时，props 改变的子组件在父组件的 patch 过程中同步更新，不单独排队（第 16 章讲 patch）。只有子组件自己的数据改变时，子组件才有自己的更新任务。
+
 因此，同步修改十次数据，组件只渲染一次。你不需要自己合并修改。
 
 <Lab id="demo-tick" title="实验台：同步修改三次数据" note="运行真实的 Vue">
@@ -207,6 +209,14 @@ watchPostEffect(() => {
 2. **组件更新任务**：按组件 id 从小到大运行。父组件先更新。
 3. **后置任务**：`flush: 'post'` 的侦听器、onMounted、onUpdated、模板 ref 的赋值。这时 DOM 已经更新。
 
+后置任务按加入队列的先后运行。模板 ref 的赋值例外，它排在最前面。下面三点解释实验台的日志：
+
+- `flush: 'post'` 的侦听器在数据改变的那一刻就进入后置队列。组件更新还没开始，所以它排在所有 onUpdated 之前。
+- onUpdated 要等所在组件 patch 完才进入后置队列。
+- 父组件的 patch 会同步更新子组件，子组件先完成，所以子组件的 onUpdated 先进入队列，先运行。子组件的 onBeforeUpdate 则在父组件的 onBeforeUpdate 和 onUpdated 之间运行。
+
+子组件有自己的更新任务时，顺序不同。例如同时修改父组件和子组件各自的数据：父组件的更新任务先运行，父组件的 onUpdated 先进入后置队列，所以它在子组件的 onUpdated 之前运行。
+
 最后，`nextTick` 的回调运行。下图显示这个顺序。
 
 <Figure caption="一次刷新按 ①→④ 的顺序运行。只有 ② 修改 DOM。所以 ③ 和 ④ 中可以读取新的 DOM。">
@@ -234,7 +244,7 @@ nextTick(f)
 
 <template #explain>
 
-解析：nextTick 在 count.value++ 之后调用，所以它等待这次刷新。它返回的 Promise 在整个更新队列完成后才完成。队列的顺序是：pre 侦听器，父组件更新，子组件更新，后置任务。onUpdated 和 post 侦听器都是后置任务。所以 nextTick 回调最后运行。打开实验台，点击 count++，看日志最上面一行。
+解析：nextTick 在 count.value++ 之后调用，所以它等待这次刷新。它返回的 Promise 在整个更新队列完成后才完成。队列的顺序是：pre 侦听器，父组件更新（其中同步更新子组件），后置任务。onUpdated 和 post 侦听器都是后置任务。所以 nextTick 回调最后运行。打开实验台，点击 count++，看日志最上面一行。
 
 </template>
 </Sc>

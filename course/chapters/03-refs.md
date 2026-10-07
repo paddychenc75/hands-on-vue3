@@ -90,7 +90,7 @@ ref 把值放在 `value` 中。reactive 用 Proxy 包住原始对象。两者的
 </template>
 </Figure>
 
-ref 是一个有 `value` 属性的对象。Vue 只能在读写 value 时收集依赖和触发更新。所以在 JavaScript 中，必须通过 `.value` 读写 ref。
+JavaScript 不能拦截普通变量的读写，只能拦截对象属性的读写。所以 ref 把值放在对象的 `value` 属性中：读 `.value` 时，Vue 记录依赖。写 `.value` 时，Vue 触发更新。这也是 reactive 只能用于对象、解构后会断开的原因（3.2 节）。
 
 **场景：编辑任务的表单。**字段相关，要一起提交和重置，用 reactive。重置时修改原对象的属性，不要给变量赋新对象。
 

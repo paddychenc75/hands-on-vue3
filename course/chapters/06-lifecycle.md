@@ -16,7 +16,7 @@ import LifeHooks from '../labs/06-lifecycle/LifeHooks.vue'
 # 生命周期钩子
 
 ::: goals
-<Goal checks="sc:1,ex:timerLeak,ex:clockFill">为请求、DOM 操作和清理操作选择正确的钩子。</Goal>
+<Goal checks="sc:5,ex:timerLeak,ex:clockFill">为请求、DOM 操作和清理操作选择正确的钩子。</Goal>
 <Goal checks="sc:0">说明父组件和子组件的钩子顺序。</Goal>
 <Goal checks="sc:1">用模板 ref 在 onMounted 中读取元素。</Goal>
 <Goal checks="sc:4,ex:tickReadFill">修改数据后，用 nextTick 等待 DOM 更新，再读取 DOM。</Goal>
@@ -233,7 +233,7 @@ const items = useTemplateRef('items')     // items.value 是元素数组
 
 数组中元素的顺序不一定和 list 的顺序相同。所以需要对应关系时，用 data 属性记录 id。
 
-ref 也可以写在子组件上。这时它的值是子组件的实例。父组件怎样调用子组件的函数（defineExpose），见[第 5.6 节](/chapters/05-comm)。
+ref 也可以写在子组件上。这时它的值是子组件的实例。父组件怎样调用子组件的函数（defineExpose），见[第 5.7 节](/chapters/05-comm)。
 
 下面的实验台在 setup、onMounted 和卸载时读取模板 ref。
 
@@ -481,6 +481,22 @@ count.value++
 <template #explain>
 
 解析：nextTick 只等待已经安排的那次更新。调用它时，数据还没有修改，也没有安排更新，所以回调排在这次更新之前，打印 0。先写 `count.value++`，再调用 nextTick，才打印 1。修改 count 只改变元素的文字，不替换元素，el 也不是 null。
+
+</template>
+</Sc>
+
+
+<Sc :a="1">
+
+组件要用 `canvas` 元素画一张图表。图表库需要读取这个元素。应该在哪个钩子里初始化图表库？
+
+<Opt>`setup`，它最先运行</Opt>
+<Opt>`onMounted`，这时元素已经在页面中</Opt>
+<Opt>`onBeforeMount`，这样图表和元素同时出现</Opt>
+
+<template #explain>
+
+解析：`setup` 和 `onBeforeMount` 运行时，组件还没有渲染出 DOM，模板 ref 是 null，图表库读不到 canvas。`onMounted` 运行时，元素已经插入页面。别忘了在 `onUnmounted` 中销毁图表。
 
 </template>
 </Sc>

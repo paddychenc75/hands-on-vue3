@@ -20,7 +20,7 @@ import DirectiveHooks from '../labs/02-template/DirectiveHooks.vue'
 <Goal checks="sc:2,ex:list,ex:classBind">用插值、v-bind 和 v-on 连接数据和页面。</Goal>
 <Goal checks="sc:0">说明 v-if 和 v-show 的区别。</Goal>
 <Goal checks="ex:list">用 v-for 显示列表。</Goal>
-<Goal checks="sc:1">用 v-model 连接表单和数据。</Goal>
+<Goal checks="sc:1,ex:modelFill">用 v-model 连接表单和数据。</Goal>
 
 :::
 
@@ -238,7 +238,7 @@ function greet(event) { console.log(event.target.tagName) }  // BUTTON
 function say(msg, event) { event.preventDefault() }
 ```
 
-在组件上，`$event` 是子组件 emit 的第一个参数，不是 DOM 事件。原因：组件事件由 emit 发出，不由浏览器发出。
+在组件上，`$event` 是子组件 emit（第 5 章）的第一个参数，不是 DOM 事件。原因：组件事件由 emit 发出，不由浏览器发出。
 
 修饰符写在事件名后面，以点开头。它代替处理函数中的常用代码。
 
@@ -322,6 +322,8 @@ v-model 有三个修饰符：
 <input v-model.trim="form.name">
 <input type="number" v-model.number="form.age">   <!-- form.age 是数字，不是 "18" -->
 ```
+
+<Exercise id="modelFill" />
 
 <Lab id="demo-directives" title="实验台：指令" note="每个标签页运行真实的 Vue">
 <template #predict>
@@ -539,7 +541,7 @@ function greet(event) { console.log(typeof event) }
 
 <template #explain>
 
-解析：模板自动解包顶层 ref。所以 `count++` 修改的是 `count.value`，页面显示 1。“必须写 .value”是 JavaScript 中的规则，模板中不需要。“数字副本”的说法也错。模板拿到的是 ref 本身。读写时，Vue 自动加上 `.value`。
+解析：模板自动解包顶层 ref。所以 `count++` 修改的是 `count.value`，页面显示 1。“必须写 .value”是 JavaScript 中的规则，模板中不需要。“数字副本”的说法也错。模板拿到的是 ref 本身。读写时，Vue 自动加上 `.value`。模板从 setup 返回的对象上读 `count` 时，Vue 用一层代理（`proxyRefs`）替你读 `count.value`，所以只有顶层的 ref 可以省略 `.value`。
 
 </template>
 </Sc>

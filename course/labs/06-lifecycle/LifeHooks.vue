@@ -2,7 +2,7 @@
 // 实验台：挂载、更新和卸载一个子组件（旧版 #demo-life）
 // 日志和高亮用原生 DOM：钩子在渲染中运行，不能在钩子里改响应式数据。
 import { onMounted, provide, ref } from 'vue'
-import { domLog } from '../_shared'
+import { dLogBuf } from '../_shared'
 import LifeChild from './LifeChild.vue'
 
 const HOOKS = ['setup', 'onBeforeMount', 'onMounted', 'onBeforeUpdate', 'onUpdated', 'onBeforeUnmount', 'onUnmounted', 'onActivated', 'onDeactivated']
@@ -12,28 +12,32 @@ const keep = ref(false)
 const logRef = ref<HTMLElement | null>(null)
 const gridRef = ref<HTMLElement | null>(null)
 
-// 和旧版一样：页面首次挂载时子组件的钩子早于父组件的 onMounted，这时还没有日志元素，所以不显示
-let logEl: HTMLElement | null = null
+// 首屏挂载时，子组件的钩子早于父组件的 onMounted，这时还没有日志元素。
+// dLogBuf 先缓存日志；高亮格子也先记下来，等父组件挂载后一起处理。
+const { L, attach } = dLogBuf()
 let gridEl: HTMLElement | null = null
+const pending: string[] = []
 
+function light(name: string) {
+  const el = gridEl?.querySelector('[data-h="' + name + '"]') as HTMLElement | null | undefined
+  if (!el) return
+  el.classList.remove('lit')
+  void el.offsetWidth
+  el.classList.add('lit')
+  setTimeout(() => el.classList.remove('lit'), 900)
+}
 function hit(name: string) {
-  domLog(logEl, name.includes('Unmount') || name === 'onDeactivated' ? 'x' : name.includes('Update') ? 'tg' : 'rn', 'Child ' + name)
-  if (gridEl) {
-    const el = gridEl.querySelector('[data-h="' + name + '"]')
-    if (el) {
-      el.classList.remove('lit')
-      void (el as HTMLElement).offsetWidth
-      el.classList.add('lit')
-      setTimeout(() => el.classList.remove('lit'), 900)
-    }
-  }
+  L(name.includes('Unmount') || name === 'onDeactivated' ? 'x' : name.includes('Update') ? 'tg' : 'rn', 'Child ' + name)
+  if (gridEl) light(name)
+  else pending.push(name)
 }
 provide('lifeHit', hit)
 
 onMounted(() => {
-  logEl = logRef.value
+  attach(logRef.value)
   gridEl = gridRef.value
-  domLog(logEl, 'm', '页面加载时，第一次挂载的钩子已经运行。点击按钮，观察日志。')
+  pending.splice(0).forEach(light)
+  L('m', '上面几行是页面加载时父组件和 Child 的挂载日志（Child 先完成）。点击按钮，观察日志。')
 })
 
 function clear() {

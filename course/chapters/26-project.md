@@ -14,9 +14,9 @@ import TaskBoard from '../labs/26-project/TaskBoard.vue'
 # 综合实战：任务看板
 
 ::: goals
-<Goal checks="sc:1,sc:2">为一个小应用设计数据、组件和逻辑。</Goal>
-<Goal checks="sc:0,sc:1,sc:2">在一个项目中使用第 2–9 章的知识。</Goal>
-<Goal checks="sc:3">完成项目后的练习使用阶段四的知识。</Goal>
+<Goal checks="sc:1,sc:2,ex:kanbanSave">为一个小应用设计数据、组件和逻辑，并把数据保存到 localStorage。</Goal>
+<Goal checks="sc:0,sc:1,sc:2,ex:kanbanItem,ex:kanbanDue">在一个项目中使用第 2–9 章的知识。</Goal>
+<Goal checks="sc:3,ex:kanbanStore,ex:kanbanRoute">完成项目后的练习使用阶段四的知识。</Goal>
 
 :::
 
@@ -100,7 +100,11 @@ const left = computed(() => tasks.value.filter(t => !t.done).length)
 <TaskBoard />
 </Lab>
 
-完成项目后，做下面的练习：
+完成项目后，做下面的练习。第一道练习让你亲手写第 4 步的 TaskItem：
+
+<Exercise id="kanbanItem" />
+
+第二道练习写第 5 步的持久化：
 
 <Exercise id="kanbanSave" />
 
@@ -125,15 +129,15 @@ const left = computed(() => tasks.value.filter(t => !t.done).length)
    - 打开不存在的 id 时，页面显示“任务不存在”，控制台没有错误。
 
    <Exercise id="kanbanRoute" />
-4. 用 TypeScript 为 Task 定义接口。（第 20 章）<br>验收标准：
+4. 用 TypeScript 为 Task 定义接口。（第 20 章）在本地项目里完成，页面上没有练习框。<br>验收标准：
    - Task 接口有 id、text、done 三个字段。它们的类型是 number、string、boolean。
    - TaskItem 用 `defineProps<{ task: Task }>()` 声明 props，并为 toggle 事件声明参数类型。
    - 运行 `vue-tsc --noEmit` 时没有错误。传入缺少 text 的对象时，编辑器报错。
-5. 用 Vitest 为 TaskItem 写一个组件测试。（第 22 章）<br>验收标准：
+5. 用 Vitest 为 TaskItem 写一个组件测试。（第 22 章）在本地项目里完成，页面上没有练习框。<br>验收标准：
    - 测试挂载 TaskItem 后，检查页面显示任务的文字。
    - 测试点击复选框后，检查组件发出 toggle 事件，参数是任务的 id。
    - 运行 `npx vitest run` 时测试通过。把 emit 的事件名改错后，测试失败。
-6. 把添加任务的输入框改为带验证的表单。（第 11 章）<br>验收标准：
+6. 把添加任务的输入框改为带验证的表单。（第 11 章）在本地项目里完成，页面上没有练习框。<br>验收标准：
    - 输入为空或只有空格时，不添加任务，并在输入框下方显示错误信息。
    - 用户还没有输入或提交时，不显示错误。
    - 添加成功后，输入框清空，错误信息消失。

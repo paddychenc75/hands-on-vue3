@@ -208,7 +208,7 @@ export function useFetch(url) {            // url: string | Ref<string> | () => 
     loading.value = true
     error.value = null
     try {
-      const res = await fetch(toValue(url), { signal: controller.signal })  // 收集 url 依赖
+      const res = await fetch(toValue(url), { signal: controller.signal })  // toValue(url) 在 await 之前读取，所以 url 成为依赖（第 4.3 节）
       data.value = await res.json()
     } catch (e) {
       if (e.name === 'AbortError') return         // 已取消：新请求仍在进行，不修改 loading
@@ -301,7 +301,7 @@ export function useCart() {
 
 1. 不要在函数顶层访问 window 和 document。在 onMounted 中访问。
 2. 不要把每个用户的状态放在模块顶层。服务器上的所有请求共享模块。
-3. 用 `getCurrentInstance()` 判断是否在组件中，再注册生命周期钩子。
+3. 用 `getCurrentInstance()` 判断是否在组件中，再注册生命周期钩子。`getCurrentInstance` 没有列在官方 API 文档中。Vue 把它当作内部函数，VueUse 等库在用。自己的项目里更稳妥的写法是：让调用方在 setup 中同步调用组合式函数，把 SSR 的判断交给 `import.meta.env.SSR` 或 `typeof window`。
 4. 用 `onScopeDispose` 清理。它在组件和 effectScope 中都能运行。
 
 ```js

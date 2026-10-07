@@ -61,7 +61,7 @@ const TaskTitleInput = {
 const task = reactive({ title: '写周报' })
 return { task, components: { TaskTitleInput } }`,
   hints: [
-    'defineModel() 返回一个 ref。读取它，得到父组件传入的值。写入它，Vue 发送 update:modelValue 事件，父组件的数据跟着改变。第 5 章“5.3 为组件添加 v-model”讲了它。练习台中，用编译结果中的 useModel 代替它。',
+    'defineModel() 返回一个 ref。读取它，得到父组件传入的值。写入它，Vue 发送 update:modelValue 事件，父组件的数据跟着改变。第 5 章“5.4 为组件添加 v-model”讲了它。练习台中，用编译结果中的 useModel 代替它。',
     '只改 const model = null 这一行。调用 useModel。第一个参数是 setup 收到的 props，第二个参数是 prop 的名称 \'modelValue\'。',
     "const model = useModel(props, 'modelValue')"
   ],
@@ -119,7 +119,7 @@ export const scopedSlot: Exercise = {
   solTpl: '<UserList :users="users" class="custom">\n  <template #default="{ user }">{{ user.name }}（{{ user.age }} 岁）</template>\n</UserList>\n<UserList :users="users" class="plain" />',
   solJs: 'const UserList = {\n  props: [\'users\'],\n  template: \'<ul><li v-for="u in users" :key="u.id"><slot :user="u">{{ u.name }}</slot></li></ul>\'\n}\n\nconst users = ref([\n  { id: 1, name: \'Alice\', age: 30 },\n  { id: 2, name: \'Bob\', age: 25 }\n])\n\nreturn { users, components: { UserList } }',
   hints: [
-    '用作用域插槽：子组件把数据传给 <slot>，父组件用 #default 接收。第 5 章“5.4 插槽”讲了它。<slot> 中原有的内容是后备内容。',
+    '用作用域插槽：子组件把数据传给 <slot>，父组件用 #default 接收。第 5 章“5.5 插槽”讲了它。<slot> 中原有的内容是后备内容。',
     '1. 在 UserList 的 template 中，给 <slot> 加 :user="u"。2. 在第一个 <UserList> 中放一个 <template #default="{ user }">，在里面写姓名和年龄。第二个 UserList 不改。',
     '子组件：<slot :user="u">{{ u.name }}</slot>。父组件：<UserList :users="users" class="custom"><template #default="{ user }">{{ user.name }}（{{ user.age }} 岁）</template></UserList>。'
   ],

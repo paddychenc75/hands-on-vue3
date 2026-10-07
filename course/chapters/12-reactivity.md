@@ -159,6 +159,33 @@ tip = state.showDiscount
 
 <Exercise id="miniComputed" />
 
+::: think 迷你 computed 少了什么
+练习里的 `miniComputed` 只有缓存。它还不是一个依赖：外层副作用函数读取 `total.value` 时，没有人记录这个外层函数。
+
+在本章的 effect 中试一下：
+
+```js
+effect(() => seen.push(total.value))
+state.price = 20
+```
+
+迷你版得到 `seen = [20]`。外层函数没有重新运行。Vue 的 computed 得到 `[20, 40]`。组件渲染函数读取 computed 时也是这样：数据改变，页面才会更新。
+
+真实的 computed 有两个角色：
+
+1. 它是订阅者。它的 getter 读取 `state.price`，所以 `state.price` 改变时会通知它。
+2. 它是依赖。外层函数读取 `.value` 时，它记录这个外层函数。它被通知后，会再通知外层函数。
+
+给迷你版补两行就有第 2 个角色：
+
+```js
+get value() { track(self, 'value'); /* 其余不变 */ }
+scheduler() { dirty = true; trigger(self, 'value') }
+```
+
+这里的 `self` 是 computed 对象本身。Vue 3.5 又多做了一步：用版本号判断依赖是否真的改变。依赖的版本号没变，就不重算。重算的结果和上次相同，computed 自己的版本号不变，外层函数也不会更新（[第 4 章](/chapters/04-computed)的深入内容）。
+:::
+
 ### 12.3 targetMap 的三层结构
 
 track 把依赖存进 targetMap。trigger 按对象和属性名从中查找。下图显示 targetMap 的三层结构。
@@ -225,7 +252,8 @@ function toRaw(observed) {
 
 - 用双向链表和版本号管理依赖，减少内存分配。
 - 特殊处理数组方法，例如 push 和 includes。
-- 用 `pauseTracking` 防止 push 读取 length 时无限循环。
+- 用 `pauseTracking` 防止 push 读取 length 时，两个副作用函数互相触发。
+- computed 同时是订阅者和依赖（见 12.2 末尾的“迷你 computed 少了什么”）。
 - 用调度器把组件更新放入更新队列（[第 13 章](/chapters/13-scheduler)）。
 
 ::: deep Vue 3.5 的依赖结构：双向链表
@@ -277,7 +305,7 @@ class Dep {
 |---|---|---|
 | `Map / Set` | 方法内部使用 this。代理上的 this 不能访问内部槽位，调用会报错。 | 用 `collectionHandlers` 重写 get、set、has、forEach 等方法。 |
 | `arr.includes(obj)` | 原始数组中保存原始对象。传入的参数可能是代理，比较结果为 false。 | 先在原始数组上用原参数查找。找不到并且参数是代理时，用 toRaw(参数) 再查找一次。 |
-| `arr.push(x)` | push 读取 length，然后写入 length。在副作用函数中调用时，会无限循环。 | 调用 push、pop、shift、unshift、splice 时暂停收集依赖。 |
+| `arr.push(x)` | push 先读取 length，再写入 length。两个副作用函数各自对同一个数组调用 push 时，一个写 length 会触发另一个，两者互相触发，无限循环。 | 调用 push、pop、shift、unshift、splice 时暂停收集依赖。 |
 | `for...in / Object.keys` | 没有具体的属性名可以收集。 | 收集特殊的 `ITERATE_KEY`。新增或删除属性时触发它。 |
 :::
 

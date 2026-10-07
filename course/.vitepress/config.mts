@@ -41,6 +41,8 @@ const SIMPLE: Record<string, [string, string]> = {
 
 export default defineConfig({
   title: '动手学 Vue 3',
+  // 只构建部分章节时，指向其他章的链接必然找不到，不算死链。全站构建仍然检查
+  ignoreDeadLinks: only.length > 0,
   description: 'Vue3 互动课程：每章有讲解、练习和自测',
   lang: 'zh-CN',
   // 页面渲染前先读“隐藏类比”的选择，避免刷新时类比块闪一下

@@ -99,6 +99,9 @@ Vue 代码不查找节点，也不修改文字。你只修改 `count`。模板�
   <button @click="count++">点了 {{ count }} 次</button>
 </div>
 
+<script type="importmap">
+  { "imports": { "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js" } }
+</script>
 <script type="module">
 import { createApp, ref } from 'vue'
 
@@ -117,12 +120,24 @@ createApp({
 2. `setup()` 创建数据，并用 `return` 把数据给模板。
 3. `mount('#app')` 把应用挂载到页面上的一个元素。
 
+这个页面不经过构建工具，所以用 import map 告诉浏览器 `'vue'` 在哪里。它指向的 `vue.esm-browser.js` 带有编译器，能在浏览器中编译 `#app` 里的模板。用 Vite 创建的项目（1.4 节）不需要这两步。
+
 <b>场景：旧页面中只有一块区域用 Vue。</b>后台页面由服务器生成。你只想让购物车小部件变为响应式。给这块区域一个 id，只挂载到这里。页面的其他部分不变。一个页面可以有多个应用。
 
 ```js
 createApp(CartWidget).mount('#cart')       // 只管理 #cart 中的内容
 createApp(SearchBox).mount('#search')      // 另一个独立的应用
 ```
+
+::: note
+直接写在 HTML 文件里的模板由浏览器先解析，有三个限制：
+
+1. 标签名和属性名都变成小写。所以组件和 prop 要写成 `<task-item post-title="...">`，写 `:postTitle` 会丢失。
+2. 组件标签不能自闭合。写 `<task-item></task-item>`。
+3. `<table>`、`<ul>`、`<select>` 里放组件时，写成 `<tr is="vue:task-row">`。直接写 `<task-row>` 会被浏览器移到表格外面。
+
+写在 `.vue` 文件里的模板没有这些限制（1.4 节）。
+:::
 
 ::: deep mount 之后发生了什么
 `app.mount('#app')` 按下面的顺序运行：
@@ -137,7 +152,9 @@ createApp(SearchBox).mount('#search')      // 另一个独立的应用
 
 第 7 步是响应式和渲染的连接点。渲染函数读取的所有响应式数据，都成为这个副作用函数的依赖。
 
-数据改变时，调度器把 `job` 放入队列，不直接重新渲染。`job` 是 `effect.runIfDirty`：它先用版本号检查依赖是否真的改变（第 4.1 节的 computed 就是这样）。依赖没有改变时，组件不重新渲染。
+数据改变时，调度器把 `job` 放入队列（第 13 章），不直接重新渲染。`job` 先检查依赖是否真的改变（版本号检查，第 12 章讲）。依赖没有改变时，组件不重新渲染。
+
+下面的源码涉及第 12、13 章的内容。学完这两章后再回来读，会更容易。
 
 ```js
 // runtime-core/renderer.ts（简化）
@@ -266,7 +283,7 @@ export default _sfc_main
 | --- | --- | --- |
 | `vue.runtime.esm-bundler.js` | 否 | Vite 项目的默认版本。模板在构建时编译。 |
 | `vue.esm-bundler.js` | 是 | 运行时需要编译字符串模板。 |
-| `vue.global.js` | 是 | 用 script 标签引入。本课程的实验台使用这个版本。 |
+| `vue.global.js` | 是 | 用 `<script>` 标签引入，暴露全局变量 `Vue`。本课程的练习台用的是 `vue.esm-bundler.js`（练习脚本里的全局 `Vue` 就来自它）。 |
 :::
 
 ::: pitfalls

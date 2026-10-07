@@ -19,6 +19,7 @@ import CommBoard from '../labs/05-comm/CommBoard.vue'
 <Goal checks="sc:0,ex:emit">写一个接收 props 并发送事件的组件。</Goal>
 <Goal checks="sc:1,ex:modelInput">为组件添加 v-model。</Goal>
 <Goal checks="sc:2,ex:scopedSlot">为每种场景选择正确的通信方式。</Goal>
+<Goal checks="sc:4">说明 class、style 和事件怎样透传到子组件的根元素。</Goal>
 
 :::
 
@@ -183,61 +184,9 @@ function removeTask(id) { tasks.value = tasks.value.filter(t => t.id !== id) }
 
 emit 的第二个及以后的参数传给父组件的处理函数。`@remove="removeTask"` 只写函数名，所以 removeTask 收到 id。
 
-注意：组件事件不冒泡。孙组件的事件不会到达祖父组件。跨多层通信使用 5.5 节的 provide 和 inject。
+注意：组件事件不冒泡。孙组件的事件不会到达祖父组件。跨多层通信使用 5.6 节的 provide 和 inject。
 
 <Exercise id="emit" />
-
-::: deep 透传属性，以及 props 和 attrs 怎样分开
-有些属性由父组件传入，但子组件没有声明为 props 或 emits。这些属性叫做透传属性（attrs）。子组件初始化时，`initProps` 按下面的规则分开所有传入的属性：
-
-1. 名称在 `defineProps` 中声明：放入 `props`。
-2. 名称以 on 开头，并且在 `defineEmits` 中声明：作为事件处理函数保存，不放入 attrs。
-3. 其他属性：放入 `attrs`。
-
-组件只有一个根元素时，Vue 把 attrs 加到根元素上：
-
-```html
-<!-- MyButton.vue 的模板 -->
-<button class="btn" type="button" @click="onInner">提交</button>
-
-<!-- 父组件 -->
-<MyButton class="large" style="color: red" type="submit" @click="onOuter" />
-
-<!-- 渲染结果：<button class="btn large" style="color: red" type="submit"> -->
-<!-- 点击时，onInner 和 onOuter 都运行 -->
-```
-
-| 属性类型 | 合并规则 |
-|---|---|
-| `class`、`style` | 和根元素上的值合并 |
-| 事件监听 `@click` | 两个处理函数都运行 |
-| 其他属性 | 父组件传入的值覆盖根元素上的值 |
-
-要把 attrs 放到其他元素上，按下面的步骤操作：
-
-1. 调用 `defineOptions({ inheritAttrs: false })` 关闭自动透传（Vue 3.3 及以上）。
-2. 在目标元素上写 `v-bind="$attrs"`。
-3. 在脚本中需要 attrs 时，调用 `useAttrs()`。
-
-```vue
-<script setup>
-defineOptions({ inheritAttrs: false })
-defineProps(['label'])
-const attrs = useAttrs()              // 总是最新的值，但不是响应式的，不能侦听
-</script>
-
-<template>
-  <label class="field">
-    {{ label }}
-    <input v-bind="$attrs">           <!-- placeholder、maxlength 等属性加到 input 上 -->
-  </label>
-</template>
-```
-
-组件有多个根元素时，Vue 不自动透传，因为它不知道把 attrs 加到哪个根元素上。这时没有写 `v-bind="$attrs"`，开发模式会警告。
-
-props 对象是 `shallowReactive`。父组件传入新值时，Vue 替换 props 的属性。子组件读取 props 的副作用函数因此更新。
-:::
 
 ::: deep emit 的实现
 事件不经过任何事件总线。`emit('change')` 在 vnode.props 中查找 `onChange` 函数，然后调用它：
@@ -261,7 +210,63 @@ function emit(instance, event, ...args) {
 ```
 :::
 
-### 5.3 为组件添加 v-model
+### 5.3 透传属性：class、style 和事件落在根元素上
+
+父组件有时传入子组件没有声明为 props 或 emits 的属性，例如 `class`、`style`、`placeholder` 和 `@click`。这些属性叫做透传属性（attrs）。
+
+组件只有一个根元素时，Vue 把 attrs 加到根元素上：
+
+```html
+<!-- MyButton.vue 的模板 -->
+<button class="btn" type="button" @click="onInner">提交</button>
+
+<!-- 父组件 -->
+<MyButton class="large" style="color: red" type="submit" @click="onOuter" />
+
+<!-- 渲染结果：<button class="btn large" type="submit" style="color: red"> -->
+<!-- 点击时，onInner 和 onOuter 都运行 -->
+```
+
+| 属性类型 | 合并规则 |
+|---|---|
+| `class`、`style` | 和根元素上的值合并 |
+| 事件监听 `@click` | 两个处理函数都运行 |
+| 其他属性 | 父组件传入的值覆盖根元素上的值 |
+
+<b>场景：包装 input 的组件。</b>你写了一个带标签的输入组件。父组件传入的 `placeholder`、`maxlength` 要加到里面的 `input` 上，不加到最外层的 `label` 上。按下面的步骤操作：
+
+1. 调用 `defineOptions({ inheritAttrs: false })` 关闭自动透传（Vue 3.3 及以上）。
+2. 在目标元素上写 `v-bind="$attrs"`。
+3. 在脚本中需要 attrs 时，调用 `useAttrs()`。
+
+```vue
+<script setup>
+defineOptions({ inheritAttrs: false })
+defineProps(['label'])
+const attrs = useAttrs()              // 总是最新的值，但不是响应式的，不能侦听
+</script>
+
+<template>
+  <label class="field">
+    {{ label }}
+    <input v-bind="$attrs">           <!-- placeholder、maxlength 等属性加到 input 上 -->
+  </label>
+</template>
+```
+
+组件有多个根元素时，Vue 不自动透传，因为它不知道把 attrs 加到哪个根元素上。这时没有写 `v-bind="$attrs"`，开发模式会警告。
+
+::: deep props 和 attrs 怎样分开
+子组件初始化时，`initProps` 按下面的规则分开所有传入的属性：
+
+1. 名称在 `defineProps` 中声明：放入 `props`。
+2. 名称以 on 开头，并且在 `defineEmits` 中声明：作为事件处理函数保存，不放入 attrs。
+3. 其他属性：放入 `attrs`。
+
+props 对象是 `shallowReactive`。父组件传入新值时，Vue 替换 props 的属性。子组件读取 props 的副作用函数因此更新。
+:::
+
+### 5.4 为组件添加 v-model
 
 输入类组件要读父组件的值，也要把新值告诉父组件。v-model 把这两件事合成一个写法。Vue 把组件上的 v-model 编译为一个 prop 和一个事件。所以子组件仍然不直接修改父组件的数据。
 
@@ -312,7 +317,7 @@ const [model, modifiers] = defineModel({
 ```
 :::
 
-### 5.4 插槽
+### 5.5 插槽
 
 插槽让父组件决定子组件中一部分的内容。子组件用 `<slot>` 标记位置。
 
@@ -403,7 +408,7 @@ createVNode(TaskItem, { task: t }, {
 ```
 :::
 
-### 5.5 用 provide 和 inject 跨层传递
+### 5.6 用 provide 和 inject 跨层传递
 
 数据要经过多层组件时，每层都要转交 props。provide 和 inject 让后代组件直接取到祖先提供的数据。
 
@@ -502,7 +507,7 @@ function inject(key, defaultValue) {
 ```
 :::
 
-### 5.6 选择通信方式
+### 5.7 选择通信方式
 
 下表总结本章的通信方式。
 
@@ -513,6 +518,7 @@ function inject(key, defaultValue) {
 | `v-model` | 双向 | 表单类组件。等于 `modelValue` props 加 `update:modelValue` 事件。 |
 | `slot` | 父组件 → 子组件 | 父组件决定子组件中一部分的内容 |
 | `provide / inject` | 祖先组件 → 所有后代组件 | 主题、语言、表单上下文。provide 一个 ref。 |
+| `attrs`（透传） | 父组件 → 子组件的根元素 | `class`、`style`、原生事件、`placeholder` 等没有声明为 props 的属性 |
 | `defineExpose + ref` | 父组件调用子组件 | 聚焦输入框。调用子组件的方法。 |
 | Pinia | 任意组件 | 多个页面共享的数据（第 18 章） |
 
@@ -615,11 +621,27 @@ const t = inject('theme')    // 模板：{{ t }}
 </template>
 </Sc>
 
+<Sc :a="1">
+
+父组件写 `<MyButton class="large" @click="f" />`。MyButton 的根元素是 `<button class="btn" @click="g">`。点击按钮后，会发生什么？
+
+<Opt>class 是 `large`，只有 f 运行</Opt>
+<Opt>class 是 `btn large`，f 和 g 都运行</Opt>
+<Opt>class 是 `btn large`，只有 g 运行</Opt>
+
+<template #explain>
+
+解析：透传属性加到根元素上。`class` 和根元素上的值合并，所以是 `btn large`。事件监听不互相覆盖，两个处理函数都运行。只写 `large` 的选项忘了合并。只有一个处理函数运行的选项，把事件当成了覆盖。
+
+</template>
+</Sc>
+
 :::
 
 ::: summary
 - defineProps 接收数据。defineEmits 和 emit 通知父组件。
 - v-model 等于 modelValue 加 update:modelValue。使用 defineModel，用名称支持多个 v-model。
+- 没有声明为 props 的属性透传到根元素：class 和 style 合并，事件都运行。用 `inheritAttrs: false` 加 `v-bind="$attrs"` 改变落点。
 - 插槽传递内容。作用域插槽把子组件的数据交给父组件显示。
 - provide 一个 ref，可以加 readonly 和修改函数。Pinia 跨页面共享。
 - 父组件用模板 ref 和 defineExpose 调用子组件的函数。

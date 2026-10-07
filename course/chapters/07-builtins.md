@@ -19,7 +19,7 @@ import SuspenseAsync from '../labs/07-builtins/SuspenseAsync.vue'
 ::: goals
 <Goal checks="sc:2">用 Transition 和 TransitionGroup 为元素添加动画。</Goal>
 <Goal checks="sc:0,ex:keepTab,ex:keepAliveFill">用 KeepAlive 保留组件的状态。</Goal>
-<Goal checks="sc:1">用 Teleport 把弹窗渲染到 body 中。</Goal>
+<Goal checks="sc:1,ex:teleportFill">用 Teleport 把弹窗渲染到 body 中。</Goal>
 <Goal checks="sc:3">用动态组件、异步组件和 Suspense 按需加载组件。</Goal>
 
 :::
@@ -173,6 +173,8 @@ const narrow = ref(window.innerWidth < 640)
 ```
 
 注意：不要用 v-if 包住 Teleport 来切换位置。这样会删除并重新创建内容，状态丢失。用 `disabled` 切换位置。
+
+<Exercise id="teleportFill" />
 
 下面的实验台有三个标签页，分别演示 Transition、TransitionGroup 和 Teleport。
 

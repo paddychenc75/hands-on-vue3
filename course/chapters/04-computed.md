@@ -200,7 +200,7 @@ budgetYuan.value = '12.3'                 // budgetCents.value 变为 1230
 
 注意：set 只把值写回数据源。不要在 set 中发送请求或修改无关数据。
 
-组件也可以用可写的 computed 实现 v-model。[第 5.3 节](/chapters/05-comm)讲这种写法和更简单的 `defineModel()`。
+组件也可以用可写的 computed 实现 v-model。[第 5.4 节](/chapters/05-comm)讲这种写法和更简单的 `defineModel()`。
 
 ### 4.3 watch 和 watchEffect：数据改变后执行操作
 
@@ -226,6 +226,13 @@ watch([a, b], ([newA, newB]) => { ... })
 watchEffect(() => console.log(`当前第 ${page.value} 页`))
 ```
 
+按下面的规则选择：
+
+1. 回调只用它自己读取的数据，并且第一次就要运行：用 `watchEffect`。例如把状态写到 `document.title`，或按 url 请求数据。你不用列出数据源。
+2. 需要旧值、需要在数据改变后才运行，或者要精确指定哪个数据改变才触发：用 `watch`。例如只在 `id` 改变时请求，忽略回调里读到的其他数据。
+
+注意：`watchEffect` 只在同步执行期间收集依赖。回调是 async 函数时，`await` 之后读取的响应式数据不会成为依赖。所以第 9 章的 useFetch 把 `toValue(url)` 写在 `await` 之前。
+
 **场景：筛选条件改变时重新请求任务。**进入页面时也要请求一次，所以设置 `immediate: true`。filters 是 ref 对象，修改内部字段时要触发，所以设置 `deep: true`。
 
 ```js
@@ -243,7 +250,7 @@ watch(filters, (f) => loadTasks(f), {
 const tasks = ref([])
 
 watch(tasks, () => {
-  scrollToTask(route.query.taskId)   // 以后列表刷新时不再运行
+  scrollToTask(route.query.taskId)   // route 是路由信息（第 19 章）。以后列表刷新时不再运行
 }, { once: true })
 ```
 

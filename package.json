@@ -7,7 +7,11 @@
     "build:editor": "esbuild editor/entry.js --bundle --minify --format=iife --target=es2019 --legal-comments=none --banner:js=\"/*! CodeMirror 6 (codemirror.net), MIT License, (c) Marijn Haverbeke and others. Bundled for this course. */\" --outfile=cm.min.js",
     "start": "node server.js",
     "test": "node tests/run-all.js",
-    "test:exercises": "node tests/exercises.test.js vue3-course.html"
+    "test:exercises": "node tests/exercises.test.js vue3-course.html",
+    "dev": "vitepress dev course",
+    "build": "vitepress build course",
+    "preview": "vitepress preview course",
+    "test:site": "vitepress build course && node tests/site/exercises.test.js"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "6.20.3",
@@ -20,7 +24,10 @@
     "@codemirror/view": "6.43.14",
     "@lezer/highlight": "1.2.5",
     "esbuild": "0.28.2",
+    "markdown-it-container": "4.0.0",
+    "markdown-it-deflist": "4.0.0",
     "playwright": "1.56.1",
+    "vitepress": "1.6.4",
     "vue": "3.5.43"
   }
 }

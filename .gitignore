@@ -1,3 +1,5 @@
 node_modules/
 data/
 *.png
+course/.vitepress/dist
+course/.vitepress/cache

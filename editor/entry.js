@@ -1,4 +1,4 @@
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, highlightSpecialChars, Decoration, placeholder } from '@codemirror/view';
+import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, highlightSpecialChars, Decoration } from '@codemirror/view';
 import { EditorState, StateField, StateEffect, Compartment } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab, toggleComment } from '@codemirror/commands';
 import { indentOnInput, bracketMatching, syntaxHighlighting, HighlightStyle, indentUnit } from '@codemirror/language';
@@ -63,7 +63,7 @@ function apiCompletions(names) {
   return javascriptLanguage.data.of({ autocomplete: completeFromList(opts) });
 }
 
-function create({ parent, doc, lang, api = [], onChange, onRun, label }) {
+export function create({ parent, doc, lang, api = [], onChange, onRun, label }) {
   const fs = new Compartment();
   const view = new EditorView({
     parent,
@@ -95,4 +95,5 @@ function create({ parent, doc, lang, api = [], onChange, onRun, label }) {
     focus() { view.focus(); }
   };
 }
-window.VueCM = { create };
+// 旧版页面（vue3-course.html）通过全局变量使用；VitePress 站点用 ES 模块导入
+if (typeof window !== 'undefined') window.VueCM = { create };

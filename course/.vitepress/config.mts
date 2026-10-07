@@ -1,0 +1,153 @@
+import { defineConfig } from 'vitepress'
+import container from 'markdown-it-container'
+import deflist from 'markdown-it-deflist'
+
+// 简单容器：<div class="类名"><div class="t">标题</div> … </div>
+const SIMPLE: Record<string, [string, string]> = {
+  goals: ['goal', '目标'],
+  terms: ['terms', '本章术语'],
+  why: ['why', '为什么需要它'],
+  pitfalls: ['pitfalls', '注意'],
+  summary: ['summary', '小结'],
+  selfcheck: ['selfcheck', '自测']
+}
+
+export default defineConfig({
+  title: 'Vue3 从零到专家',
+  description: 'Vue3 互动课程：每章有讲解、练习和自测',
+  lang: 'zh-CN',
+  srcExclude: ['AUTHORING.md'],
+  ignoreDeadLinks: true, // 其他章还没迁移，链接暂时是死链
+  lastUpdated: false,
+  vite: {
+    build: { chunkSizeWarningLimit: 2000 }, // 带编译器的 Vue 和 CodeMirror 是按需加载的大块
+    // 练习编辑器源码在仓库根目录的 editor/，在 course/ 之外
+    server: { fs: { allow: ['..'] } }
+  },
+  markdown: {
+    config(md) {
+      md.use(deflist)
+
+      for (const [name, [cls, title]] of Object.entries(SIMPLE)) {
+        md.use(container, name, {
+          render(tokens: any[], idx: number) {
+            return tokens[idx].nesting === 1
+              ? `<div class="${cls}"><div class="t">${title}</div>\n`
+              : '</div>\n'
+          }
+        })
+      }
+
+      // ::: rt  阅读时间提示
+      md.use(container, 'rt', {
+        render: (tokens: any[], idx: number) => (tokens[idx].nesting === 1 ? '<div class="rt">\n' : '</div>\n')
+      })
+
+      // ::: analogy  类比
+      md.use(container, 'analogy', {
+        render: (tokens: any[], idx: number) =>
+          tokens[idx].nesting === 1
+            ? '<div class="analogy"><div class="ic">类比</div><div>\n'
+            : '</div></div>\n'
+      })
+
+      // ::: deep 标题  深入（默认折叠）
+      md.use(container, 'deep', {
+        render(tokens: any[], idx: number) {
+          const t = tokens[idx]
+          if (t.nesting !== 1) return '</details>\n'
+          const title = t.info.trim().slice('deep'.length).trim()
+          return `<details class="deep"><summary><span class="step">深入</span>${md.renderInline(title)}<span class="opt">可选</span></summary>\n`
+        }
+      })
+
+      // :::: pair 里放两个 ::: col 说明文字，左右并排；窄屏上下排
+      md.use(container, 'pair', {
+        render: (tokens: any[], idx: number) => (tokens[idx].nesting === 1 ? '<div class="pair">\n' : '</div>\n')
+      })
+      md.use(container, 'col', {
+        render(tokens: any[], idx: number) {
+          const t = tokens[idx]
+          if (t.nesting !== 1) return '</div>\n'
+          const cap = t.info.trim().slice('col'.length).trim()
+          return `<div class="pair-col"><span class="cap">${md.renderInline(cap)}</span>\n`
+        }
+      })
+
+      // 小节标题 “### 1.1 标题”：把编号渲染成 <span class="step">。
+      // 放在所有插件之后，这样目录和锚点仍用完整文字。
+      md.core.ruler.push('course_step_heading', state => {
+        const toks = state.tokens
+        for (let i = 0; i < toks.length; i++) {
+          if (toks[i].type === 'heading_open' && toks[i].tag === 'h3') {
+            const first = toks[i + 1]?.children?.[0]
+            const m = first && first.type === 'text' && /^(\d+\.\d+)\s+/.exec(first.content)
+            if (m) first.meta = { ...(first.meta || {}), step: m[1], rest: first.content.slice(m[0].length) }
+          }
+        }
+      })
+      // 文字里的 {{ 一律转成实体，Vue 不会把它当插值。行内代码加 v-pre。
+      // 所以正文里可以直接写 {{ count }}，不用特殊处理。
+      const escText = (s: string) => md.utils.escapeHtml(s).replace(/\{\{/g, '&#123;&#123;')
+      md.renderer.rules.text = (tokens, idx) => {
+        const t = tokens[idx]
+        if (t.meta && t.meta.step) return `<span class="step">${t.meta.step}</span> ${escText(t.meta.rest)}`
+        return escText(t.content)
+      }
+      md.renderer.rules.code_inline = (tokens, idx, _o, _e, self) =>
+        `<code v-pre${self.renderAttrs(tokens[idx])}>${md.utils.escapeHtml(tokens[idx].content)}</code>`
+
+      // VitePress 把“行首的组件标签”当成 HTML 块，块里的 Markdown 不会解析。
+      // Goal 和 Opt 的内容是一行文字，要解析行内 Markdown（反引号、**粗体**），
+      // 所以让它们按普通段落处理。
+      const INLINE_COMPONENTS = /^<\/?(Goal|Opt)(\s|>|\/)/
+      const rules = (md.block.ruler as any).__rules__ as { name: string; fn: any; alt: string[] }[]
+      const hb = rules.find(r => r.name === 'html_block')!
+      const origHtmlBlock = hb.fn
+      md.block.ruler.at(
+        'html_block',
+        (state, startLine, endLine, silent) => {
+          const pos = state.bMarks[startLine] + state.tShift[startLine]
+          if (INLINE_COMPONENTS.test(state.src.slice(pos, state.eMarks[startLine]))) return false
+          return origHtmlBlock(state, startLine, endLine, silent)
+        },
+        { alt: hb.alt }
+      )
+    }
+  },
+  themeConfig: {
+    nav: [{ text: '首页', link: '/' }, { text: '第 1 章', link: '/chapters/01-first' }],
+    // 新增一章：在对应阶段的 items 末尾加一行
+    sidebar: [
+      {
+        text: '阶段一 · 入门：使用 Vue',
+        items: [{ text: '1 第一个 Vue 应用', link: '/chapters/01-first' }]
+      },
+      { text: '阶段二 · 基础：编写组件', items: [] },
+      { text: '阶段三 · 原理：内部原理', items: [] },
+      { text: '阶段四 · 专家：生态和工程', items: [] }
+    ],
+    outline: { level: [2, 3], label: '本页目录' },
+    docFooter: { prev: '上一章', next: '下一章' },
+    returnToTopLabel: '回到顶部',
+    sidebarMenuLabel: '目录',
+    darkModeSwitchLabel: '深色模式',
+    lightModeSwitchTitle: '切换到浅色模式',
+    darkModeSwitchTitle: '切换到深色模式',
+    search: {
+      provider: 'local',
+      options: {
+        translations: {
+          button: { buttonText: '搜索', buttonAriaLabel: '搜索' },
+          modal: {
+            displayDetails: '显示详情',
+            noResultsText: '没有找到相关结果',
+            resetButtonTitle: '清除查询',
+            backButtonTitle: '关闭搜索',
+            footer: { selectText: '选择', navigateText: '切换', closeText: '关闭' }
+          }
+        }
+      }
+    }
+  }
+})

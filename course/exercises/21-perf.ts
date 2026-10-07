@@ -1,11 +1,6 @@
 import type { Exercise } from './types'
+import { sub } from './types'
 import { isReactive, nextTick } from 'vue'
-
-// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
-function sub(src: string | undefined, from: string, to: string): string {
-  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
-  return src.replace(from, to)
-}
 
 export const shallowBig: Exercise = {
   title: '用 shallowRef 保存大数组', ch: 21,

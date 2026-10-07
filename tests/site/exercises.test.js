@@ -157,7 +157,7 @@ async function runLabs(browser, base, ch) {
           }
           await new Promise(s => setTimeout(s, 700))
           const rs = [...r.querySelectorAll('.ex-res > div')]
-          return { all: rs.some(d => /全部通过/.test(d.textContent)), fails: rs.filter(d => d.classList.contains('no')).map(d => d.textContent).slice(0, 2) }
+          return { all: rs.some(d => /全部通过/.test(d.textContent)), fails: rs.filter(d => d.classList.contains('no')).map(d => d.textContent) }
         }, [id, tpl, js])
       }
       for (const id of ids) {
@@ -166,9 +166,19 @@ async function runLabs(browser, base, ch) {
         const s = await runWith(id, e.tpl, e.js)
         const a = await runWith(id, e.solTpl || e.tpl, e.solJs || e.js)
         const ws = []
-        for (const w of e.wrong || []) ws.push(await runWith(id, w.tpl || e.solTpl || e.tpl, w.js || e.solJs || e.js))
-        const ok = !s.all && a.all && ws.every(x => !x.all)
-        log(ok, `${id}「${e.title}」初始${s.all ? '通过(错)' : '不通过'} 答案${a.all ? '通过' : '不通过(错) ' + a.fails.join(' | ')}` +
+        for (const w of e.wrong || []) {
+          const wt = w.tpl || e.solTpl || e.tpl, wj = w.js || e.solJs || e.js
+          const r = await runWith(id, wt, wj)
+          // 构造错解时替换失败（sub 找不到要替换的文字）：报告出来，不让它悄悄变成别的东西
+          r.broken = /WRONG_SUB_FAILED/.test(wt + wj)
+          // expectFail：错解必须是因为预期的原因被拒，而不是碰巧因为别的原因不通过
+          r.reasonBad = !!w.expectFail && !r.fails.some(f => w.expectFail.test(f))
+          if (r.broken) log(false, `${id}: wrong 构造失败（${(/WRONG_SUB_FAILED[^\n]*/.exec(wt + wj) || [''])[0].slice(0, 80)}）`)
+          if (r.reasonBad) log(false, `${id}: wrong 没有因为预期的原因被拒（期望失败信息匹配 ${w.expectFail}，实际：${r.fails.slice(0, 3).join(' | ') || '无'}）`)
+          ws.push(r)
+        }
+        const ok = !s.all && a.all && ws.every(x => !x.all && !x.broken && !x.reasonBad)
+        log(ok, `${id}「${e.title}」初始${s.all ? '通过(错)' : '不通过'} 答案${a.all ? '通过' : '不通过(错) ' + a.fails.slice(0, 2).join(' | ')}` +
           ((e.wrong || []).length ? ' wrong ' + ws.map(x => (x.all ? '通过(错)' : '不通过')).join(',') : ' [无 wrong]'))
       }
 

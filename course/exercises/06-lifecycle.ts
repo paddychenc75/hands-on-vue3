@@ -108,7 +108,7 @@ export const timerLeak: Exercise = {
   },
   wrong: [
     { js: 'const ticks = ref(0)\nconst show = ref(true)\n\nconst Ticker = {\n  setup() {\n    let timer = null\n    onMounted(() => {\n      setInterval(() => { ticks.value++ }, 30)\n    })\n    onUnmounted(() => {\n      clearInterval(timer)        // 卸载时清除\n    })\n    return {}\n  },\n  template: \'<div>Ticker 正在运行</div>\'\n}\n\nreturn { ticks, show, components: { Ticker } }', why: '没有保存 setInterval 返回的 id。clearInterval(timer) 清除的是 null，定时器仍在运行。' },
-    { js: 'const ticks = ref(0)\nconst show = ref(true)\n\nconst Ticker = {\n  setup() {\n    let timer = null\n    onMounted(() => {\n      timer = setInterval(() => { ticks.value++ }, 30)\n    })\n    onUnmounted(clearInterval(timer))\n    return {}\n  },\n  template: \'<div>Ticker 正在运行</div>\'\n}\n\nreturn { ticks, show, components: { Ticker } }', why: '把 clearInterval(timer) 直接写成了 onUnmounted 的参数，它在 setup 里立即执行，那时 timer 还是 null。要传入一个函数 () => clearInterval(timer)。' }
+    { js: 'const ticks = ref(0)\nconst show = ref(true)\n\nconst Ticker = {\n  setup() {\n    let timer = null\n    onMounted(() => {\n      timer = setInterval(() => { ticks.value++ }, 30)\n    })\n    onUnmounted(clearInterval(timer))\n    return {}\n  },\n  template: \'<div>Ticker 正在运行</div>\'\n}\n\nreturn { ticks, show, components: { Ticker } }', why: '把 clearInterval(timer) 直接写成了 onUnmounted 的参数，它在 setup 里立即执行，那时 timer 还是 null。而且 onUnmounted 收到的是 clearInterval 的返回值 undefined，不是函数，setup 直接报错。要传入一个函数 () => clearInterval(timer)。', expectFail: /Ticker 卸载后/ }
   ]
 }
 

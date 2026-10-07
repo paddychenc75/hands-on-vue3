@@ -184,7 +184,7 @@ function patchElement(n1, n2) {
 
 更新时，Vue 只比较 `dynamicChildren`，不遍历整棵树。下图显示一个 Block 怎样收集动态节点。
 
-<Figure caption="Block 把所有动态后代平铺到 dynamicChildren。更新时，Vue 只比较 p 的文字和 li 的 class，跳过静态节点和中间层级。">
+<Figure caption="Block 把自己范围内的动态节点平铺到 dynamicChildren。更新时，Vue 只比较 p 的文字和 li 的 class，跳过静态节点和中间层级。">
 <BlockDynamicChildren />
 </Figure>
 

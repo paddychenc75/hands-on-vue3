@@ -1,11 +1,6 @@
 import type { Exercise } from './types'
+import { sub } from './types'
 import { nextTick } from 'vue'
-
-// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
-function sub(src: string | undefined, from: string, to: string): string {
-  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
-  return src.replace(from, to)
-}
 
 export const kanbanItem: Exercise = {
   title: '拆出 TaskItem 组件：props 向下，事件向上', ch: 26,
@@ -86,6 +81,12 @@ return { tasks, log, toggle, remove, components: { TaskItem } }`,
     const logText = () => ((T.$('.log') || {}).textContent || '');
     T.ok(rows().length === 3, '显示 3 个任务（当前 ' + rows().length + ' 个）');
     if (rows().length !== 3 || !row('完成练习')) return;
+    const inst = (T.$(':scope > div') as any)?._vnode?.component;
+    const C = inst && inst.appContext.components.TaskItem;
+    const P = C && C.props, E = C && C.emits;
+    T.ok(!!P && !Array.isArray(P) && !!P.task && P.task.type === Object && P.task.required === true, 'TODO 1：props 声明 task 为 { type: Object, required: true }');
+    const has = (e: string) => Array.isArray(E) ? E.includes(e) : !!E && e in E;
+    T.ok(has('toggle') && has('remove'), 'TODO 2：emits 里声明了 toggle 和 remove');
     const cb = row('完成练习').querySelector('input[type=checkbox]');
     await T.click(cb);
     T.ok(/toggle 1 次/.test(logText()), '点击复选框后，父组件收到 1 次 toggle 事件（当前：' + logText().trim() + '）');
@@ -564,7 +565,7 @@ kanbanSave.wrong = [
 
 kanbanDue.wrong = [
   { js: sub(kanbanDue.solJs, "(a.due || LAST).localeCompare(b.due || LAST)", "a.due.localeCompare(b.due)"), why: '没有处理空日期。空字符串小于任何日期，没有日期的任务排在了最前面。' },
-  { js: sub(kanbanDue.solJs, "const sorted = computed(() =>\n  [...tasks.value].sort(", "const sorted = [...tasks.value].sort(").replace("LAST))\n)", "LAST))"), why: 'sorted 不是 computed，只在 setup 里排了一次。修改日期后，列表不会重新排序。' },
+  { js: sub(sub(kanbanDue.solJs, "const sorted = computed(() =>\n  [...tasks.value].sort(", "const sorted = [...tasks.value].sort("), "LAST))\n)", "LAST))"), why: 'sorted 不是 computed，只在 setup 里排了一次。修改日期后，列表不会重新排序。' },
   { js: sub(kanbanDue.solJs, "[...tasks.value].sort(", "tasks.value.sort("), why: '在 computed 里直接对 tasks.value 排序。sort 会修改原数组，computed 不应该修改数据。页面看起来正常，但源数据的顺序被改了。' }
 ]
 
@@ -577,3 +578,8 @@ kanbanRoute.wrong = [
   { js: sub(kanbanRoute.solJs, "const task = computed(() => tasks.value.find(t => t.id === Number(route.params.id)))", "const task = tasks.value.find(t => t.id === Number(route.params.id))"), why: 'task 不是 computed，只在 setup 运行时求值一次。那时 route.params 是空的，之后路由变化，task 不再更新。' },
   { js: sub(kanbanRoute.solJs, "tasks.value.find(t => t.id === Number(route.params.id))", "tasks.value[route.params.id]"), why: '把路由参数当成了数组下标。/task/1 取到的是第二个任务。id 是任务自己的标识，要用 find 按 id 查找。' }
 ]
+
+kanbanItem.wrong!.push(
+  { js: sub(kanbanItem.solJs, "props: { task: { type: Object, required: true } },", "props: ['task'],"), why: 'props 写成了数组，没有声明 task 的类型，也没有写 required。传错类型或漏传时，Vue 不会给出提示。' , expectFail: /TODO 1/ },
+  { js: sub(kanbanItem.solJs, "emits: ['toggle', 'remove'],", "emits: [],"), why: '没有声明 TaskItem 发出的事件。页面照样能用，但组件的接口里看不出它会发出 toggle 和 remove，拼错事件名也没有人提醒。', expectFail: /TODO 2/ }
+)

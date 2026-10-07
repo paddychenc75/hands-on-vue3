@@ -98,6 +98,7 @@ export const modelFill: Exercise = {
     T.ok(sel.value === 'sh', '进入页面时，下拉框显示“上海”（当前值：' + sel.value + '）')
     name.value = '小明'
     name.dispatchEvent(new Event('input', { bubbles: true }))
+    name.dispatchEvent(new Event('change', { bubbles: true }))   // v-model.lazy 监听的是 change
     await nextTick()
     T.ok(/姓名：小明/.test(out()), '在文本框输入后，name 跟着改变（当前：' + out() + '）')
     await T.click(boxes[0])

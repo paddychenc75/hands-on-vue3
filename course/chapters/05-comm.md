@@ -249,7 +249,7 @@ const attrs = useAttrs()              // 总是最新的值，但不是响应式
 <template>
   <label class="field">
     {{ label }}
-    <input v-bind="$attrs">           <!-- placeholder、maxlength 等属性加到 input 上 -->
+    <input v-bind="$attrs">           <!-- placeholder、maxlength 加到 input 上。class 和 style 也在 $attrs 里，所以也加到 input 上，不再加到 label 上 -->
   </label>
 </template>
 ```

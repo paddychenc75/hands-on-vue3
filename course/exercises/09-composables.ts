@@ -48,7 +48,7 @@ return { likes, like, stars, star }`,
   },
   wrong: [
     { js: 'const count = ref(0)   // 放在函数外，所有调用共享\nfunction useCounter(initial = 0) {\n  function inc() {\n    count.value++\n  }\n  return { count, inc }\n}\n\n// 已给出：调用两次，得到两个计数器\nconst { count: likes, inc: like } = useCounter(0)\nconst { count: stars, inc: star } = useCounter(10)\n\nreturn { likes, like, stars, star }', why: '把 ref 写在函数外面。两次调用共用同一个 count：点“赞”会同时改变“收藏”，初始值 initial 也没有用上。' },
-    { js: 'function useCounter(initial = 0) {\n  const count = ref(initial)   // 每次调用都创建新的 ref\n  function inc() {\n    count++\n  }\n  return { count, inc }\n}\n\n// 已给出：调用两次，得到两个计数器\nconst { count: likes, inc: like } = useCounter(0)\nconst { count: stars, inc: star } = useCounter(10)\n\nreturn { likes, like, stars, star }', why: '在脚本里对 ref 直接 count++，没有写 .value。这只是对 ref 对象做自增，不会改变它的值。' }
+    { js: 'function useCounter(initial = 0) {\n  const count = ref(initial)   // 每次调用都创建新的 ref\n  function inc() {\n    count++\n  }\n  return { count, inc }\n}\n\n// 已给出：调用两次，得到两个计数器\nconst { count: likes, inc: like } = useCounter(0)\nconst { count: stars, inc: star } = useCounter(10)\n\nreturn { likes, like, stars, star }', why: '在脚本里对 ref 直接 count++，没有写 .value。count 是 const，重新赋值会报 Assignment to constant variable。即使改成 let，count++ 也只是把 ref 对象换成 NaN，不会改变它的值。', expectFail: /点击“赞”/ }
   ]
 }
 

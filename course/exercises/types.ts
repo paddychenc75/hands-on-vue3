@@ -21,6 +21,8 @@ export interface WrongSolution {
   /** 省略时用 solJs */
   js?: string
   why?: string
+  /** 可选。一个正则：测试断言这个错解的失败信息里至少有一条匹配，确认它是因为预期的原因被拒 */
+  expectFail?: RegExp
 }
 
 export interface Exercise {
@@ -43,4 +45,15 @@ export interface Exercise {
   wrong?: WrongSolution[]
   /** 为 true 时，进入页面不自动运行 */
   lazy?: boolean
+}
+
+/**
+ * 在参考答案上做一处替换，造出 wrong 用的错误解法。
+ * 替换串当作字面文字（不解释 $&、$' 等特殊模式）。
+ * 找不到要替换的文字时不抛错（抛错会让整个练习模块加载失败，站点所有练习都不能用），
+ * 而是返回一段以 WRONG_SUB_FAILED 开头的文字（当脚本或模板都只会运行失败），由测试报告出来。
+ */
+export function sub(src: string | undefined, from: string, to: string): string {
+  if (!src || !src.includes(from)) return 'WRONG_SUB_FAILED：找不到 ' + from
+  return src.replace(from, () => to)
 }

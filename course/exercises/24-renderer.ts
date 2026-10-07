@@ -1,10 +1,5 @@
 import type { Exercise } from './types'
-
-// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
-function sub(src: string | undefined, from: string, to: string): string {
-  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
-  return src.replace(from, to)
-}
+import { sub } from './types'
 
 export const rendererInsert: Exercise = {
   title: '修复：插入 B 后，顺序是 A C B', ch: 24,
@@ -143,8 +138,8 @@ return { dump, insertB, moveC }`,
 
 export const fbRenderer: Exercise = {
   title: '补全：自定义渲染器的 patchProp 和 remove', ch: 24,
-  task: '<p>脚本用 createRenderer 把组件渲染到一棵普通的 JavaScript 对象树。页面上的文字是树中每个 item 的 name 属性。nodeOps 只差两个函数。</p><ol><li>TODO 1：remove 把节点从父节点中移除。用已给出的 detach。</li><li>TODO 2：patchProp 把新值 next 写到 el.props[key]。</li><li>确认初始显示 A B C，改名和删除后对象树也改变。</li></ol>',
-  tpl: '<p class="tree">对象树：{{ dump }}</p>\n<button @click="rename">把 B 改为 B2</button>\n<button @click="removeC">删除 C</button>',
+  task: '<p>脚本用 createRenderer 把组件渲染到一棵普通的 JavaScript 对象树。页面上的文字是树中每个 item 的 name 属性。nodeOps 只差两个函数。</p><ol><li>TODO 1：remove 把节点从父节点中移除。用已给出的 detach。</li><li>TODO 2：patchProp 把新值 next 写到 el.props[key]。</li><li>确认初始显示 A B C，改名后是 A B2 C，删除 B 后是 A C。</li></ol>',
+  tpl: '<p class="tree">对象树：{{ dump }}</p>\n<button @click="rename">把 B 改为 B2</button>\n<button @click="removeB">删除 B</button>',
   js: `const { createRenderer, h } = Vue   // 从全局 Vue 中取出
 
 // ===== 渲染目标：普通的 JavaScript 对象 =====
@@ -197,13 +192,13 @@ async function rename() {
   await nextTick()
   dump.value = show(root)
 }
-async function removeC() {
-  items.value = items.value.filter(x => x.id !== 3)
+async function removeB() {
+  items.value = items.value.filter(x => x.id !== 2)
   await nextTick()
   dump.value = show(root)
 }
 
-return { dump, rename, removeC }`,
+return { dump, rename, removeB }`,
   solJs: `const { createRenderer, h } = Vue   // 从全局 Vue 中取出
 
 // ===== 渲染目标：普通的 JavaScript 对象 =====
@@ -256,13 +251,13 @@ async function rename() {
   await nextTick()
   dump.value = show(root)
 }
-async function removeC() {
-  items.value = items.value.filter(x => x.id !== 3)
+async function removeB() {
+  items.value = items.value.filter(x => x.id !== 2)
   await nextTick()
   dump.value = show(root)
 }
 
-return { dump, rename, removeC }`,
+return { dump, rename, removeB }`,
   hints: [
     'runtime-core 不直接操作 DOM。它调用 nodeOps：挂载和修改属性时调用 patchProp，卸载节点时调用 remove。第 24 章开头的分层图和 createRenderer 示例讲了它。',
     'TODO 1：在 remove 中调用 detach，参数是 node。TODO 2：在 patchProp 中写一个赋值语句，左边是 el.props[key]。',
@@ -271,12 +266,12 @@ return { dump, rename, removeC }`,
   async check(T) {
     const order = () => ((T.$('.tree') || {}).textContent || '').replace(/^\s*对象树：\s*/, '').trim();
     T.ok(order() === 'A B C', '初始对象树是 A B C（当前：' + (order() || '空') + '）');
-    const r = T.btn('改为 B2'), d = T.btn('删除 C');
-    if (!r || !d) { T.ok(false, '找到“把 B 改为 B2”和“删除 C”按钮'); return; }
+    const r = T.btn('改为 B2'), d = T.btn('删除 B');
+    if (!r || !d) { T.ok(false, '找到“把 B 改为 B2”和“删除 B”按钮'); return; }
     await T.click(r);
     T.ok(order() === 'A B2 C', '改名后，对象树是 A B2 C（当前：' + (order() || '空') + '）');
-    await T.click(T.btn('删除 C'));
-    T.ok(order() === 'A B2', '删除 C 后，对象树是 A B2（当前：' + (order() || '空') + '）');
+    await T.click(T.btn('删除 B'));
+    T.ok(order() === 'A C', '删除 B 后，对象树是 A C（当前：' + (order() || '空') + '）');
   }
 }
 
@@ -288,6 +283,7 @@ rendererInsert.wrong = [
 ]
 
 fbRenderer.wrong = [
-  { js: sub(fbRenderer.solJs, "remove(node) {\n    detach(node)\n  }", "remove(node) {\n    node.parent = null\n  }"), why: '只把 node 的 parent 清空，没有把 node 从父节点的 children 里删掉。对象树里 C 还在。要用 detach。' },
+  { js: sub(fbRenderer.solJs, "remove(node) {\n    detach(node)\n  }", "remove(node) {\n    node.parent = null\n  }"), why: '只把 node 的 parent 清空，没有把 node 从父节点的 children 里删掉。对象树里 B 还在。要用 detach。', expectFail: /删除 B 后/ },
+  { js: sub(fbRenderer.solJs, "remove(node) {\n    detach(node)\n  }", "remove(node) {\n    node.parent.children.pop()\n  }"), why: '总是删掉最后一个子节点，没有删 node 本身。删的恰好是最后一项时看不出来，删中间的 B 就错了：对象树变成 A B2。', expectFail: /删除 B 后/  },
   { js: sub(fbRenderer.solJs, "el.props[key] = next", "el[key] = next"), why: '把属性写到了 el 本身，不是 el.props。显示用的是 node.props.name，读不到，对象树里每个 item 都是空的。' }
 ]

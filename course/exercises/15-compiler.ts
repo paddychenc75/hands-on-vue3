@@ -1,10 +1,6 @@
 import type { Exercise } from './types'
-
-// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
-function sub(src: string | undefined, from: string, to: string): string {
-  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
-  return src.replace(from, to)
-}
+import { sub } from './types'
+import { nextTick } from 'vue'
 
 export const flagBitFill: Exercise = {
   title: '补全：用按位与检查 PatchFlag', ch: 15,
@@ -99,6 +95,14 @@ return { html, update }`,
     await T.click(b(7));
     r = read();
     T.ok(r.cls === 'c3' && r.w === '3px' && r.text === '文字3', 'PatchFlag 7：class、style 和文字都更新' + show(r));
+    // 再喂一个按钮上没有的组合：STYLE | TEXT 再带一个本题没有定义的位 8。按位与仍然成立，列举 4、7 这类具体数的写法会失败
+    const S = (T.$(':scope > div') as any)?._vnode?.component?.setupState;
+    if (S && typeof S.update === 'function') {
+      S.update(5 | 8);
+      await nextTick();
+      r = read();
+      T.ok(r.w === '4px' && r.text === '文字4' && r.cls === 'c3', '标记 13 = TEXT | STYLE | 8：只更新文字和 style，class 不变（要用按位与检查某一位，不要把整个数和具体的值比较）' + show(r));
+    }
   }
 }
 
@@ -181,16 +185,26 @@ return { html, update }`,
     await T.click(b(3));
     r = read();
     T.ok(r.cls === 'c3' && r.text === '文字3', 'PatchFlag 3：文字和 class 都更新（当前 class="' + r.cls + '"，文字“' + r.text + '”）');
+    // 再喂一个按钮上没有的组合：TEXT | CLASS 再带一个本题没有定义的位 8。按位与仍然成立，列举 1、2、3 的写法会失败
+    const S = (T.$(':scope > div') as any)?._vnode?.component?.setupState;
+    if (S && typeof S.update === 'function') {
+      S.update(3 | 8);
+      await nextTick();
+      r = read();
+      T.ok(r.cls === 'c4' && r.text === '文字4', '标记 11 = TEXT | CLASS | 8：文字和 class 都更新（要用按位与检查某一位，不要把整个数和具体的值比较）（当前 class="' + r.cls + '"，文字“' + r.text + '”）');
+    }
   }
 }
 
 // ===== 错误解法（基于参考答案做小改动）=====
 flagBitFill.wrong = [
-  { js: sub(sub(flagBitFill.solJs, 'flag & PatchFlags.STYLE', 'flag === PatchFlags.STYLE'), 'flag & PatchFlags.TEXT', 'flag === PatchFlags.TEXT'), why: '用 === 比较整个数。flag 是 7 时，7 既不等于 4，也不等于 1，STYLE 和 TEXT 都不更新。要用按位与检查某一位。' },
-  { js: sub(sub(flagBitFill.solJs, 'flag & PatchFlags.STYLE', 'flag | PatchFlags.STYLE'), 'flag & PatchFlags.TEXT', 'flag | PatchFlags.TEXT'), why: '把按位与写成了按位或。结果恒不为 0，条件总是成立，PatchFlag 1 也会更新 style。' }
+  { js: sub(sub(flagBitFill.solJs, 'flag & PatchFlags.STYLE', 'flag === PatchFlags.STYLE'), 'flag & PatchFlags.TEXT', 'flag === PatchFlags.TEXT'), why: '用 === 比较整个数。flag 是 7 时，7 既不等于 4，也不等于 1，STYLE 和 TEXT 都不更新。要用按位与检查某一位。', expectFail: /PatchFlag 7/ },
+  { js: sub(sub(flagBitFill.solJs, 'flag & PatchFlags.STYLE', 'flag === 4 || flag === 7'), 'flag & PatchFlags.TEXT', 'flag === 1 || flag === 7'), why: '把用到的组合一个个列出来。按钮上的 1、4、7 都能过，但标记还可以是 5、13 等其他组合。按位与检查的是“有没有这一位”，不用列举。', expectFail: /标记 13/ },
+  { js: sub(sub(flagBitFill.solJs, 'flag & PatchFlags.STYLE', 'flag | PatchFlags.STYLE'), 'flag & PatchFlags.TEXT', 'flag | PatchFlags.TEXT'), why: '把按位与写成了按位或。结果恒不为 0，条件总是成立，PatchFlag 1 也会更新 style。', expectFail: /PatchFlag 1/ }
 ]
 
 patchFlagFix.wrong = [
-  { js: sub(sub(patchFlagFix.solJs, 'flag & PatchFlags.CLASS', 'flag | PatchFlags.CLASS'), 'flag & PatchFlags.TEXT', 'flag | PatchFlags.TEXT'), why: '把按位与写成了按位或。结果恒不为 0，所以每个标记都更新 class 和文字，没有“只更新标记的部分”。' },
-  { js: sub(sub(patchFlagFix.solJs, 'flag & PatchFlags.CLASS', 'flag >= PatchFlags.CLASS'), 'flag & PatchFlags.TEXT', 'flag >= PatchFlags.TEXT'), why: '把“包含某一位”当成了“数值够大”。PatchFlag 2 也大于等于 1，所以只改 class 时文字也被更新。' }
+  { js: sub(sub(patchFlagFix.solJs, 'flag & PatchFlags.CLASS', 'flag | PatchFlags.CLASS'), 'flag & PatchFlags.TEXT', 'flag | PatchFlags.TEXT'), why: '把按位与写成了按位或。结果恒不为 0，所以每个标记都更新 class 和文字，没有“只更新标记的部分”。', expectFail: /PatchFlag 1/ },
+  { js: sub(sub(patchFlagFix.solJs, 'flag & PatchFlags.CLASS', 'flag >= PatchFlags.CLASS'), 'flag & PatchFlags.TEXT', 'flag >= PatchFlags.TEXT'), why: '把“包含某一位”当成了“数值够大”。PatchFlag 2 也大于等于 1，所以只改 class 时文字也被更新。', expectFail: /PatchFlag 2/ },
+  { js: sub(sub(patchFlagFix.solJs, 'flag & PatchFlags.CLASS', 'flag === 2 || flag === 3'), 'flag & PatchFlags.TEXT', 'flag === 1 || flag === 3'), why: '把用到的组合一个个列出来。按钮上的 1、2、3 都能过，但标记还可以是 11 等其他组合。按位与检查的是“有没有这一位”，不用列举。', expectFail: /标记 11/ }
 ]

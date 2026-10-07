@@ -37,7 +37,7 @@ onMounted(() => {
   attach(logRef.value)
   gridEl = gridRef.value
   pending.splice(0).forEach(light)
-  L('m', '上面几行是页面加载时父组件和 Child 的挂载日志（Child 先完成）。点击按钮，观察日志。')
+  L('m', '上面三行是页面加载时 Child 的挂载日志。父组件的 onMounted 在它们之后运行，这行提示就是在那里写的。点击按钮，观察日志。')
 })
 
 function clear() {

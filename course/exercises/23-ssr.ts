@@ -1,10 +1,5 @@
 import type { Exercise } from './types'
-
-// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
-function sub(src: string | undefined, from: string, to: string): string {
-  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
-  return src.replace(from, to)
-}
+import { sub } from './types'
 
 export const fbSsr: Exercise = {
   title: '补全：水合后再读取浏览器数据', ch: 23,

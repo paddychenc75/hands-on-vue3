@@ -81,10 +81,17 @@ export const cart: Exercise = {
     T.ok(/总价：\s*40\b/.test(p()), '键盘 +1 后总价为 40');
     await T.click(T.$$('button').filter(b => b.textContent.trim() === '+')[1]);
     T.ok(/总价：\s*60\b/.test(p()), '鼠标 +1 后总价为 60');
+    // 改完数据后立刻（不等 DOM 更新、不等侦听器）读取 total：computed 总是最新的，ref 加 watchEffect 手动同步要等到下一轮才更新
+    const S = (T.$(':scope > div') as any)?._vnode?.component?.setupState;
+    if (S && S.items) {
+      S.items[0].qty++;
+      T.ok(S.total === 70, 'total 是 computed：数据一改，立刻读到最新值 70（用 ref 再手动同步不行；当前：' + String(S.total) + '）');
+    }
   },
   wrong: [
     { js: 'const items = ref([\n  { name: \'键盘\', price: 10, qty: 1 },\n  { name: \'鼠标\', price: 20, qty: 1 }\n])\n\nconst total = items.value.reduce((sum, it) => sum + it.price * it.qty, 0)\n\nreturn { items, total }', why: '没有用 computed，只算了一次。total 是普通数字，点击 + 后不会更新。' },
-    { js: 'const items = ref([\n  { name: \'键盘\', price: 10, qty: 1 },\n  { name: \'鼠标\', price: 20, qty: 1 }\n])\n\nconst total = computed(() =>\n  items.value.reduce((sum, it) => sum + it.price, 0)\n)\n\nreturn { items, total }', why: '求和时忘了乘数量 qty。初始每项数量都是 1，总价看起来对，点击 + 后总价不变。' }
+    { js: 'const items = ref([\n  { name: \'键盘\', price: 10, qty: 1 },\n  { name: \'鼠标\', price: 20, qty: 1 }\n])\n\nconst total = computed(() =>\n  items.value.reduce((sum, it) => sum + it.price, 0)\n)\n\nreturn { items, total }', why: '求和时忘了乘数量 qty。初始每项数量都是 1，总价看起来对，点击 + 后总价不变。' },
+    { js: 'const items = ref([\n  { name: \'键盘\', price: 10, qty: 1 },\n  { name: \'鼠标\', price: 20, qty: 1 }\n])\n\nconst total = ref(0)\nwatchEffect(() => {\n  total.value = items.value.reduce((sum, it) => sum + it.price * it.qty, 0)\n})\n\nreturn { items, total }', why: '用 ref 加 watchEffect 手动同步 total。页面上看起来一样，但这是“数据一变就手动算一遍再存起来”，要自己保证同步。侦听器在下一轮才运行，数据刚改完读到的是旧值。派生出来的值用 computed。', expectFail: /total 是 computed/ }
   ]
 }
 

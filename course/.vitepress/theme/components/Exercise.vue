@@ -194,7 +194,16 @@ onMounted(async () => {
   API = {
     ref: V.ref, reactive: V.reactive, computed: V.computed, watch: V.watch, watchEffect: V.watchEffect,
     toRefs: V.toRefs, toRef: V.toRef, shallowRef: V.shallowRef, nextTick: V.nextTick,
-    onMounted: V.onMounted, onUnmounted: V.onUnmounted, provide: V.provide, inject: V.inject
+    onMounted: V.onMounted, onUnmounted: V.onUnmounted, provide: V.provide, inject: V.inject,
+    // 正文教过、练习里会用到的名字。不含 h、createApp、createRenderer、createSSRApp、onErrorCaptured、useModel：
+    // 练习脚本里已有 const { h } = Vue 这样的声明，和参数同名会是语法错误
+    onBeforeMount: V.onBeforeMount, onBeforeUnmount: V.onBeforeUnmount,
+    onBeforeUpdate: V.onBeforeUpdate, onUpdated: V.onUpdated,
+    onActivated: V.onActivated, onDeactivated: V.onDeactivated,
+    useTemplateRef: V.useTemplateRef, onWatcherCleanup: V.onWatcherCleanup, watchPostEffect: V.watchPostEffect,
+    readonly: V.readonly, shallowReactive: V.shallowReactive, toRaw: V.toRaw, markRaw: V.markRaw,
+    triggerRef: V.triggerRef, unref: V.unref, isRef: V.isRef, toValue: V.toValue, customRef: V.customRef,
+    useId: V.useId, effectScope: V.effectScope, onScopeDispose: V.onScopeDispose
   }
   RUN = { ...API, Vue: V }
   const mk = (host: HTMLElement, doc: string, lang: 'tpl' | 'js', onChange: (v: string) => void) =>

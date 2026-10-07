@@ -213,9 +213,12 @@ watchPostEffect(() => {
 
 - `flush: 'post'` 的侦听器在数据改变的那一刻就进入后置队列。组件更新还没开始，所以它排在所有 onUpdated 之前。
 - onUpdated 要等所在组件 patch 完才进入后置队列。
-- 父组件的 patch 会同步更新子组件，子组件先完成，所以子组件的 onUpdated 先进入队列，先运行。子组件的 onBeforeUpdate 则在父组件的 onBeforeUpdate 和 onUpdated 之间运行。
+- 父组件这次渲染改变了子组件的 props 时，子组件在父组件的 patch 里同步更新。子组件先完成，所以子组件的 onUpdated 先进入队列，先运行。子组件的 onBeforeUpdate 则在父组件的 onBeforeUpdate 和 onUpdated 之间运行。
 
-子组件有自己的更新任务时，顺序不同。例如同时修改父组件和子组件各自的数据：父组件的更新任务先运行，父组件的 onUpdated 先进入后置队列，所以它在子组件的 onUpdated 之前运行。
+规则是：谁先 patch 完，谁的 onUpdated 先进入队列，先运行。
+
+- 父组件改变了子组件的 props：子组件在父组件的 patch 里更新，先完成。顺序和上面的实验台相同。如果这时子组件自己的数据也改了，子组件自己的更新任务运行时已经没有事可做，顺序不变。
+- 父组件没有改变子组件的 props：子组件不在父组件的 patch 里更新，只有自己的更新任务，排在父组件之后。例如父组件改了只有自己用的数据，子组件同时改了自己的数据：父组件的 onUpdated 先进入后置队列，所以它在子组件的 onUpdated 之前运行。
 
 最后，`nextTick` 的回调运行。下图显示这个顺序。
 

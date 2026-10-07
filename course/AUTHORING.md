@@ -233,13 +233,16 @@ export const counter: Exercise = {
   solTpl: '<button @click="count++">点了 {{ count }} 次</button>',
   hints: ['提示 1', '提示 2', '答案'],
   async check(T) { /* 用 T.$ T.btn T.click T.ok 检查 */ },
-  wrong: [{ tpl: '…', why: '…' }]
+  wrong: [{ tpl: '…', why: '…', expectFail: /失败信息里的关键字/ }]
 }
 ```
 
-- 练习脚本里可直接用的名字：`ref reactive computed watch watchEffect toRefs toRef shallowRef nextTick onMounted onUnmounted provide inject`，还有全局 `Vue`（整个 Vue 命名空间）。
+- 练习脚本里可直接用的名字：`ref reactive computed watch watchEffect toRefs toRef shallowRef nextTick provide inject`，生命周期钩子 `onBeforeMount onMounted onBeforeUpdate onUpdated onBeforeUnmount onUnmounted onActivated onDeactivated`，以及 `useTemplateRef onWatcherCleanup watchPostEffect readonly shallowReactive toRaw markRaw triggerRef unref isRef toValue customRef useId effectScope onScopeDispose`，还有全局 `Vue`（整个 Vue 命名空间）。
 - `check` 函数本身是模块里的代码，没有全局 `Vue`：用到时 `import { nextTick } from 'vue'`。
+- 练习脚本里已经用 `const { h } = Vue` 取出的名字（`h createApp createRenderer createSSRApp onErrorCaptured useModel`）不在上面的名单里，新增名字前先确认练习代码里没有同名声明，否则会是「Identifier has already been declared」。
 - `wrong` 里每个错误解法，判题必须判它不通过；测试会逐个验证。
+- `wrong` 的可选字段 `expectFail`：一个正则。测试断言这个错解的失败信息（✗ 那几行文字）里至少有一条匹配，确认它是因为预期的原因被拒。新写的 `wrong` 尽量带上。
+- 在参考答案上做替换造错解，用 `types.ts` 导出的 `sub(src, from, to)`：替换串里的 `$` 当字面文字；找不到 `from` 时不抛错，而是返回以 `WRONG_SUB_FAILED` 开头的文字，测试会报告出来（抛错会让整个练习模块加载失败，站点所有练习都不能用）。
 - 起始代码本身有 TODO 而报错是正常的。想让进入页面时不自动运行，设 `lazy: true`。
 - 做完章里所有练习（通过，不是看过答案后通过）并答完自测，本章自动标记完成。
 

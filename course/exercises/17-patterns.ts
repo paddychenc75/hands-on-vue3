@@ -1,4 +1,5 @@
 import type { Exercise } from './types'
+import { sub } from './types'
 
 // 判题辅助：沿输出区挂载根的 vnode 树，收集满足条件的 vnode（生产构建里也可用 _vnode）
 function collectVNodes(T: any, pred: (v: any) => boolean): any[] {
@@ -15,10 +16,11 @@ function collectVNodes(T: any, pred: (v: any) => boolean): any[] {
   walk(el && el._vnode)
   return out
 }
-// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
-function sub(src: string | undefined, from: string, to: string): string {
-  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
-  return src.replace(from, to)
+// 按注册的组件对象匹配 vnode（不依赖组件选项里的 name 字段，学习者删掉 name 也能照样判）
+function byComp(T: any, name: string): (v: any) => boolean {
+  const inst = (T.$(':scope > div') as any)?._vnode?.component
+  const C = inst && inst.appContext.components[name]
+  return v => !!v.type && (C ? v.type === C : v.type.name === name)
 }
 
 export const fbPatterns: Exercise = {
@@ -88,7 +90,7 @@ return { thread, components: { Reply } }`,
     T.ok(!!deep && deep.dataset.depth === '3', '最深的回复的 depth 是 3（当前：' + (deep ? deep.dataset.depth : '无') + '）');
     T.ok(T.$$('ul ul ul ul li').length === 1, '最深的回复在第 4 层 ul 中（嵌套结构正确）');
     // 递归的 Reply 写在 v-for 里：除了根，其余 4 个 Reply 都要有 key
-    const rv = collectVNodes(T, v => v.type && v.type.name === 'Reply').filter(v => v.key != null);
+    const rv = collectVNodes(T, byComp(T, 'Reply')).filter(v => v.key != null);
     T.ok(rv.length === 4, 'v-for 渲染的 4 个 Reply 都有 :key（当前 ' + rv.length + ' 个有 key）');
     const last = spans.find(s => /渲染函数/.test(s.textContent));
     T.ok(!!last && last.dataset.depth === '1', '“也可以用渲染函数。”在第 1 层（depth 是 1）');
@@ -111,7 +113,7 @@ export const treeItem: Exercise = {
     T.ok(n() === 6, '渲染出全部 6 个节点（当前 ' + n() + ' 个）');
     T.ok(/Input\.vue/.test(T.text()), '最深的节点 Input.vue 已显示');
     T.ok(T.$$('ul').length === 4, '只有文件夹才渲染 <ul>（共 4 个 ul，当前 ' + T.$$('ul').length + ' 个）');
-    const tv = collectVNodes(T, v => v.type && v.type.name === 'TreeItem').filter(v => v.key != null);
+    const tv = collectVNodes(T, byComp(T, 'TreeItem')).filter(v => v.key != null);
     T.ok(tv.length === 5, 'v-for 渲染的 5 个 TreeItem 都有 :key（当前 ' + tv.length + ' 个有 key）');
     T.ok(T.$$('ul ul ul ul li').length === 1, 'Input.vue 在第 4 层 ul 中（嵌套结构正确）');
     const comp = T.$$('.name').find(s => /components/.test(s.textContent));

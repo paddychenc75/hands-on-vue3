@@ -1,10 +1,6 @@
 import type { Exercise } from './types'
-
-// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
-function sub(src: string | undefined, from: string, to: string): string {
-  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
-  return src.replace(from, to)
-}
+import { sub } from './types'
+import { nextTick } from 'vue'
 
 export const routeTable: Exercise = {
   title: '补全：路由表的动态参数和 404 页面', ch: 19,
@@ -274,6 +270,14 @@ return { routes, current, loggedIn, log, push }`,
     T.ok(!!(r && r['/admin'] && r['/admin'].meta && r['/admin'].meta.requiresAuth === true), '/admin 路由有 meta: { requiresAuth: true }');
     if (!(await go('去后台'))) { T.ok(false, '找到“去后台”按钮'); return; }
     T.ok(page() === '登录页', '未登录访问 /admin，重定向到登录页（当前：' + page() + '）');
+    // 临时加一个新的受保护路由再导航：守卫要读 to.meta，不能把 /admin 写死
+    const S = inst && inst.setupState;
+    if (S && S.routes && typeof S.push === 'function') {
+      S.routes['/report'] = { title: '报表', meta: { requiresAuth: true } };
+      S.push('/report');
+      await nextTick();
+      T.ok(page() === '登录页', '未登录访问另一个带 requiresAuth 的路由 /report，也重定向到登录页（守卫要看 to.meta，不能写死 /admin；当前：' + page() + '）');
+    }
     await go('去首页');
     T.ok(page() === '首页', '未登录也可以访问首页（当前：' + page() + '）');
     if (!(await go('登录'))) { T.ok(false, '找到“登录”按钮'); return; }
@@ -338,6 +342,14 @@ return { routes, current, loggedIn, log, push }`,
     if (!(await go('去后台'))) { T.ok(false, '找到“去后台”按钮'); return; }
     T.ok(!loop(), '没有发生无限重定向');
     T.ok(page() === '登录页', '未登录访问 /admin，到达登录页（当前：' + page() + '）');
+    // 临时加一个新的受保护路由再导航：守卫要读 to.meta，不能把 /admin 写死
+    const S = ((T.$(':scope > div') as any)?._vnode?.component?.setupState);
+    if (S && S.routes && typeof S.push === 'function') {
+      S.routes['/report'] = { title: '报表', meta: { requiresAuth: true } };
+      S.push('/report');
+      await nextTick();
+      T.ok(page() === '登录页', '未登录访问另一个带 requiresAuth 的路由 /report，也重定向到登录页（守卫要看 to.meta，不能写死 /admin；当前：' + page() + '）');
+    }
     await go('去首页');
     const last = () => { const lis = T.$$('li'); return lis.length ? lis[lis.length - 1].textContent.trim() : ''; };
     T.ok(page() === '首页' && last() === '到达 /', '未登录也可以访问首页（当前：' + page() + '）');
@@ -360,11 +372,13 @@ authGuard.solJs = authGuard.js.replace(`beforeEach((to, from) => {
 fbRouter.wrong = [
   { js: sub(fbRouter.solJs, "return '/login'   // 返回新地址：重定向", "return false   // 取消导航"), why: '守卫返回 false 是“取消导航”，不是重定向。用户停在原地，没有到达登录页。要重定向，返回目标地址。' },
   { js: sub(fbRouter.solJs, "meta: { requiresAuth: true } }", "requiresAuth: true }"), why: '自定义字段没有放在 meta 里。守卫读取的是 to.meta，读到的是空对象，/admin 不会被保护。' },
-  { js: sub(fbRouter.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.meta.requiresAuth"), why: '守卫没有检查登录状态。登录后访问 /admin 也被重定向到登录页，用户永远进不去。' }
+  { js: sub(fbRouter.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.meta.requiresAuth"), why: '守卫没有检查登录状态。登录后访问 /admin 也被重定向到登录页，用户永远进不去。' },
+  { js: sub(fbRouter.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.path === '/admin' && !loggedIn.value"), why: '把 /admin 写死在守卫里，没有读 to.meta。路由表里再加一个受保护的页面，守卫就不认识它了。', expectFail: /requiresAuth 的路由 \/report/ }
 ]
 
 authGuard.wrong = [
   { js: sub(authGuard.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.path !== '/login' && !loggedIn.value"), why: '只排除了 /login。首页没有标记 requiresAuth，却也被重定向到登录页。要看 to.meta.requiresAuth，不要把页面一个个写死。' },
   { js: sub(authGuard.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.meta.requiresAuth"), why: '漏了登录状态的判断。登录后访问 /admin 也被重定向到登录页。' },
-  { js: sub(authGuard.solJs, "return '/login'", "return false"), why: '返回 false 是取消导航，不是重定向。未登录时用户停在原来的页面，没有到达登录页。' }
+  { js: sub(authGuard.solJs, "return '/login'", "return false"), why: '返回 false 是取消导航，不是重定向。未登录时用户停在原来的页面，没有到达登录页。' },
+  { js: sub(authGuard.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.path === '/admin' && !loggedIn.value"), why: '把 /admin 写死在守卫里，没有读 to.meta。路由表里再加一个受保护的页面，守卫就不认识它了。', expectFail: /requiresAuth 的路由 \/report/ }
 ]

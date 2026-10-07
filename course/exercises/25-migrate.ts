@@ -1,10 +1,5 @@
 import type { Exercise } from './types'
-
-// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
-function sub(src: string | undefined, from: string, to: string): string {
-  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
-  return src.replace(from, to)
-}
+import { sub } from './types'
 
 export const migrateVModel: Exercise = {
   title: '迁移：输入框是空的，输入后问候语不变', ch: 25,
@@ -88,7 +83,7 @@ return { title, components: { TitleInput } }`,
 
 // ===== 错误解法（基于参考答案做小改动）=====
 migrateVModel.wrong = [
-  { js: sub(migrateVModel.solJs, "  emits: ['update:modelValue'],\n", ""), why: '没有在 emits 中声明 update:modelValue。页面能用，但 Vue 3 要求声明组件发出的事件，否则它会被当成原生事件监听，还会出现警告。' },
+  { js: sub(migrateVModel.solJs, "  emits: ['update:modelValue'],\n", ""), why: '没有在 emits 中声明 update:modelValue。本题页面照样能用（Vue 会把 v-model 的监听从透传属性里排除），但组件发出哪些事件没有写在接口上：事件名拼错时没有任何提示。Vue 3 的迁移要求是声明所有发出的事件。', expectFail: /emits 中声明了 update:modelValue/ },
   { js: sub(migrateVModel.solJs, "$emit(\\'update:modelValue\\'", "$emit(\\'input\\'"), why: '只改了 prop，事件名还是 Vue 2 的 input。父组件监听的是 update:modelValue，输入后问候语不变。' },
   { js: sub(sub(migrateVModel.solJs, "props: ['modelValue']", "props: ['value']"), ":value=\"modelValue\"", ":value=\"value\""), why: '只改了事件名，prop 还是 Vue 2 的 value。父组件传的是 modelValue，输入框一开始是空的。' }
 ]

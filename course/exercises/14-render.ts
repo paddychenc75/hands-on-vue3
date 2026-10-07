@@ -1,4 +1,5 @@
 import type { Exercise } from './types'
+import { sub } from './types'
 import { h } from 'vue'
 
 // 判题辅助：沿输出区挂载根的 vnode 树，收集满足条件的 vnode（生产构建里也可用 _vnode）
@@ -16,12 +17,6 @@ function collectVNodes(T: any, pred: (v: any) => boolean): any[] {
   walk(el && el._vnode)
   return out
 }
-// 修正替换用：找不到就报错，避免写出和答案相同的 wrong
-function sub(src: string | undefined, from: string, to: string): string {
-  if (!src || !src.includes(from)) throw new Error('wrong 替换失败：找不到 ' + from)
-  return src.replace(from, to)
-}
-
 export const hListFill: Exercise = {
   title: '补全：用 h() 渲染列表项', ch: 14,
   task: '<p>TagList 用渲染函数显示标签。外层的 div、ul 和“选中”段落已经写好。只补全一行 TODO。</p><ol><li>TODO：为每个 t 返回一个 &lt;li&gt;。写 key。点击时，把 picked 设为 t。li 的文字是 t。</li><li>点击“添加”，列表多一项。点击一个标签，显示“选中：标签名”。</li></ol><p>运行器的参数中没有 h。脚本第一行从全局 Vue 中取出它。</p>',
@@ -292,5 +287,5 @@ hListFill.wrong = [
 
 renderFn.wrong = [
   { js: sub(renderFn.solJs, "h('li', { key: t }, t)", "h('li', t)"), why: 'li 没有 key。界面和答案一样，但 Vue 只能按位置复用 li。' },
-  { js: sub(sub(renderFn.solJs, "    // 在渲染函数内部读取 props.level，level 改变时重新渲染\n    return () => h('h' + props.level,", "    const tag = 'h' + props.level   // 在 setup 里读一次\n    return () => h(tag,"), "setup(props, { slots }) {", "setup(props, { slots }) {"), why: '在 setup 中读取 props.level，只读了一次。点击“下一级”后标题级别不变。要在返回的渲染函数内部读取 props。' }
+  { js: sub(renderFn.solJs, "    // 在渲染函数内部读取 props.level，level 改变时重新渲染\n    return () => h('h' + props.level,", "    const tag = 'h' + props.level   // 在 setup 里读一次\n    return () => h(tag,"), why: '在 setup 中读取 props.level，只读了一次。点击“下一级”后标题级别不变。要在返回的渲染函数内部读取 props。' }
 ]

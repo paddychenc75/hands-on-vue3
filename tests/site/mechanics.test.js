@@ -482,7 +482,7 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       const g = R.group('各阶段测验页都能抽满 12 题，标题和 stages.ts 一致')
       const p = await site.newPage()
       await seed(p, base, {})
-      const names = ['入门', '进阶', '高级', '原理与架构', '生态与实战', '深入']
+      const names = ['入门', '进阶', '生态与实战', '响应式原理', '渲染原理', '架构与工程']   // 与 course/stages.ts 的 name 一致
       for (let i = 1; i <= STAGE_COUNT; i++) {
         await p.goto(base + '/check/' + i + '.html'); await p.waitForSelector('.quiz .q'); await p.waitForTimeout(250)
         g.ok(await p.locator('.quiz .q').count() === 12, '阶段 ' + i + ' 抽满 12 题')

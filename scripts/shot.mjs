@@ -193,7 +193,7 @@ async function shootDesktop(browser, url, dir, scheme, name, note) {
       const ready = await ex.locator('.cm-editor').first().waitFor({ timeout: 6000 }).then(() => true).catch(() => false)
       const id = (await ex.getAttribute('data-ex')) || (await ex.getAttribute('data-ex-ph')) || '?'
       if (!ready) { if (scheme === 'light') note(name, `练习 ${id} 的编辑器没有加载出来`); continue }
-      if (scheme === 'light' && (await ex.locator('.ex-err').count())) note(name, `练习 ${id} 显示了错误`)
+      if (scheme === 'light' && (await ex.locator('p.ex-err').count())) note(name, `练习 ${id} 显示了错误`)
       const k = idx()
       await shotEl(ex, path.join(dir, `${pre}${k}-ex.png`))
       const folds = ex.locator('.cm-foldPlaceholder')

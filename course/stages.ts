@@ -27,7 +27,7 @@ export const STAGES: Stage[] = [
     desc: 'TypeScript、工程化、Pinia、Vue Router、数据请求、状态归属、测试、性能优化和 Vue 2 迁移，最后用任务看板 Pro 把它们接成一个完整项目。'
   },
   { no: '04', name: '响应式原理', en: 'Reactivity internals', desc: '响应式原理、更新队列与 nextTick、watch 与 effectScope 的实现，以及响应式陷阱诊断，知其然更知其所以然。' },
-  { no: '05', name: '渲染原理', en: 'Rendering internals', desc: '渲染函数与 JSX、模板编译、虚拟 DOM 与 diff、组件运行时，以及自定义渲染器和内置组件的实现。' },
+  { no: '05', name: '渲染原理', en: 'Rendering internals', desc: '虚拟 DOM 与渲染函数（含 JSX）、模板编译、子节点的更新与 diff、组件运行时，以及自定义渲染器和内置组件的实现。' },
   {
     no: '06',
     name: '架构与工程',

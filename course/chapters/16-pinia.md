@@ -25,7 +25,7 @@ import PiniaTrace from '../labs/16-pinia/PiniaTrace.vue'
 :::
 
 ::: rt
-阅读主线约 15 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习、自测和本地任务。
+阅读主线约 18 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习、自测和本地任务。
 :::
 
 ::: analogy
@@ -96,6 +96,8 @@ const store = useTaskStore()
 store.add('写测试')          // 调用 action
 store.left                   // 读取 getter，不写 .value
 ```
+
+`return` 决定哪些东西对外可见。没有返回的变量是 store 的私有变量：组件读不到它（`store.hidden` 是 `undefined`），它不在 `pinia.state.value` 里，改它也不会触发 `$subscribe`，持久化插件和服务端渲染的序列化也都看不到它（pinia 4.0.3 实测）。所以 state 必须返回。只有内部用的中间变量可以不返回，上面的 `nextId` 就是这样：它只在当前页面有效。如果任务要在刷新后恢复（16.7），id 的计数器也得是 state，否则刷新后会从 1 重新数，id 重复。
 
 store 只有一个实例。第一次调用 `useTaskStore()` 时，Pinia 创建 store。之后，所有组件得到同一个 store。下图说明多个组件怎样共享它。
 
@@ -204,7 +206,11 @@ const { add, toggle } = store                // action 可以直接解构
 <StoreToRefsVsDestructure />
 </Figure>
 
-注意：storeToRefs 只处理 state 和 getter，不处理 action。所以 action 要从 store 直接解构。模板里直接写 `store.left` 不会丢失响应性，只有解构才会。
+**为什么会丢。**响应性发生在“读属性”这一步。`const { left } = store` 在这一刻读了一次 `store.left`，得到的是一个数字，这个变量和 store 从此没有关系。`storeToRefs` 对每个 state 和 getter 做一次 `toRef(store, key)`：读 `left.value` 时才去读 `store.left`，所以总是最新的。写也一样，`count.value = 10` 会写回 store。
+
+**为什么只处理 state 和 getter。**action 是函数，没有响应性可保留，所以直接解构。解构后调用也安全：Pinia 已经把 action 绑定到 store，选项式 store 的 action 里用 `this.count++`，解构出来调用照样生效（实测）。不要用 Vue 的 `toRefs(store)` 代替 `storeToRefs`：它会把 `$patch`、`$id` 和每个 action 也包成 ref。getter 对应的 ref 是只读的，给它赋值，Vue 会警告并忽略。
+
+模板里直接写 `store.left` 不会丢失响应性，只有解构才会。所以组件只在脚本里要用 `left` 当变量时，才需要 `storeToRefs`。
 
 ### 16.3 修改 state：action 和 $patch
 
@@ -229,6 +235,10 @@ board.$patch(state => {
   state.lastAddedId = t.id
 })
 ```
+
+怎么选：只改一个字段，在 action 里直接赋值。几个字段要一起改，用对象形式的 `$patch`。要向数组添加元素或改嵌套的数组，用函数形式。对象形式有一个常见错误：`board.$patch({ tasks: [t] })` 不是“追加 t”，而是把整个 `tasks` 换成只有 t 的数组，嵌套对象里的数组也一样（实测）。
+
+`$patch` 和逐个赋值的区别在通知方式。`$patch` 同步通知订阅者：调用返回时，`$subscribe` 的回调已经运行了一次，`mutation.type` 是 `patch object` 或 `patch function`。直接赋值要等到这个 tick 结束才通知（16.6 详细讲）。
 
 注意：不要在多个组件中用 `$patch` 重复写同一段业务逻辑。把它写成 action，例如 `board.showMyTodo()`。这样修改集中在 store 中，容易追踪。
 
@@ -330,6 +340,8 @@ export const useAuthStore = defineStore('auth', () => {
 
 `restore` 解决刷新问题：`user` 在内存里，刷新后就没了，但保存下来的 `token` 还在（16.7 讲保存）。`restore` 用 token 换回用户。第 17 章的路由守卫会先等它完成，再判断是否登录。
 
+`restore` 把 Promise 存在 `restoring` 里，原因是守卫每次导航都会调用它。没有这一步，用户每点一个链接，就向服务器换一次用户。存下 Promise 以后，第一次调用发请求，之后的调用拿到同一个 Promise：请求没完成就等它，完成了就立刻得到结果。函数里的第一行判断处理另外两种情况：没有 token 说明没登录，不必请求；`user` 已经有了，说明刚刚登录成功，也不必请求。
+
 组件里：
 
 ```js
@@ -366,6 +378,8 @@ board.$subscribe((mutation, state) => {
 })
 ```
 
+回调默认在这个 tick 结束时运行一次，所以连续改三个字段，只保存一次，这正是保存想要的。如果需要每次赋值都通知，传 `{ flush: 'sync' }`（实测：连续两次直接赋值，回调运行两次），但保存这类场景不需要。
+
 注意订阅的生命周期。在组件的 setup 里调用 `$subscribe`，组件卸载后订阅自动取消。要让它一直有效，传入 `{ detached: true }`。
 
 **场景：记录 action 的耗时和错误。**回调收到 action 的名字和参数。用 `after` 在成功后运行代码，用 `onError` 处理失败。`$onAction` 返回一个函数，调用它会取消订阅。
@@ -378,6 +392,8 @@ const unsubscribe = board.$onAction(({ name, args, after, onError }) => {
 })
 // 不再需要时：unsubscribe()
 ```
+
+`$subscribe` 和 `$onAction` 看的东西不同。直接赋值 `board.keyword = 'x'` 会触发 `$subscribe`，但不会触发 `$onAction`，因为没有 action 在运行。想“数据变了就保存”，用 `$subscribe`。想“每次业务操作都记录”，用 `$onAction`。对异步 action，`after` 在它的 Promise 完成后运行，`result` 是返回值；action 抛错时 `onError` 运行，错误仍然抛给调用方（实测）。
 
 <Lab id="demo-pinia-trace" title="实验台：真实的 Pinia 怎样通知订阅者" note="真实的 pinia，不是迷你实现">
 <template #predict>
@@ -426,6 +442,8 @@ pinia.use(persistPlugin)
 defineStore('settings', () => { /* … */ }, { persist: true })
 ```
 
+有两点要注意。第一，恢复时用 `$patch`，不要整个替换。localStorage 里可能是旧版本保存的 state，缺少后来新增的字段。`$patch` 是合并，缺的字段保持默认值：存档里只有 `theme`，新增的 `fontSize` 仍是默认的 14（实测）。数组仍然整个替换。第二，注册要早。插件只对注册之后创建的 store 运行，注册前已经创建的 store 不会补跑（实测）。插件里的订阅挂在 store 自己的作用域上，不随组件卸载（实测），所以 `{ detached: true }` 在这里是明确表达“不跟随组件”，不是必需的。
+
 真实项目通常直接用现成的库 `pinia-plugin-persistedstate`（本章写作时是 4.7.1）。它多了 `key`、`storage`、`pick`、`omit` 这些选项：
 
 ```ts
@@ -449,7 +467,7 @@ defineStore('auth', () => { /* … */ }, { persist: { pick: ['token'] } })
 
 ### 16.8 在组件之外和其他 store 中使用 store
 
-`useXxxStore()` 需要一个激活的 pinia 实例。`app.use(pinia)` 激活它。所以在组件之外，在 app.use(pinia) 之后才调用 useXxxStore()。
+`useXxxStore()` 需要一个激活的 pinia 实例。`app.use(pinia)` 激活它。所以在组件之外，在 app.use(pinia) 之后才调用 useXxxStore()。组件里的调用通过 `inject` 找到 pinia，组件外的调用靠 `app.use(pinia)` 设置的全局激活实例。忘了安装就调用，会得到这条错误（pinia 4.0.3 实测）：`getActivePinia() was called but there was no active Pinia. Are you trying to use a store before calling "app.use(pinia)"?`。
 
 **场景：路由守卫检查登录。**在守卫函数中调用 useAuthStore()，不要在模块顶层调用。`auth` 就是 16.5 节定义的 store：
 
@@ -479,13 +497,13 @@ export const useCart = defineStore('cart', () => {
 })
 ```
 
-注意：读取另一个 store 的 state，要放在 computed 或 action 里。不要在 setup 顶层把它存成普通变量，那样只是当时的一个值。两个 store 互相使用时，不要在两个 store 的顶层都读取对方的 state，循环依赖的细节见[第 19 章](/chapters/19-state-arch)。
+注意：读取另一个 store 的 state，要放在 computed 或 action 里。不要在 setup 顶层把它存成普通变量，那样只是当时的一个值。两个 store 互相使用时，不要在顶层读取对方的 state。原因：A 的 setup 还没运行完，B 就调用了 `useA()`，拿到的是一个还没建好的 store，顶层读 `a.x` 得到 `undefined`，而且没有任何报错（实测）。放进 `computed` 或 action，到真正读的时候两边都建好了，值是对的。循环依赖的细节见[第 19 章](/chapters/19-state-arch)。
 
 <Exercise id="cartCheckout" />
 
 ### 16.9 store 的类型和调试
 
-**类型。**setup store 的类型由 return 的内容推断出来。只有两处要自己写：初始值是 `null` 或空数组的 `ref`，要写类型参数；函数的参数要写类型。需要“某个 store 的类型”时，用 `ReturnType`：
+**类型。**setup store 的类型由 return 的内容推断出来。只有两处要自己写：初始值是 `null` 或空数组的 `ref`，要写类型参数；函数的参数要写类型。需要“某个 store 的类型”时，用 `ReturnType`。store 的形状只在 `return` 里定义一次，`ReturnType` 跟着它变，不用另外写一份接口再去同步：
 
 ```ts
 const user = ref<User | null>(null)        // 否则类型是 null

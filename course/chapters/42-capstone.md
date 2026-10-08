@@ -16,7 +16,7 @@ desc: 回到第 23 章的看板 Pro，用错误处理、性能诊断、组件分
 :::
 
 ::: rt
-阅读主线约 15 分钟，深入内容约 4 分钟（可选，是每条线的示范答案）。另外留时间做练习和自测。项目在你的电脑上完成：必做的三条线大约需要 10 到 14 小时，每条选做线 2 到 4 小时。
+阅读主线约 16 分钟，深入内容约 4 分钟（可选，是每条线的示范答案）。另外留时间做练习和自测。项目在你的电脑上完成：必做的三条线大约需要 10 到 14 小时，每条选做线 2 到 4 小时。
 :::
 
 ::: terms
@@ -114,7 +114,7 @@ defineExpose({ reset })
 |---|---|
 | 在 `TaskCard` 的 setup 里 `throw new Error('boom')`（只对 id 为 3 的任务），刷新 | 页面显示“这一部分出错了：boom”和“重试”；`/api/_report` 里恰好 1 条，`source` 是 `vue` |
 | 去掉这行，点“重试” | 看板恢复，不用刷新页面 |
-| 设 `failRate=1`，刷新 | 约 1 秒后显示“加载失败”和重试按钮（第一次失败后又等了 300 和 600 毫秒）；`/api/_report` 里只增加 1 条，`source` 是 `request` |
+| 设 `failRate=1`，刷新 | 约 2 秒后显示“加载失败”和重试按钮（默认每次请求服务端先等 300 毫秒，共请求三次，中间重试前又等了 300 和 600 毫秒，合计约 1.8 秒）；`/api/_report` 里只增加 1 条，`source` 是 `request` |
 | 控制台运行 `Promise.reject(new Error('x'))` | `/api/_report` 里出现 `source` 为 `promise` 的记录 |
 | 在 Network 面板屏蔽 `TaskDetailView` 的文件，点一张卡片的标题 | 留在看板，顶部出现“页面没能加载”；上报里有 `source` 为 `router` 的记录 |
 
@@ -186,7 +186,7 @@ function column(status: Status) {
 回到项目，把第 23 章的性能测试改成“按列计数”，并换一个会被渲染出来的任务（只显示前 50 张，id 500 不在页面上）：
 
 ```ts
-// 1000 个任务，id 按 todo、doing、done 轮流分配；id 4 在待办列且已渲染
+// 1000 个任务，id 按 todo、doing、done 轮流分配（id 1、4、7……是待办）；id 4 在待办列且已渲染
 await useTaskStore().move(4, 'doing')
 await flushPromises()
 expect(updates.TaskCard).toBe(0)
@@ -296,7 +296,7 @@ function onKeydown(e: KeyboardEvent) {
 
 **线 F：组件库（第 41 章）。**
 
-- **问题。**第 3 层的 `useCardNavigation` 和 `CardNav` 和看板业务无关，别的项目也能用。
+- **问题。**第 1、2 层的 `useCardNavigation` 和 `CardNav` 和看板业务无关，别的项目也能用。
 - **任务。**用 npm 工作区：根 `package.json` 加 `"workspaces": ["packages/*"]`，`packages/ui` 里放这两个文件，`vite.config.ts` 用库模式构建 ESM 并把 `vue` 外部化，`vue-tsc` 生成声明文件，`package.json` 的 `exports` 指向 `dist/index.js` 和 `dist/index.d.ts`，`vue` 写在 `peerDependencies`。看板的 `dependencies` 里加 `"@kanban/ui": "*"`，从包里导入。
 - **验收。**`npm run build -w @kanban/ui` 成功；`npx publint packages/ui` 输出 `All good!`；看板的 `type-check`、测试、构建都通过；故意给 `CardNav` 传错类型的 `columns`，`type-check` 报错（说明类型真的被读到了）；在产物里搜索 `currentInstance` 没有结果（Vue 没有被打进包）。
 - **用原理解释。**为什么 `vue` 要外部化，并且写进 `peerDependencies`？

@@ -450,10 +450,11 @@ export const projA11y: Exercise = {
     T.ok(boxes.length === 3, '每个任务有一个原生复选框（input type=checkbox），现在有 ' + boxes.length + ' 个')
     const titles = ['买菜', '写周报', '健身']
     boxes.forEach((b, i) => T.ok(nameOf(b).includes(titles[i]), '第 ' + (i + 1) + ' 个复选框的名称应包含“' + titles[i] + '”（用 label 关联），现在名称是“' + nameOf(b) + '”'))
-    const btns = T.$$('li button') as HTMLButtonElement[]
+    // 不依赖 li：任务行用什么元素搭由学习者定，只数 button
+    const btns = T.$$('button') as HTMLButtonElement[]
     T.ok(btns.length === 3, '每个任务有一个原生 button 作为删除按钮，现在有 ' + btns.length + ' 个')
     btns.forEach((b, i) => T.ok(/删除/.test(nameOf(b)) && nameOf(b).includes(titles[i]), '第 ' + (i + 1) + ' 个按钮的名称应是“删除 ' + titles[i] + '”，现在是“' + nameOf(b) + '”'))
-    const live = T.$$('[role=status],[aria-live]').find(e => /还剩/.test(e.textContent || ''))
+    const live = T.$$('[role=status],[role=alert],[aria-live],output').find(e => /还剩/.test(e.textContent || ''))
     T.ok(!!live, '“还剩 N 项”所在的元素应是状态区域（role="status" 或 aria-live），数量变化才会被读出来')
     if (boxes[0]) {
       boxes[0].focus()
@@ -465,7 +466,7 @@ export const projA11y: Exercise = {
     if (btns[1]) {
       await T.click(btns[1])
       await tick()
-      T.ok(T.$$('li').length === 2 && !/写周报/.test(T.text()), '删除“写周报”后，它从列表中消失')
+      T.ok(T.$$('input[type=checkbox]').length === 2 && !/写周报/.test(T.text()), '删除“写周报”后，它从列表中消失')
     }
   },
   wrong: [

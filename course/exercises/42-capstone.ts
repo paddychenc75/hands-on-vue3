@@ -90,13 +90,14 @@ const reqStart = `async function request(fetchImpl, path, init = {}, sleep) {
   return res.json()
 }`
 
-const EXPECT: Record<string, [string, number]> = {
+// 响应体没有 message 时的兜底文字题目没有规定，所以这两行只要求消息非空，不要求具体文字
+const EXPECT: Record<string, [string | RegExp, number]> = {
   'GET 成功': ['ok:{"v":1}', 1],
   'GET 断网一次后成功': ['ok:{"v":2}', 2],
-  'GET 一直 500': ['ApiError:500::请求失败（500）', 3],
+  'GET 一直 500': [/^ApiError:500::.+/, 3],
   'GET 一直断网': ['ApiError:0::网络不通', 3],
   'GET 404': ['ApiError:404::任务不存在', 1],
-  'POST 500': ['ApiError:500::请求失败（500）', 1],
+  'POST 500': [/^ApiError:500::.+/, 1],
   'POST 400 带字段': ['ApiError:400:title:标题不能为空', 1],
   'GET 被取消': ['AbortError', 1]
 }
@@ -120,7 +121,7 @@ export const capRequest: Exercise = {
     for (const [label, [outcome, calls]] of Object.entries(EXPECT)) {
       const tr = T.$(`tr[data-label="${label}"]`)
       const o = tr?.getAttribute('data-outcome'), c = Number(tr?.getAttribute('data-calls'))
-      T.ok(o === outcome, label + '：结果应是 ' + outcome + '，现在是 ' + o)
+      T.ok(typeof outcome === 'string' ? o === outcome : outcome.test(o || ''), label + '：结果应是 ' + (typeof outcome === 'string' ? outcome : 'ApiError:500::（带一条非空的消息）') + '，现在是 ' + o)
       T.ok(c === calls, label + '：应调用 fetch ' + calls + ' 次，现在是 ' + c + ' 次')
     }
   },

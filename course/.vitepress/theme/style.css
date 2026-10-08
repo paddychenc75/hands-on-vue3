@@ -209,7 +209,7 @@
 .vp-doc .ex-edit { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .vp-doc .ex-edit > div { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); min-width: 0; }
 .vp-doc .ex-edit .cap2 { font-size: 12px; opacity: .85; }
-.vp-doc .ex-out { border: 1px solid var(--line); border-radius: 6px; padding: 12px; min-height: 60px; background: var(--bg); }
+.vp-doc .ex-out { overflow-x: auto; max-width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 12px; min-height: 60px; background: var(--bg); }
 .vp-doc .ex-out button { font: inherit; font-size: 14px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; margin: 2px; }
 .vp-doc .ex-out input { font: inherit; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
 .vp-doc .ex-out p, .vp-doc .ex-out ul { margin: 4px 0; line-height: 1.8; }

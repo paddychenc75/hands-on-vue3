@@ -388,7 +388,7 @@ export function report(err, inst, info, extra) {
 **监控 SDK 做了什么。**以 `@sentry/vue` 11.5 为例，读它的源码，`Sentry.init({ app, dsn })` 做的事，正是本章前面讲的这些入口：
 
 1. **包装 `app.config.errorHandler`。**它保存你原来的处理函数，换成自己的：取组件名和组件链、`$props`、`info`，放进错误的上下文，异步上报，再调用你原来的函数。如果你原来没有配置，它在最后重新抛出（Vue 会当作 `errorHandler` 自己出错处理）。
-2. **默认集成里有 `window` 的 `error` 和 `unhandledrejection`**（38.2 的兜底），还有去重和面包屑（记录出错之前的用户操作）。
+2. <b>默认集成里有 `window` 的 `error` 和 `unhandledrejection`</b>（38.2 的兜底），还有去重和面包屑（记录出错之前的用户操作）。
 3. **需要追踪时，用 `app.mixin` 注入钩子**，给组件的生命周期计时。
 
 两个使用上的注意：`init` 要在 `app.mount()` 之前调用（SDK 源码里专门检查并警告）；在 `init` 之后再给 `app.config.errorHandler` 赋值，会覆盖 SDK 的包装，组件错误不再上报。

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chapterRanges, esc, fmtOpt } from '../../course/engine/logic/text.ts'
+import { chapterRanges, esc, fmtInline, fmtOpt } from '../../course/engine/logic/text.ts'
 
 describe('esc / fmtOpt', () => {
   it('esc 转义 & < >', () => {
@@ -24,5 +24,19 @@ describe('chapterRanges：把章号列表写成“第 1–5、7、9–10 章”'
   })
   it('空列表返回空串', () => {
     expect(chapterRanges([])).toBe('')
+  })
+})
+
+describe('fmtInline：纯文本题库里的反引号', () => {
+  it('反引号里的内容变成 code，里面的 < 被转义', () => {
+    expect(fmtInline('`count` 是 `<div>`')).toBe('<code>count</code> 是 <code>&lt;div&gt;</code>')
+  })
+  it('没有闭合的反引号原样保留；标签名照旧包成 code', () => {
+    expect(fmtInline('a ` b')).toBe('a ` b')
+    expect(fmtInline('用 <Suspense> 包住')).toBe('用 <code>&lt;Suspense&gt;</code> 包住')
+  })
+  it('不产生可执行的标记', () => {
+    expect(fmtInline('`<img onerror=x>` <script>')).not.toContain('<img')
+    expect(fmtInline('<script>')).not.toContain('<script>')
   })
 })

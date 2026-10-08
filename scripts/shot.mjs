@@ -199,9 +199,9 @@ async function shootDesktop(browser, url, dir, scheme, name, note) {
       // 折叠块的 widget 是 button.cm-foldBtn[data-fold-kind=block](折叠状态);展开后变成 head/end 标记行
       const folds = ex.locator('.cm-foldBtn[data-fold-kind="block"]')
       if (await folds.count()) {
-        await folds.first().click({ timeout: 2000 }).catch(() => {}); await p.waitForTimeout(200)
+        await clickFold(p, folds.first()); await p.waitForTimeout(200)
         await shotEl(ex, path.join(dir, `${pre}${k}-ex-unfold1.png`))
-        for (let i = 0; i < 12 && (await folds.count()); i++) { await folds.first().click({ timeout: 1000 }).catch(() => {}); await p.waitForTimeout(100) }
+        for (let i = 0; i < 12 && (await folds.count()); i++) { await clickFold(p, folds.first()); await p.waitForTimeout(100) }
         await shotEl(ex, path.join(dir, `${pre}${k}-ex-unfold.png`))
       }
     }
@@ -216,6 +216,13 @@ async function shootDesktop(browser, url, dir, scheme, name, note) {
   } catch (e) {
     note(name, `截图过程出错（${scheme}）：${String(e.message).slice(0, 160)}`)
   } finally { await ctx.close() }
+}
+
+/** 用真实的鼠标点折叠块(locator.click 会为了“滚进视野”把编辑器横向滚几个像素,截图里每行的开头会被裁掉) */
+async function clickFold(p, loc) {
+  await loc.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest' })).catch(() => {})
+  const b = await loc.boundingBox({ timeout: 2000 }).catch(() => null)
+  if (b) await p.mouse.click(b.x + Math.min(40, b.width / 2), b.y + b.height / 2)
 }
 
 async function shootMobile(browser, url, dir, name, note) {
@@ -245,7 +252,7 @@ async function shootMobile(browser, url, dir, name, note) {
       await shotEl(ex, path.join(dir, `m-${String(k).padStart(2, '0')}-ex.png`))
       const mf = ex.locator('.cm-foldBtn[data-fold-kind="block"]')
       if (await mf.count()) {
-        await mf.first().click({ timeout: 2000 }).catch(() => {}); await p.waitForTimeout(200)
+        await clickFold(p, mf.first()); await p.waitForTimeout(200)
         await shotEl(ex, path.join(dir, `m-${String(k).padStart(2, '0')}-ex-unfold1.png`))
       }
     }

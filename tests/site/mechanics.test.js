@@ -561,7 +561,9 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
         const clipped = el => { for (let a = el.parentElement; a && a !== q; a = a.parentElement) { const o = getComputedStyle(a).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') return true } return false }
         const out = []
         q.querySelectorAll('*').forEach(el => { const b = el.getBoundingClientRect(); if (b.width > 0 && b.right > qr.right + 1 && !clipped(el)) out.push(el.tagName.toLowerCase()) })
-        return { key: q.dataset.key, page: document.documentElement.scrollWidth - innerWidth, q: q.scrollWidth - q.clientWidth, out: out.length }
+        // 纯文本题库里的 `反引号` 要渲染成 code，不能原样显示（代码块里的反引号不算）
+        const c = q.cloneNode(true); c.querySelectorAll('pre, .code').forEach(e => e.remove())
+        return { key: q.dataset.key, page: document.documentElement.scrollWidth - innerWidth, q: q.scrollWidth - q.clientWidth, out: out.length, tick: c.textContent.includes('`') }
       })
       const bad = []; const seen = new Set()
       await p.goto(base + '/review.html')
@@ -573,6 +575,7 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
         const b = await measure()
         seen.add(a.key)
         for (const [when, m] of [['答前', a], ['答后', b]]) if (m.page > 0 || m.q > 0 || m.out) bad.push(m.key + ' ' + when)
+        if (b.tick) bad.push(b.key + ' 显示了字面的反引号')
         const nx = await p.$('[data-a=next]'); if (nx) await nx.click()
       }
       g.ok(seen.size === keys.length, '渲染了全部 ' + keys.length + ' 道卡片(实际 ' + seen.size + ')')

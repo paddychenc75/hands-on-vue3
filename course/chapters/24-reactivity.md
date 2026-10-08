@@ -373,8 +373,8 @@ function ref(value) {
 ::: deep shallowRef、triggerRef 和 customRef 的实现
 读它能回答：`shallowRef` 为什么要 `triggerRef`？`customRef` 把什么交给了你？
 
-- **`shallowRef`**：不包 reactive，`r.value.n++` 没有任何东西触发，所以要 `triggerRef(r)`。它就是强制触发一次 `r` 自己的 Dep。
-- **`customRef`**：工厂函数拿到 `track` 和 `trigger`，由你决定什么时候收集、什么时候通知：
+- <b>`shallowRef`</b>：不包 reactive，`r.value.n++` 没有任何东西触发，所以要 `triggerRef(r)`。它就是强制触发一次 `r` 自己的 Dep。
+- <b>`customRef`</b>：工厂函数拿到 `track` 和 `trigger`，由你决定什么时候收集、什么时候通知：
 
 ```js
 function useDebouncedRef(value, delay = 200) {

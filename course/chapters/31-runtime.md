@@ -403,7 +403,7 @@ return false
 
 第 6 章的深入块给过 `provide` 和 `inject` 的实现。这里补充它的设计，并验证四个细节。
 
-每个实例有一个 `provides` 对象。创建实例时，子组件**直接使用父组件的 `provides`**，不复制。根组件的 `provides` 以应用级的 provides（`app.provide`）为原型。组件第一次调用 `provide` 时，才为自己创建一个以父级 `provides` 为原型的新对象：
+每个实例有一个 `provides` 对象。创建实例时，子组件<b>直接使用父组件的 `provides`</b>，不复制。根组件的 `provides` 以应用级的 provides（`app.provide`）为原型。组件第一次调用 `provide` 时，才为自己创建一个以父级 `provides` 为原型的新对象：
 
 ```js
 // runtime-core/apiInject.ts（简化）

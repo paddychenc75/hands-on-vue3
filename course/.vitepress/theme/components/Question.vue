@@ -10,7 +10,7 @@ import { computed, ref } from 'vue'
 import { withBase } from 'vitepress'
 import type { CardItem } from '../../../engine/types'
 import { shuffled } from '../../../engine/logic/random'
-import { esc, fmtOpt } from '../../../engine/logic/text'
+import { fmtInline, fmtOpt } from '../../../engine/logic/text'
 import { chapterById } from '../composables/learn'
 
 const props = withDefaults(defineProps<{ item: CardItem; label: string; mode?: 'reveal' | 'retry' | 'defer'; revealed?: boolean; source?: boolean }>(), { mode: 'reveal', revealed: false, source: true })
@@ -22,9 +22,9 @@ const hidden = ref(-1) // 重试时隐藏的、上次选错的选项
 let attempts = 0
 
 const isHtml = computed(() => props.item.format === 'html')
-const stem = computed(() => (isHtml.value ? props.item.stem : esc(props.item.stem)))
+const stem = computed(() => (isHtml.value ? props.item.stem : fmtInline(props.item.stem)))
 const optHtml = (i: number) => (isHtml.value ? props.item.options[i] : fmtOpt(props.item.options[i]))
-const explain = computed(() => (isHtml.value ? props.item.explain : esc(props.item.explain)))
+const explain = computed(() => (isHtml.value ? props.item.explain : fmtInline(props.item.explain)))
 const chapter = computed(() => chapterById(props.item.chapterId))
 const letterOf = (oi: number) => 'ABCD'[order.indexOf(oi)]
 

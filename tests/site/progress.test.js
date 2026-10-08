@@ -212,6 +212,8 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       const p = await site.newPage()
       const prog = fullChapter(first)
       delete prog.ex[first.ex[1]]
+      // 提示阶梯：失败 3 次且距第一次失败超过 5 分钟，参考答案才解锁（阶梯本身的测试在 mechanics.test.js）
+      prog.ex[first.ex[1]] = { passed: false, fails: 3, firstFail: Date.now() - 10 * 60e3, lastFail: { tpl: 'x', js: 'y' } }
       await seed(p, base, { first: prog })
       await p.goto(base + first.link + '.html')
       await p.waitForSelector('.ex[data-ex] .cm-content', { timeout: 15000 })
@@ -234,6 +236,8 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       const p = await site.newPage()
       const prog = fullChapter(first)
       delete prog.ex[first.ex[1]]
+      // 提示阶梯：失败 3 次且距第一次失败超过 5 分钟，参考答案才解锁（阶梯本身的测试在 mechanics.test.js）
+      prog.ex[first.ex[1]] = { passed: false, fails: 3, firstFail: Date.now() - 10 * 60e3, lastFail: { tpl: 'x', js: 'y' } }
       await seed(p, base, { first: prog })
       await p.goto(base + first.link + '.html')
       await p.waitForSelector('.ex[data-ex] .cm-content', { timeout: 15000 })
@@ -241,18 +245,18 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       const id = first.ex[1], e = EX[id]
       const box = p.locator('.ex[data-ex="' + id + '"]')
       await box.scrollIntoViewIfNeeded()
-      // 用完提示才能看答案（这一步的规则保持原样）
-      for (let i = 0; i < e.hints.length; i++) await box.locator('[data-a="hint"]').click()
       await box.locator('[data-a="sol"]').click()
       await p.waitForTimeout(300)
       let st = await read(p)
       g.ok(st.first.ex[id].sawSol === true && !st.first.ex[id].passed, '看答案：记 sawSol，还没通过 ' + JSON.stringify(st.first.ex[id]).slice(0, 120))
+      // 看过答案后直接交原文不能通过；改动一处（多一个无关变量）才算自己改写
+      await box.evaluate((r, [t, j]) => r.__setCode(t, j), [e.solTpl || e.tpl, 'const unused = 1\n' + (e.solJs || e.js)])
       await box.locator('[data-a="check"]').click()
       g.ok(await waitState(p, 'done') === 'done', '看过答案后改写通过：章完成')
       st = await read(p)
       g.ok(st.first.ex[id].passed === true && ['solution', 'rewrite'].includes(st.first.ex[id].help), '练习记录：借助答案 help=' + st.first.ex[id].help)
       g.ok(/借助了参考答案/.test(await p.locator('.chapter-foot').innerText()) && (await p.locator('.chapter-foot').innerText()).includes(e.title), '掌握标准条单独标注借助答案的练习')
-      g.ok(/看过答案后通过/.test(await box.locator('.badge').innerText()), '练习徽章：看过答案后通过')
+      g.ok(/借助答案完成/.test(await box.locator('.badge').innerText()), '练习徽章：借助答案完成')
       g.end()
     }
 

@@ -71,3 +71,28 @@ export function settleResult(rec: StageRecord, pct: number, weak: string[], now:
   }
   return next
 }
+
+/** 答错的题所属的章，去重并保持出现顺序（"需要加强的章"） */
+export const uniqueInOrder = (ids: readonly string[]): string[] => [...new Set(ids)]
+
+/** 答到一半离开时留下的记录。每答一题更新一次；交卷后由 settleResult 清掉 */
+export const pendingRecord = (n: number, answered: number, right: number, wrongChapterIds: readonly string[], now: number): NonNullable<StageRecord['pending']> => ({
+  n,
+  answered,
+  right,
+  at: now,
+  weak: uniqueInOrder(wrongChapterIds)
+})
+
+/** 通过了多少天（向下取整；没通过过是 0） */
+export const daysSincePass = (rec: StageRecord, now: number): number => (rec.passedAt ? Math.floor((now - rec.passedAt) / DAY) : 0)
+
+/** 阶段测验的状态：none 没测过；passed 已通过；retest 通过很久该复测；cooling 没通过、还在 30 分钟冷却里；failed 没通过、可以重测。
+    还没结算的 pending（答到一半离开）按 failed 看：下次进入页面时会结算成未通过 */
+export function stageStatus(rec: StageRecord | undefined, now: number): 'none' | 'passed' | 'retest' | 'cooling' | 'failed' {
+  if (!rec) return 'none'
+  if (rec.pending) return 'failed'
+  if (rec.passed) return needsRetest(rec, now) ? 'retest' : 'passed'
+  if (rec.failedAt) return cooldownLeft(rec, now) > 0 ? 'cooling' : 'failed'
+  return 'none'
+}

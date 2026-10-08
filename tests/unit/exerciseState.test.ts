@@ -90,3 +90,82 @@ describe('草稿', () => {
     expect(ep).toEqual({ passed: true, fails: 2, code: { tpl: 'T', js: 'J' } })
   })
 })
+
+import { restoreStash, stashCode } from '../../course/engine/logic/exerciseState.ts'
+import { ladderStatus, ladderLevels, unlockNote } from '../../course/engine/logic/ladder.ts'
+
+describe('填入半成品或参考答案之前先存下自己的代码，之后能找回', () => {
+  const mine: CodePair = { tpl: '<p>我的</p>', js: 'return {}' }
+  it('第一次存：记下当前代码', () => {
+    expect(stashCode(undefined, mine).stash).toEqual(mine)
+  })
+  it('已经存过、当前编辑器里正好是半成品或答案：不覆盖（那不是自己的代码）', () => {
+    const faded: CodePair = { tpl: '半成品', js: '半成品' }
+    const sol: CodePair = { tpl: '答案', js: '答案' }
+    const once = stashCode({ passed: false }, mine, [faded, sol])
+    expect(stashCode(once, faded, [faded, sol]).stash).toEqual(mine)
+    expect(stashCode(once, sol, [faded, sol]).stash).toEqual(mine)
+  })
+  it('半成品只有注释和空白的差别也算同一份（规范化后比较）', () => {
+    const faded: CodePair = { tpl: '<p>半成品</p>', js: 'const a = 1' }
+    const once = stashCode({ passed: false }, mine, [faded])
+    expect(stashCode(once, { tpl: '<p>半成品</p> <!-- 注释 -->', js: 'const a = 1 // x' }, [faded]).stash).toEqual(mine)
+  })
+  it('学习者在半成品上改过、再填一次：存的是改过的新代码', () => {
+    const faded: CodePair = { tpl: '半成品', js: '半成品' }
+    const once = stashCode({ passed: false }, mine, [faded])
+    const edited: CodePair = { tpl: '半成品 + 我补的', js: '半成品' }
+    expect(stashCode(once, edited, [faded]).stash).toEqual(edited)
+  })
+  it('找回：返回存下的代码，并清掉 stash', () => {
+    const r = restoreStash(stashCode({ passed: false, fails: 2 }, mine))
+    expect(r.code).toEqual(mine)
+    expect(r.ep).toEqual({ passed: false, fails: 2 })
+  })
+  it('没存过时找回：什么也不返回', () => {
+    expect(restoreStash({ passed: false }).code).toBeUndefined()
+  })
+  it('点重置：清掉 stash（重置就是放弃之前的代码），看过答案则标记重写', () => {
+    expect(resetExercise(stashCode({ passed: false }, mine)).stash).toBeUndefined()
+    const ep = resetExercise(stashCode(viewSolution(undefined), mine))
+    expect(ep).toMatchObject({ sawSol: true, rewrite: true })
+    expect(ep.stash).toBeUndefined()
+  })
+  it('看答案流程：存下自己的代码、看答案、重置、重写通过：help 是 rewrite，且不留 stash', () => {
+    const ep = recordPass(resetExercise(viewSolution(stashCode(undefined, mine))))
+    expect(ep).toMatchObject({ passed: true, help: 'rewrite', sawSol: true, rewrite: true })
+    expect(ep.stash).toBeUndefined()
+  })
+})
+
+describe('阶梯状态和失败后的说明', () => {
+  const lv2 = ladderLevels(false)
+  const lv3 = ladderLevels(true)
+  it('没有半成品：只有提示和参考答案两级', () => {
+    expect(ladderStatus(lv2, { fails: 0 }, NOW).map(s => s.level.key)).toEqual(['hint', 'solution'])
+  })
+  it('没失败过：两级都锁着，写明还要再改代码检查几次', () => {
+    const [h, s] = ladderStatus(lv2, { fails: 0 }, NOW)
+    expect(h).toMatchObject({ open: false, text: '🔒 提示（再改代码检查 1 次解锁）' })
+    expect(s).toMatchObject({ open: false, text: '🔒 查看参考答案（再改代码检查 3 次解锁）' })
+  })
+  it('失败 3 次但距第一次失败只有 3 分钟：参考答案写明还要等 2 分钟', () => {
+    const [, s] = ladderStatus(lv2, { fails: 3, firstFail: NOW - 3 * MIN }, NOW)
+    expect(s).toMatchObject({ open: false, text: '🔒 查看参考答案（再想 2 分钟解锁）' })
+  })
+  it('第 1 次计入的失败：说明已解锁提示', () => {
+    expect(unlockNote(lv2, { fails: 1, firstFail: NOW }, NOW, true)).toBe('已解锁：提示')
+  })
+  it('没计数：说明留给界面单独写，这里返回空串', () => {
+    expect(unlockNote(lv2, { fails: 1, firstFail: NOW }, NOW, false)).toBe('')
+  })
+  it('有半成品时第 2 次失败：次数够了但没到 2 分钟，写明还要等多久', () => {
+    expect(unlockNote(lv3, { fails: 2, firstFail: NOW - 30e3 }, NOW, true)).toBe('半成品示例：次数够了，还要再想 2 分钟才解锁')
+  })
+  it('有半成品时第 2 次失败且已过 2 分钟：已解锁半成品示例', () => {
+    expect(unlockNote(lv3, { fails: 2, firstFail: NOW - 3 * MIN }, NOW, true)).toBe('已解锁：半成品示例')
+  })
+  it('第 2 次失败但没有半成品这一级：不说什么', () => {
+    expect(unlockNote(lv2, { fails: 2, firstFail: NOW - 3 * MIN }, NOW, true)).toBe('')
+  })
+})

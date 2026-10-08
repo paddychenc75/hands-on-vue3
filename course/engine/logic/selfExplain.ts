@@ -8,3 +8,10 @@ export function effectiveLength(text: string): number {
   const t = text.replace(/[\s\p{P}\p{S}]/gu, '').replace(/(.)\1+/gu, '$1')
   return new Set(t).size < 10 ? Math.min(t.length, 9) : t.length
 }
+
+/** 自我解释区域的状态：已写的有效字数、还差几个字、要点是否展开。
+    sx 是"点过对照"的标记；以前写够过、note 还在的，也算展开（和 hands-on-react 一致） */
+export function selfExplainState(note: string | undefined, sx: boolean | undefined): { len: number; remain: number; unlocked: boolean } {
+  const len = effectiveLength(note || '')
+  return { len, remain: Math.max(0, SELF_EXPLAIN_MIN - len), unlocked: !!sx || (len >= SELF_EXPLAIN_MIN && !!note) }
+}

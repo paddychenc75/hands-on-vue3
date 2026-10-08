@@ -32,8 +32,9 @@ const todo = computed(() => {
   if (ex.length) a.push(`练习还有 ${needs.value.ex} 道没通过：${ex.map(x => '「' + exTitle(x) + '」').join('、')}`)
   return a
 })
-/** 借助答案完成的练习 */
+/** 借助答案完成的练习：看过答案后改写通过的（solution），和看过答案后点重置、自己重写通过的（rewrite）分开说 */
 const helped = computed(() => (live.value ? helpedExercises(cp(), spec.value) : []))
+const helpedOf = (kind: 'solution' | 'rewrite') => helped.value.filter(x => (cp()?.ex?.[x]?.help || 'solution') === kind)
 /** 自测首答答对数，只在每道题都答过时显示 */
 const firstOk = computed(() => {
   const total = spec.value.scAnswers.length
@@ -53,8 +54,11 @@ onMounted(ensureReady)
       <li v-for="t in todo" :key="t">{{ t }}</li>
     </ul>
     <p v-if="done && firstOk" class="cap cf-note">自测首次作答答对 {{ firstOk.ok }}/{{ firstOk.total }}。</p>
-    <p v-if="helped.length" class="cap cf-note cf-help">
-      借助了参考答案：{{ helped.map(x => '「' + exTitle(x) + '」').join('、') }}。过几天不看答案再写一遍，记得更牢。
+    <p v-if="helpedOf('solution').length" class="cap cf-note cf-help">
+      借助了参考答案：{{ helpedOf('solution').map(x => '「' + exTitle(x) + '」').join('、') }}。过几天不看答案再写一遍，记得更牢。
+    </p>
+    <p v-if="helpedOf('rewrite').length" class="cap cf-note cf-help">
+      看过参考答案后自己重写通过：{{ helpedOf('rewrite').map(x => '「' + exTitle(x) + '」').join('、') }}。过几天再不看答案写一次，检验是否记住了。
     </p>
   </div>
 </template>

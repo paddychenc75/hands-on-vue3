@@ -156,3 +156,49 @@ describe('交卷后的记录（以最近一次为准）', () => {
     expect(rec.last).toBe(50);
   });
 });
+
+import { daysSincePass, pendingRecord, stageStatus, uniqueInOrder } from '../../course/engine/logic/stageCheck.ts';
+import { DAY as DAY2 } from '../../course/engine/logic/srs.ts';
+
+describe('需要加强的章：去重并保持出现顺序', () => {
+  it('答错的题可能来自同一章，只列一次', () => {
+    expect(uniqueInOrder(['refs', 'computed', 'refs', 'comm', 'computed'])).toEqual(['refs', 'computed', 'comm']);
+    expect(uniqueInOrder([])).toEqual([]);
+  });
+});
+
+describe('中途离开时留下的记录', () => {
+  it('记下题数、已答数、答对数、时间和需要加强的章', () => {
+    expect(pendingRecord(12, 5, 3, ['refs', 'refs', 'comm'], NOW)).toEqual({ n: 12, answered: 5, right: 3, at: NOW, weak: ['refs', 'comm'] });
+  });
+  it('交给 settlePending 结算：没答的算错，记为未通过', () => {
+    const rec = settlePending({ pending: pendingRecord(12, 5, 3, ['refs'], NOW) });
+    expect(rec).toMatchObject({ last: 25, passed: false, failedAt: NOW, weak: ['refs'] });
+    expect(rec.pending).toBeUndefined();
+  });
+});
+
+describe('阶段测验的状态（侧边栏和首页显示）', () => {
+  it('没有记录：none', () => {
+    expect(stageStatus(undefined, NOW)).toBe('none');
+    expect(stageStatus({}, NOW)).toBe('none');
+  });
+  it('通过了：passed；通过超过 35 天：retest', () => {
+    expect(stageStatus({ passed: true, passedAt: NOW - DAY2 }, NOW)).toBe('passed');
+    expect(stageStatus({ passed: true, passedAt: NOW - 36 * DAY2 }, NOW)).toBe('retest');
+  });
+  it('没通过：30 分钟内是 cooling，之后是 failed', () => {
+    expect(stageStatus({ passed: false, failedAt: NOW - 10 * MIN, last: 50 }, NOW)).toBe('cooling');
+    expect(stageStatus({ passed: false, failedAt: NOW - 31 * MIN, last: 50 }, NOW)).toBe('failed');
+  });
+  it('还有没结算的 pending：按 failed 看（进入页面时才会结算成未通过）', () => {
+    expect(stageStatus({ pending: pendingRecord(12, 2, 1, [], NOW - 5 * DAY2) }, NOW)).toBe('failed');
+  });
+});
+
+describe('通过多少天了', () => {
+  it('向下取整', () => {
+    expect(daysSincePass({ passed: true, passedAt: NOW - 40.7 * DAY2 }, NOW)).toBe(40);
+    expect(daysSincePass({}, NOW)).toBe(0);
+  });
+});

@@ -54,6 +54,8 @@ export interface ExerciseProgress {
   sawSol?: boolean
   /** 看过答案后点了重置，表示要自己重写 */
   rewrite?: boolean
+  /** 填入半成品或参考答案之前，学习者自己的代码（用来找回）。点"重置"或找回后清掉 */
+  stash?: CodePair
   /** 借助答案完成的标记（通过那一刻写入，之后不再改） */
   help?: ExerciseHelp
 }

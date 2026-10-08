@@ -202,6 +202,9 @@
 .vp-doc .ex-res { font-size: 14px; display: flex; flex-direction: column; gap: 2px; }
 .vp-doc .ex-res .ok { color: var(--accent); }
 .vp-doc .ex-res .no { color: var(--bad); }
+.vp-doc .ex-rule { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin: -4px 0 0; }
+.vp-doc button.b.ladder.locked { border-style: dashed; color: var(--muted); background: var(--bg); opacity: 1; cursor: not-allowed; }
+.vp-doc .ex-res .cap { color: var(--muted); font-size: 13px; }
 .vp-doc .ex-hint { font-size: 14px; background: var(--warn-soft); border-radius: 6px; padding: 8px 12px; }
 .vp-doc .ex-hint div { white-space: pre-wrap; }
 .vp-doc .ex-hint div + div { margin-top: 6px; }

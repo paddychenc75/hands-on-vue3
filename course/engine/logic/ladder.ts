@@ -37,6 +37,33 @@ export function ladderButton(level: LadderLevel, p: { passed?: boolean; fails?: 
   return { open, text }
 }
 
+/** 一级阶梯的当前状态：能不能点，按钮上写什么 */
+export interface LadderStatus {
+  level: LadderLevel
+  open: boolean
+  text: string
+}
+
+/** 这道练习每一级的当前状态（levels 用 ladderLevels 取，没有半成品时只有两级） */
+export const ladderStatus = (levels: LadderLevel[], p: { passed?: boolean; fails?: number; firstFail?: number }, now: number): LadderStatus[] =>
+  levels.map(level => ({ level, ...ladderButton(level, p, now) }))
+
+/** 一次计入的失败之后，给学习者的一句说明：
+    - 这次失败刚好让某一级的次数够了：已经能点就写"已解锁：X"，次数够了但时间没到就写还要等多久；
+    - 其他情况返回空串。
+    counted 为 false（这次没计数）时也返回空串，没计数的说明由界面单独写 */
+export function unlockNote(levels: LadderLevel[], p: { passed?: boolean; fails?: number; firstFail?: number }, now: number, counted: boolean): string {
+  if (!counted) return ''
+  const f = p.fails || 0
+  const parts: string[] = []
+  for (const level of levels) {
+    if (level.need !== f) continue
+    if (ladderButton(level, p, now).open) parts.push(`已解锁：${level.name}`)
+    else parts.push(`${level.name}：次数够了，还要再想 ${Math.max(1, Math.ceil(level.wait - minutesSinceFirstFail(p.firstFail, now)))} 分钟才解锁`)
+  }
+  return parts.join('；')
+}
+
 const squash = (s: string): string => s.replace(/[\s;,]+/g, '')
 
 /** 脚本规范化：去掉 // 和 块注释、空白、分号、逗号。只改这些的修改不算"改过代码" */

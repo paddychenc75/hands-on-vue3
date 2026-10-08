@@ -1,6 +1,6 @@
 # AGENTS.md：维护“动手学 Vue 3”课程
 
-这是一套中文交互式 Vue 3 课程：35 章，6 个阶段（入门、进阶、高级、原理与架构、生态与实战、深入），外加一页速查表。站点用 **VitePress** 构建，静态发布到 GitHub Pages。每章是一个 Markdown 文件，自测题内联在 Markdown 里；练习的判题数据在 `course/exercises/`，实验台是 Vue 组件，引擎逻辑在 `course/engine/`。进度只存在浏览器里。
+这是一套中文交互式 Vue 3 课程：36 章，6 个阶段（入门、进阶、高级、原理与架构、生态与实战、深入），外加一页速查表。站点用 **VitePress** 构建，静态发布到 GitHub Pages。每章是一个 Markdown 文件，自测题内联在 Markdown 里；练习的判题数据在 `course/exercises/`，实验台是 Vue 组件，引擎逻辑在 `course/engine/`。进度只存在浏览器里。
 
 用户用中文交流。回复、提交信息和课程文字都用中文。本文件是唯一的规则源：`CLAUDE.md` 只导入它，Codex 等其他 agent 直接读它。
 

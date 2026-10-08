@@ -137,7 +137,7 @@ function mountElement(vnode, container, anchor, parentComponent) {
 }
 ```
 
-`hostPatchProp` 来自 `runtime-dom`（第 29 章讲）。它决定一个属性怎样写到元素上：`class`、`style` 和事件各有专门的处理。其余的属性，普通 HTML 元素上 `key in el` 为真就写 DOM 属性，否则用 `setAttribute`；SVG 元素上几乎都写成 attribute。少数属性例外，例如 `<input list>` 和 `form` 总是写成 attribute。
+`hostPatchProp` 来自 `runtime-dom`（第 30 章讲）。它决定一个属性怎样写到元素上：`class`、`style` 和事件各有专门的处理。其余的属性，普通 HTML 元素上 `key in el` 为真就写 DOM 属性，否则用 `setAttribute`；SVG 元素上几乎都写成 attribute。少数属性例外，例如 `<input list>` 和 `form` 总是写成 attribute。
 
 **卸载**的顺序也值得记住。这是 `unmount` 对一个元素 vnode 的处理：
 

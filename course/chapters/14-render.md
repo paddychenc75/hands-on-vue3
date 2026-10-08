@@ -111,7 +111,7 @@ props 中的属性规则如下：
 }
 ```
 
-后面的章节会用到这些字段。第 17 章读 `patchFlag` 和 `dynamicChildren`。第 18 章读 `type`、`key` 和 `el`，用它们判断两个节点能否复用。第 28、29 章读 `el`，它就是 vnode 对应的 DOM 节点。
+后面的章节会用到这些字段。第 17 章读 `patchFlag` 和 `dynamicChildren`。第 18 章读 `type`、`key` 和 `el`，用它们判断两个节点能否复用。第 29、30 章读 `el`，它就是 vnode 对应的 DOM 节点。
 
 ### 14.1 在 setup 中返回渲染函数
 
@@ -345,7 +345,7 @@ return h('div', [h('p', msg), h('span', 'static')])
 | `Fragment` | 没有自己元素的一组子节点 | 渲染函数返回数组时自动生成，也可以 `h(Fragment, [...])` |
 | `Text`、`Comment` | 文本节点、注释节点 | 子节点是字符串、`null`、`false` 时自动生成 |
 | `Static` | 一大段静态 HTML | 只由编译器生成：连续的静态节点太多时，序列化成 HTML 字符串一次插入（实测 20 个静态 `<p>` 得到 `createStaticVNode`）。手写不用 |
-| `Teleport`、`Suspense` | 内置组件 | `h(Teleport, { to: 'body' }, ...)`（第 30 章） |
+| `Teleport`、`Suspense` | 内置组件 | `h(Teleport, { to: 'body' }, ...)`（第 31 章） |
 
 `shapeFlag` 是一个整数，每一位表示一个事实。`patch` 只用一次位运算就能判断，不用逐个比较（第 19 章讲 `patch` 怎样分发）。
 

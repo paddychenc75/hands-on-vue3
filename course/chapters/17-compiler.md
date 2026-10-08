@@ -189,10 +189,10 @@ function patchElement(n1, n2) {
 所以 `dynamicChildren` 里有三类节点：
 
 - 带 PatchFlag 的元素。
-- 所有组件。组件 vnode 可以带 PatchFlag：有动态 props 时是 PROPS（8），例如 `<Comp :a="x" />` 编译出 `8 /* PROPS */` 和 dynamicProps `["a"]`。props 全是静态时没有 PatchFlag。不管有没有，组件都被收集。原因：父组件更新时，Vue 要把旧组件实例交给新的组件 vnode，以后才能正确卸载它。Vue 也要比较新旧 props，再决定要不要更新子组件（第 25 章）。
+- 所有组件。组件 vnode 可以带 PatchFlag：有动态 props 时是 PROPS（8），例如 `<Comp :a="x" />` 编译出 `8 /* PROPS */` 和 dynamicProps `["a"]`。props 全是静态时没有 PatchFlag。不管有没有，组件都被收集。原因：父组件更新时，Vue 要把旧组件实例交给新的组件 vnode，以后才能正确卸载它。Vue 也要比较新旧 props，再决定要不要更新子组件（第 26 章）。
 - 嵌套的子 Block，例如 `v-if` 的分支和 `v-for` 的 Fragment。子 Block 内部的节点在它自己的 `dynamicChildren` 里，不平铺到外层。
 
-有一个例外：PatchFlag 恰好是 32（NEED_HYDRATION）的元素不收集。例如带事件监听的 `<input @input="f">`。这个标记只在服务端渲染的水合阶段（第 28 章）有用，更新时没有东西要比较。`@click` 不加这个标记。
+有一个例外：PatchFlag 恰好是 32（NEED_HYDRATION）的元素不收集。例如带事件监听的 `<input @input="f">`。这个标记只在服务端渲染的水合阶段（第 29 章）有用，更新时没有东西要比较。`@click` 不加这个标记。
 
 更新时，Vue 只比较 `dynamicChildren`，不遍历整棵树。下图显示一个 Block 怎样收集动态节点。
 
@@ -460,7 +460,7 @@ export default {
 }
 ```
 
-**`<script setup>` 的顶层变量全部放进 `__returned__`。**所以模板能读到它们，包括导入的组件。你不需要在 `components` 里注册。`defineProps` 和 `defineEmits` 这些宏在这一步被替换成 `props` 和 `emits` 选项，24.1 节已经讲过。
+**`<script setup>` 的顶层变量全部放进 `__returned__`。**所以模板能读到它们，包括导入的组件。你不需要在 `components` 里注册。`defineProps` 和 `defineEmits` 这些宏在这一步被替换成 `props` 和 `emits` 选项，25.1 节已经讲过。
 
 `compileTemplate` 拿到 `bindings`，知道 `count` 是 `setup-ref`，就把它编译成 `$setup.count`：
 
@@ -486,7 +486,7 @@ export default _export_sfc(_sfc_main, [['render', _sfc_render], ['__scopeId', 'd
 
 `_export_sfc` 把这些键值对复制到组件对象上，所以组件对象有了 `render` 和 `__scopeId`。开发模式下插件还会加上 `__file` 和热更新代码。`282e7235` 是插件根据文件路径算出的 8 位哈希（生产构建还加上源码）。
 
-**scoped 样式分两处完成。**构建时，`compileStyle` 把选择器改写成 `.b[data-v-282e7235]`。运行时，渲染器读取组件的 `__scopeId`，给元素加上这个属性。`compileTemplate` 的结果里没有这个属性。选择器改写的规则见 26.4 节。
+**scoped 样式分两处完成。**构建时，`compileStyle` 把选择器改写成 `.b[data-v-282e7235]`。运行时，渲染器读取组件的 `__scopeId`，给元素加上这个属性。`compileTemplate` 的结果里没有这个属性。选择器改写的规则见 27.4 节。
 
 **生产构建用内联模板。**开发时模板单独编译成 `_sfc_render`，方便热更新。生产构建时（默认没有开发服务器，且组件使用 `<script setup>`），插件给 `compileScript` 传 `inlineTemplate: true`。渲染函数直接写在 `setup()` 里返回，变量按来源直接读取：已知的 ref 读 `count.value`，props 读 `__props.title`。这样省掉通过 `$setup` 代理查找的一层，也不需要返回 `__returned__`。
 

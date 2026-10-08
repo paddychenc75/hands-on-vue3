@@ -40,6 +40,6 @@
     <text x="440" y="294" font-size="12.5" text-anchor="middle" fill="var(--muted)">循环、侦听范围太大、没停掉</text>
     <path d="M145 308 V328" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#pitfalls-a)"/>
     <text x="157" y="323" font-size="13" fill="var(--muted)">是</text>
-    <text x="145" y="350" font-size="14" text-anchor="middle" fill="var(--ink)">响应式没有问题，去查性能（第 33 章）</text>
+    <text x="145" y="350" font-size="14" text-anchor="middle" fill="var(--ink)">响应式没有问题，去查性能（第 34 章）</text>
   </svg>
 </template>

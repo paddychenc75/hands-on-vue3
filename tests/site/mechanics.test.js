@@ -546,8 +546,8 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g.end()
     }
     for (const [title, chapters] of [
-      ['第 17、18、19、20、23、28、29、33、35 章', ['17-compiler', '18-diff', '19-runtime', '20-patterns', '23-state-arch', '28-ssr', '29-renderer', '33-perf-clinic', '35-project']],
-      ['第 12、13、14、15、16、30、31、32、34 章', ['12-reactivity', '13-scheduler', '14-render', '15-watch-impl', '16-reactivity-pitfalls', '30-builtins-impl', '31-errors', '32-forms-arch', '34-lib']],
+      ['第 17、18、19、20、24、29、30、34、36 章', ['17-compiler', '18-diff', '19-runtime', '20-patterns', '24-state-arch', '29-ssr', '30-renderer', '34-perf-clinic', '36-project']],
+      ['第 12、13、14、15、16、31、32、33、35 章', ['12-reactivity', '13-scheduler', '14-render', '15-watch-impl', '16-reactivity-pitfalls', '31-builtins-impl', '32-errors', '33-forms-arch', '35-lib']],
     ]) {
       // 深度补强和新写的章：练习编辑器和实验台都挂载、深入块展开之后，页面不能被撑宽；
       // 也不能有没被任何可滚动容器包住、却伸出窗口右边的元素（页面本身 overflow 被裁掉时 scrollWidth 看不出来）

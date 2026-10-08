@@ -92,7 +92,7 @@ describe('120 道阶段测验专用题（题库 course/checks/questions.ts），
     for (const c of catalog.all.filter(c => c.kind === 'check')) counts[c.chapterId] = (counts[c.chapterId] || 0) + 1
     expect(counts).toEqual({
       first: 2, template: 5, refs: 2, computed: 2, comm: 4, lifecycle: 2, composables: 2, builtins: 2, directives: 2, forms: 2, app: 2,
-      reactivity: 8, scheduler: 6, render: 5, compiler: 6, diff: 5, runtime: 4, patterns: 6, pinia: 2, router: 2, 'state-arch': 4, ts: 2, perf: 2, tooling: 2,
+      reactivity: 8, scheduler: 6, render: 5, compiler: 6, diff: 5, runtime: 4, patterns: 2, 'api-design': 4, pinia: 2, router: 2, 'state-arch': 4, ts: 2, perf: 2, tooling: 2,
       ssr: 5, renderer: 5, 'perf-clinic': 3, migrate: 2, project: 5,
       'watch-impl': 3, 'reactivity-pitfalls': 3, 'builtins-impl': 3, errors: 4, 'forms-arch': 3, lib: 3
     })

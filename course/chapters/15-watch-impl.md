@@ -59,7 +59,7 @@ import ScopeTree from '../labs/15-watch-impl/ScopeTree.vue'
 3.5 把它拆成两层：
 
 - `@vue/reactivity` 里的 `watch`（源码里常叫 baseWatch）：只认识 effect，不认识组件和更新队列。侦听源处理、`traverse`、`job`、清理、停止都在这里。
-- `@vue/runtime-core` 里的 `doWatch`：你调用的 `watch`、`watchEffect` 都经过它。它给下层传三样东西：`scheduler`（按 `flush` 决定 job 怎样排队）、`augmentJob`（给 job 贴上队列要用的标记和 id）、`call`（用 `callWithAsyncErrorHandling` 调用，错误交给组件的错误处理，第 31 章）。
+- `@vue/runtime-core` 里的 `doWatch`：你调用的 `watch`、`watchEffect` 都经过它。它给下层传三样东西：`scheduler`（按 `flush` 决定 job 怎样排队）、`augmentJob`（给 job 贴上队列要用的标记和 id）、`call`（用 `callWithAsyncErrorHandling` 调用，错误交给组件的错误处理，第 32 章）。
 
 <Figure caption="一次修改怎样走到回调。虚线框里是 runtime-core 的 doWatch 提供的部分，其余在 @vue/reactivity。">
 <WatchPipeline />
@@ -263,7 +263,7 @@ cleanup = effect.onStop = () => {          // 运行并清空这个 effect 的�
 | 脏检查 | 没有 | `effect.dirty`，依赖没有真的变化时不运行 getter |
 | 清理函数 | 一个 | 数组，按注册顺序运行 |
 | 调度 | 只有队列去重 | 三种 flush，队列有 id、PRE 标记 |
-| 错误处理 | 没有 | `call` 把错误交给组件（第 31 章） |
+| 错误处理 | 没有 | `call` 把错误交给组件（第 32 章） |
 
 ### 15.6 停止、暂停，以及组件卸载时的自动停止
 
@@ -355,10 +355,10 @@ const getCurrentScope = () => activeEffectScope
 
 - **收集靠“当前作用域”这个全局变量。**`run(fn)` 临时设置它，`fn` 里同步创建的 effect、watch、子作用域都登记到这个作用域。`fn` 里 `await` 之后创建的不会，原因和 15.6 一样。
 - **游离的作用域。**`effectScope(true)` 不挂在父作用域下。父作用域 `stop` 时，它仍然活着。`instance.scope` 本身就是游离的：组件的作用域不挂在父组件的作用域下，子组件靠 `unmountComponent` 递归卸载。
-- **`onScopeDispose(fn)`** 把 `fn` 放进当前作用域的 `cleanups`，作用域停止时运行。组件卸载时 `scope.stop()` 会调用它，`effectScope().run()` 里创建的同样有效，所以组合式函数用它清理（第 20 章讲过这个选择）。没有活动作用域时，它警告而不报错。
+- **`onScopeDispose(fn)`** 把 `fn` 放进当前作用域的 `cleanups`，作用域停止时运行。组件卸载时 `scope.stop()` 会调用它，`effectScope().run()` 里创建的同样有效，所以组合式函数用它清理（第 21 章讲过这个选择）。没有活动作用域时，它警告而不报错。
 - <b>`scope.stop()` 之后 `scope.run()`</b>：返回 `undefined`，不运行 `fn`，开发环境警告 `cannot run an inactive effect scope`。
 - <b>`pause()`、`resume()`</b>：对作用域内所有 effect 和子作用域逐个调用，行为同 15.6。
-- **computed 不在 `effects` 里。**只有 `ReactiveEffect` 的实例会登记。3.5 的 computed 不是 `ReactiveEffect`，所以 `scope.stop()` 不会“停止”它。实测：`scope.stop()` 之后修改依赖，读 `double.value` 仍然得到新的结果。它不泄漏，因为没有 effect 订阅它之后，它也不被任何依赖列表引用，可以被回收（所以第 9 章 9.5 节和第 20 章 20.9 节只说 `watch` 和 `watchEffect` 随作用域停止，`computed` 不用停止）。
+- **computed 不在 `effects` 里。**只有 `ReactiveEffect` 的实例会登记。3.5 的 computed 不是 `ReactiveEffect`，所以 `scope.stop()` 不会“停止”它。实测：`scope.stop()` 之后修改依赖，读 `double.value` 仍然得到新的结果。它不泄漏，因为没有 effect 订阅它之后，它也不被任何依赖列表引用，可以被回收（所以第 9 章 9.5 节和第 21 章 21.1 节只说 `watch` 和 `watchEffect` 随作用域停止，`computed` 不用停止）。
 
 **用它写“引用计数归零时销毁”的组合式函数。**多个组件要共享同一份状态，状态里有 watch 或定时器。第一个使用者创建，最后一个使用者卸载时销毁（`createSharedComposable` 的思路，VueUse 里有同名函数）：
 

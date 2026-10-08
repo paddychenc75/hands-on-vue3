@@ -105,7 +105,7 @@ app.mount('#app')                                 // 最后调用。mount 返回
 
 ```js
 const app = createApp(App)
-app.use(router)                               // 安装插件：路由见第 22 章，插件的写法见 10.2 节
+app.use(router)                               // 安装插件：路由见第 23 章，插件的写法见 10.2 节
 app.config.errorHandler = (err) => report(err) // 组件中未处理的错误都到这里（10.6 节）
 app.mount('#app')                             // 最后一步：挂载
 ```
@@ -286,7 +286,7 @@ CSS 文件的名字由 Vite 的版本决定。以 dist 目录中实际的文件�
 5. 运行 `npm version patch` 修改版本号。
 6. 运行 `npm publish`。带作用域的包加 `--access public`。
 
-第 3 步的原因：链接的包使用自己目录中的 vue。页面中有两份 Vue 时，响应式会断开，而且没有任何报错。`inject` 和生命周期钩子反而仍然能用（第 34 章讲了原因）。
+第 3 步的原因：链接的包使用自己目录中的 vue。页面中有两份 Vue 时，响应式会断开，而且没有任何报错。`inject` 和生命周期钩子反而仍然能用（第 35 章讲了原因）。
 :::
 
 <Exercise id="pluginOptions" />

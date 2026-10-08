@@ -2,6 +2,7 @@
 title: 组件库工程
 id: lib
 stage: 6
+optional: true
 chapter: 41
 desc: 把组件和组合式函数做成别人能安装的库：库模式构建、exports、类型、样式、按需引入、SSR 兼容和发布
 ---

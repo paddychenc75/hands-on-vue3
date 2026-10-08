@@ -46,6 +46,28 @@ describe('真实内容', () => {
   })
 })
 
+describe('选读标记（frontmatter 的 optional）', () => {
+  it('optional: true / false 都合法', () => {
+    expect(run(editChapter('03-refs', s => s.replace('stage: 1', 'stage: 1\noptional: true')))).toEqual([])
+    expect(run(editChapter('03-refs', s => s.replace('stage: 1', 'stage: 1\noptional: false')))).toEqual([])
+  })
+  it('取值不是 true / false -> 报错', () => {
+    expectError(run(editChapter('03-refs', s => s.replace('stage: 1', 'stage: 1\noptional: yes'))), /optional 只能写 true 或 false（实际是 yes）/)
+  })
+  it('没有章号的页面（速查表）不能写 optional', () => {
+    expectError(run(editChapter('cheat', s => s.replace(/^---\n/, '---\noptional: true\n'))), /没有章号的页面不能写 optional/)
+  })
+  it('一个阶段的章全是选读 -> 报错（完成数的分母会是 0）', () => {
+    const inp = { ...base, chapterFiles: { ...base.chapterFiles } }
+    for (const [f, src] of Object.entries<string>(base.chapterFiles)) if (/^stage: 3$/m.test(src)) inp.chapterFiles[f] = src.replace('stage: 3', 'stage: 3\noptional: true')
+    expectError(run(inp), /阶段 3 的章全是选读/)
+  })
+  it('真实内容里的选读章就是约定的 6 章', () => {
+    const optional = Object.entries<string>(base.chapterFiles).filter(([, src]) => /^optional: true$/m.test(src)).map(([f]) => f.replace(/^\d+-/, ''))
+    expect(optional.sort()).toEqual([...EXPECTED.OPTIONAL].sort())
+  })
+})
+
 describe('自测题', () => {
   it('调换两道自测题 -> 报“现在放的是原来 X 的题”', () => {
     const inp = editChapter('03-refs', src => {

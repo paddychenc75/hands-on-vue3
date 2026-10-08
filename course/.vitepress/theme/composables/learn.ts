@@ -10,7 +10,7 @@ import type { ChapterMeta } from '../../course-data.mts'
 import { STAGES, STAGE_COUNT } from '../../../stages'
 import { commit, cp, initProgress, progress, save, subscribeProgress } from '../../../engine/store'
 import { parseKey } from '../../../engine/cards'
-import { shouldAutoComplete } from '../../../engine/logic/completion'
+import { shouldAutoComplete, tallyProgress, type Tally } from '../../../engine/logic/completion'
 import { dueKeys } from '../../../engine/logic/srs'
 import { stageStatus } from '../../../engine/logic/stageCheck'
 import type { ChapterProgress, ChapterSpec, LastPos, PredictRecord, Progress, StageRecord } from '../../../engine/types'
@@ -119,15 +119,14 @@ export function chapterState(id: string): ChapterState {
   return 'todo'
 }
 
-/** 一个阶段已完成的章数和总章数 */
-export function stageCount(stage: number): { done: number; total: number } {
-  const list = chaptersOfStage(stage)
-  return { done: list.filter(c => isDone(c.id)).length, total: list.length }
+/** 一个阶段的完成度：done / total 只数必读章；选读章学完了几章单独在 optionalDone / optionalTotal（规则见 engine/logic/completion.ts 的 tallyProgress） */
+export function stageCount(stage: number): Tally {
+  return tallyProgress(chaptersOfStage(stage), isDone)
 }
 
-/** 全部完成数和总章数（不含速查表） */
-export function totalCount(): { done: number; total: number } {
-  return { done: progressChapters.filter(c => isDone(c.id)).length, total: progressChapters.length }
+/** 全部完成度（不含速查表）：done / total 只数必读章，选读章单独统计 */
+export function totalCount(): Tally {
+  return tallyProgress(progressChapters, isDone)
 }
 
 // ---------------- 复习卡片的数量 ----------------

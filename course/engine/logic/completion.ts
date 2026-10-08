@@ -38,3 +38,33 @@ export const helpedExercises = (cp: ChapterProgress | undefined, spec: ChapterSp
 export function completionNeeds(cp: ChapterProgress | undefined, spec: ChapterSpec): { sc: number; ex: number } {
   return { sc: scMissing(cp, spec).length, ex: exMissing(cp, spec).length }
 }
+
+/** 完成度统计的结果。done / total 只数必读章；选读章单独算 */
+export interface Tally {
+  /** 已完成的必读章数 */
+  done: number
+  /** 必读章总数（选读章不计入分母） */
+  total: number
+  /** 已完成的选读章数 */
+  optionalDone: number
+  /** 选读章总数 */
+  optionalTotal: number
+}
+
+/**
+ * 统计一组章的完成度。`optional: true` 的章（选读，frontmatter 的 optional）不计入 done / total：
+ * 学了照常记录、章本身显示已完成，但“已完成 N/M”的 M 只数必读章；选读章学完了几章另外统计。
+ */
+export function tallyProgress(chapters: { id: string; optional?: boolean }[], isDone: (id: string) => boolean): Tally {
+  const t: Tally = { done: 0, total: 0, optionalDone: 0, optionalTotal: 0 }
+  for (const c of chapters) {
+    if (c.optional) {
+      t.optionalTotal++
+      if (isDone(c.id)) t.optionalDone++
+    } else {
+      t.total++
+      if (isDone(c.id)) t.done++
+    }
+  }
+  return t
+}

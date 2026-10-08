@@ -2,6 +2,7 @@
 title: 选项式 API 与 Vue 2 迁移
 id: migrate
 stage: 3
+optional: true
 chapter: 22
 desc: 选项式 ↔ 组合式对照、破坏性变化、@vue/compat
 ---

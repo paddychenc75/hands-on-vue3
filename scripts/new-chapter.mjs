@@ -3,6 +3,7 @@
 //
 //   npm run new-chapter -- <章id> --stage <1-6> --after <已有章id> --title "标题"
 //   例：npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合式函数复盘"
+//   --optional      新章是选读章（frontmatter 写 optional: true；选读章不计入总进度和阶段完成数的分母）
 //   --dry-run       只列出要做的事，不改文件
 //   --allow-dirty   工作区有未提交的改动也照做（默认拒绝：自动改名最好在干净的工作区里做，方便用 git 看改了什么）
 //
@@ -18,10 +19,10 @@ import { loadTs } from './lib/load-ts.mjs';
 import { pad2 } from './lib/renumber.mjs';
 import { applyWrites, planRenumber } from './lib/renumber-plan.mjs';
 
-const usage = '用法：npm run new-chapter -- <章id> --stage <1-6> --after <已有章id> --title "标题" [--dry-run] [--allow-dirty]';
+const usage = '用法：npm run new-chapter -- <章id> --stage <1-6> --after <已有章id> --title "标题" [--optional] [--dry-run] [--allow-dirty]';
 const { values, positionals } = parseArgs({
   allowPositionals: true,
-  options: { stage: { type: 'string' }, after: { type: 'string' }, title: { type: 'string' }, 'dry-run': { type: 'boolean' }, 'allow-dirty': { type: 'boolean' } },
+  options: { stage: { type: 'string' }, after: { type: 'string' }, title: { type: 'string' }, optional: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, 'allow-dirty': { type: 'boolean' } },
 });
 const die = msg => {
   console.error(`✗ ${msg}\n${usage}`);
@@ -89,7 +90,7 @@ const chapterMd = `---
 title: ${title}
 id: ${id}
 stage: ${stage}
-chapter: ${newNo}
+${values.optional ? 'optional: true\n' : ''}chapter: ${newNo}
 desc: ${TODO}一句话说明这一章学什么
 ---
 

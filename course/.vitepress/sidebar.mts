@@ -2,6 +2,7 @@
 //   chapter  章号（数字，可省略）。有章号的页面按章号排在阶段内最前
 //   stage    阶段 1 到 6（定义见 course/stages.ts）。不写 stage 的页面（速查表）是固定入口，排在侧边栏最上面，不属于任何阶段
 //   title    侧边栏、上一章/下一章用的短名（旧版 data-title）
+//   optional true 表示选读章：章名后面加一个小的“选读”标签（侧边栏和上一章/下一章的文字都是 v-html，所以直接写标签）
 //   order    没有章号的页面（速查表等）在阶段内的先后，小的在前，默认 1000
 import fs from 'node:fs'
 import path from 'node:path'
@@ -14,6 +15,9 @@ export function readFrontmatterFile(file: string): Record<string, string> | null
   try { src = fs.readFileSync(file, 'utf8') } catch { return null }
   return readFrontmatter(src)
 }
+
+/** 选读章在侧边栏里的标签（样式 .opt-tag 在 style.css） */
+export const OPTIONAL_TAG = '<span class="opt-tag">选读</span>'
 
 export interface SidebarOptions {
   /** 只包含这些章（文件名，不带 .md）。省略时包含全部 */
@@ -39,7 +43,8 @@ export function buildSidebar(chaptersDir: string, opts: SidebarOptions = {}) {
       continue
     }
     if (!byStage[stage - 1]) throw new Error(`${f}：stage 必须是 1 到 ${STAGES.length}（实际是 ${fm.stage}）`)
-    byStage[stage - 1].push({ text: chapter ? `${chapter}. ${fm.title}` : fm.title, link: '/chapters/' + name, chapter, order, file: name })
+    const label = chapter ? `${chapter}. ${fm.title}` : fm.title
+    byStage[stage - 1].push({ text: fm.optional === 'true' ? `${label} ${OPTIONAL_TAG}` : label, link: '/chapters/' + name, chapter, order, file: name })
   }
   const sort = (a: Item, b: Item) => {
     if (a.chapter != null && b.chapter != null) return a.chapter - b.chapter

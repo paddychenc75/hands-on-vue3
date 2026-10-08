@@ -6,8 +6,10 @@
 //   - 新增/删除章：改 CHAPTERS 和 STAGE_POOLS 里对应阶段的“章数”（new-chapter 脚本会提示）
 //   - 补章内自测或阶段测验专用题：改 STAGE_POOLS 里对应阶段的数字
 module.exports = {
-  /** 计入进度的章数（属于某个阶段的章，不含速查表） */
+  /** 章总数（属于某个阶段的章，不含速查表；含选读章） */
   CHAPTERS: 42,
+  /** 选读章的 id（frontmatter 写了 optional: true）：不计入总进度和阶段完成数的分母。改了选读范围要在这里同步 */
+  OPTIONAL: ['migrate', 'renderer', 'builtins-impl', 'nuxt', 'forms-arch', 'lib'],
   /** 每个阶段的可用题数：[阶段, 章数, 章内自测数, 专用题（#cN）数]。用于 tests/unit/cards.test.ts */
   STAGE_POOLS: [
     [1, 5, 22, 11],

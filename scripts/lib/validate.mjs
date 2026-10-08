@@ -52,6 +52,10 @@ export function validate(inp, opts = {}) {
     pages.push(page);
     if (unclosed) fail(`fence:${file}`, where, '有围栏代码块没有闭合（缺少结尾的 ```）');
     for (const f of ['id', 'title']) if (!nonEmpty(fm[f])) fail(`fm-field:${file}:${f}`, where, `frontmatter 缺少 ${f}`);
+    if (fm.optional !== undefined) {
+      if (!['true', 'false'].includes(fm.optional)) fail(`fm-optional:${file}`, where, `optional 只能写 true 或 false（实际是 ${fm.optional}）`, '选读章写 optional: true；必读章不用写这一行');
+      else if (!page.numbered) fail(`fm-optional:${file}`, where, '没有章号的页面不能写 optional（它不计入进度）');
+    }
     if (!page.numbered) {
       if (fm.stage !== undefined) fail(`fm-stage:${file}`, where, '没有章号的页面不能写 stage（它不计入进度）', '删掉 stage，或给它章号和对应的文件名');
       continue;
@@ -333,6 +337,7 @@ export function validate(inp, opts = {}) {
   for (let s = 1; s <= inp.stageCount; s++) {
     const inStage = chapters.filter(c => c.stage === s);
     if (!inStage.length) fail(`stage-empty:${s}`, 'course/stages.ts', `阶段 ${s} 没有任何章`);
+    else if (inStage.every(c => c.fm.optional === 'true')) fail(`stage-optional:${s}`, 'course/stages.ts', `阶段 ${s} 的章全是选读，没有必读章：阶段完成数的分母会是 0`, '至少留一章必读');
     if (!files.has(`course/check/${s}.md`) && files.size) fail(`stage-page:${s}`, `course/check/${s}.md`, `阶段 ${s} 没有阶段测验页`, '照 course/check/1.md 新建');
     const pool = inStage.reduce((n, c) => n + c.sc.length, 0);
     const fresh = inStage.reduce((n, c) => n + (checkCount[c.fm.id] || 0), 0);
@@ -470,6 +475,7 @@ export function validate(inp, opts = {}) {
 
   const stats = {
     chapters: maxNo,
+    optional: chapters.filter(c => c.fm.optional === 'true').length,
     sc: chapters.reduce((n, c) => n + c.sc.length, 0),
     predict: chapters.reduce((n, c) => n + c.predictLabs.length, 0),
     checks: inp.questions.length,

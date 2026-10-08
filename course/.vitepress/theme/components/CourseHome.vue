@@ -5,6 +5,7 @@
 import { computed, onMounted } from 'vue'
 import { withBase } from 'vitepress'
 import { chapters } from 'virtual:course-meta'
+import { tallyProgress } from '../../../engine/logic/completion'
 import { WRITING_TERMS } from '../../../writing-terms.mjs'
 import { agoText, chapterByPath, chapterState, chaptersOfStage, CHECK_LABEL, checkLink, dueCount, ensureReady, getLast, learnedCount, progressChapters, ready, stageCheckStatus, STAGES, STATE_LABEL } from '../composables/learn'
 
@@ -19,13 +20,16 @@ const cards = computed(() =>
       ...c,
       state: ready.value ? chapterState(c.id) : ('todo' as const)
     }))
-    const done = list.filter(c => c.state === 'done').length
+    // 选读章不计入分母和完成数：done / total 只数必读章，选读章另外统计
+    const tl = tallyProgress(list, id => list.find(c => c.id === id)?.state === 'done')
     const check = ready.value ? stageCheckStatus(stage) : ('none' as const)
-    return { stage, ...info, list, done, check, pct: list.length ? (done / list.length) * 100 : 0 }
+    return { stage, ...info, list, done: tl.done, total: tl.total, optionalDone: tl.optionalDone, optionalTotal: tl.optionalTotal, check, pct: tl.total ? (tl.done / tl.total) * 100 : 0 }
   })
 )
-const total = computed(() => cards.value.reduce((a, c) => a + c.list.length, 0))
+const total = computed(() => cards.value.reduce((a, c) => a + c.total, 0))
 const doneN = computed(() => cards.value.reduce((a, c) => a + c.done, 0))
+const optionalTotal = computed(() => cards.value.reduce((a, c) => a + c.optionalTotal, 0))
+const optionalDone = computed(() => cards.value.reduce((a, c) => a + c.optionalDone, 0))
 const doingN = computed(() => cards.value.reduce((a, c) => a + c.list.filter(x => x.state === 'doing').length, 0))
 
 const due = computed(() => (ready.value ? dueCount() : 0))
@@ -49,7 +53,7 @@ const resume = computed(() => {
     <header class="hero">
       <div class="eyebrow">VUE 3.5 · 中文互动课程</div>
       <h1>动手学 <em>Vue 3</em></h1>
-      <p>本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章，每个阶段末尾有一次阶段测验。阶段一和阶段二教你使用 Vue：模板、响应式、组件、内置组件、自定义指令、组合式函数、插件和表单。阶段三和阶段四说明 Vue 的内部原理：响应式、更新队列、渲染函数、watch 与 effectScope 的实现、响应式陷阱诊断、模板编译、虚拟 DOM 与 diff、组件运行时，以及组件与组合式函数的 API 设计。阶段五介绍 Pinia、Router、状态归属、TypeScript、性能优化、工程化和 Vue 2 迁移。阶段六讲 SSR、自定义渲染器、内置组件的实现、错误处理与监控、表单架构、性能诊断实战和组件库工程，并包含一个完整的小项目。</p>
+      <p>本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章（其中 {{ optionalTotal }} 章选读），每个阶段末尾有一次阶段测验。阶段一和阶段二教你使用 Vue：模板、响应式、组件、内置组件、自定义指令、组合式函数、插件和表单。阶段三和阶段四说明 Vue 的内部原理：响应式、更新队列、渲染函数、watch 与 effectScope 的实现、响应式陷阱诊断、模板编译、虚拟 DOM 与 diff、组件运行时，以及组件与组合式函数的 API 设计。阶段五介绍 Pinia、Router、状态归属、TypeScript、性能优化、工程化和 Vue 2 迁移。阶段六讲 SSR、自定义渲染器、内置组件的实现、错误处理与监控、表单架构、性能诊断实战和组件库工程，并包含一个完整的小项目。</p>
 
       <p class="prereq"><b>开始前你需要会：</b>HTML 和 CSS 基础（标签、属性、选择器），JavaScript 基础（变量、函数、箭头函数、数组的 map 和 filter、对象和数组的解构与展开、import 和 export 模块、Promise 与 async/await）。讲工程化的章节还会用到命令行和 npm。还不熟的话，先花一两周补 JavaScript，再回来学会轻松很多。</p>
 
@@ -64,15 +68,15 @@ const resume = computed(() => {
       </div>
 
       <div class="progress-sum" id="progress">
-        <div class="progress-txt" id="progTxt">已完成 {{ doneN }} / {{ total }} 章<template v-if="doingN"> · 进行中 {{ doingN }} 章</template></div>
+        <div class="progress-txt" id="progTxt">已完成 {{ doneN }} / {{ total }} 章<template v-if="optionalTotal">（必读）· 选读 {{ optionalDone }} / {{ optionalTotal }} 章</template><template v-if="doingN"> · 进行中 {{ doingN }} 章</template></div>
         <div class="meter"><i id="progBar" :style="{ width: (total ? (doneN / total) * 100 : 0) + '%' }"></i></div>
       </div>
 
       <div class="stats" id="stats">
-        <div><b>{{ total }}</b><span>章正文</span></div>
+        <div><b>{{ progressChapters.length }}</b><span>章正文</span></div>
         <div><b>{{ scTotal }}</b><span>道章内自测</span></div>
         <div><b>{{ exTotal }}</b><span>道可判题练习</span></div>
-        <div><b>{{ doneN }}/{{ total }}</b><span>章已完成</span></div>
+        <div><b>{{ doneN }}/{{ total }}</b><span>必读章已完成</span></div>
         <div id="statReview"><b>{{ learned }}</b><span>道题在复习中</span></div>
       </div>
 
@@ -121,13 +125,13 @@ const resume = computed(() => {
           <div class="aim">{{ c.desc }}</div>
           <ul>
             <li v-for="x in c.list" :key="x.id" :data-id="x.id" :data-state="x.state">
-              <a :href="withBase(x.link)"><span class="num">{{ x.chapter }}.</span> {{ x.title }}</a>
+              <a :href="withBase(x.link)"><span class="num">{{ x.chapter }}.</span> {{ x.title }}<span v-if="x.optional" class="opt-tag">选读</span></a>
               <span class="st">{{ STATE_LABEL[x.state] }}</span>
             </li>
             <li v-if="c.stage === STAGES.length && cheat" class="aside"><a :href="withBase(cheat.link)">附：{{ cheat.title }}</a></li>
             <li class="aside check" :data-check="c.check"><a :href="withBase(checkLink(c.stage))">阶段测验</a><span class="st">{{ CHECK_LABEL[c.check] }}</span></li>
           </ul>
-          <div class="cap stage-sum">已完成 {{ c.done }} / {{ c.list.length }} 章</div>
+          <div class="cap stage-sum">已完成 {{ c.done }} / {{ c.total }} 章<template v-if="c.optionalTotal">（必读）· 选读 {{ c.optionalDone }} / {{ c.optionalTotal }} 章</template></div>
           <div class="meter"><i :style="{ width: c.pct + '%' }"></i></div>
         </div>
       </div>

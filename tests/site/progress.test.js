@@ -14,7 +14,10 @@ const CH = loadChapters()
 const EX = loadExercises()
 const byId = id => CH.find(c => c.id === id)
 const PROGRESS_CH = CH.filter(c => c.stage != null) // 计入进度的章（不含速查表）
-const N = PROGRESS_CH.length // 总章数：从元数据算，不写死。要锁定的数字在 tests/expected.cjs
+const ALL = PROGRESS_CH.length // 章总数（含选读章）：从元数据算，不写死。要锁定的数字在 tests/expected.cjs
+const OPT = PROGRESS_CH.filter(c => c.optional) // 选读章：不计入总进度和阶段完成数的分母
+const N = ALL - OPT.length // “已完成 N/M”里的 M：只数必读章
+const REQ = stage => PROGRESS_CH.filter(c => c.stage === stage && !c.optional).length
 const { STAGE_COUNT } = loadStages()
 
 async function chapterState(p) { return p.locator('.chapter-foot').getAttribute('data-state') }
@@ -49,7 +52,8 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
         g.ok(n === c.scCount && c.scAnswers.length === n, `${c.file} 自测 ${n} ≠ ${c.scCount}`)
         g.ok(JSON.stringify(ex) === JSON.stringify(c.ex), `${c.file} 练习 ${ex} ≠ ${c.ex}`)
       }
-      g.ok(PROGRESS_CH.length === EXPECTED.CHAPTERS, `计入进度的有 ${EXPECTED.CHAPTERS} 章（不含速查表；新增章节时改 tests/expected.cjs）：` + PROGRESS_CH.length)
+      g.ok(ALL === EXPECTED.CHAPTERS, `共 ${EXPECTED.CHAPTERS} 章（不含速查表；新增章节时改 tests/expected.cjs）：` + ALL)
+      g.ok(JSON.stringify(OPT.map(c => c.id).sort()) === JSON.stringify([...EXPECTED.OPTIONAL].sort()), '选读章就是 tests/expected.cjs 里锁定的那几章：' + OPT.map(c => c.id))
       g.ok(PROGRESS_CH.length === new Set(PROGRESS_CH.map(c => c.id)).size && PROGRESS_CH.length === fs.readdirSync(path.join(ROOT, 'course/chapters')).filter(f => /^\d\d-.*\.md$/.test(f) && f !== '27-quiz.md').length, '章数 = 章节文件数（独立数一遍）')
       g.end()
     }
@@ -62,14 +66,14 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       await p.goto(base + '/')
       await p.waitForSelector('.stage li')
       const txt = await p.locator('.home').innerText()
-      g.ok(txt.includes(`本课程有 ${STAGE_COUNT} 个阶段，共 ${N} 章，每个阶段末尾有一次阶段测验。`), '路线说明（阶段数和章数是算出来的）')
+      g.ok(txt.includes(`本课程有 ${STAGE_COUNT} 个阶段，共 ${ALL} 章（其中 ${OPT.length} 章选读），每个阶段末尾有一次阶段测验。`), '路线说明（阶段数、章数和选读章数是算出来的）')
       g.ok(!/四个阶段|4 个阶段/.test(txt), '没有旧的“4 个阶段”说法')
       g.ok(await p.locator('details.ste').count() === 1 && await p.locator('#glossary tr').count() === 15, '写作规则和术语表')
       g.ok(await p.locator('.stage').count() === STAGE_COUNT, `${STAGE_COUNT} 个阶段`)
       const lvs = await p.locator('.stage .lv').allInnerTexts()
       g.ok(lvs.map(x => x.slice(0, 2)).join() === '01,02,03,04,05,06', '阶段编号 01 到 06：' + lvs)
-      g.ok(await p.locator('.stage li[data-id]').count() === N, N + ' 章')
-      g.ok(await p.locator('.stage li[data-state="todo"]').count() === N, '全部未开始')
+      g.ok(await p.locator('.stage li[data-id]').count() === ALL, ALL + ' 章')
+      g.ok(await p.locator('.stage li[data-state="todo"]').count() === ALL, '全部未开始')
       g.ok(new RegExp(`已完成 0 / ${N} 章`).test(await p.locator('#progTxt').innerText()), `总进度 0 / ${N}`)
       g.ok(await p.locator('#resumeLink').getAttribute('href').then(h => /01-first/.test(h)), '没有记录时继续学习指向第 1 章')
       g.ok(await p.locator('.stage li.aside:not(.check) a').count() === 1, '首页有速查表的附加链接')
@@ -100,9 +104,10 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       const titles = await p.locator('.VPSidebar .VPSidebarItem.level-0 > .item').allInnerTexts()
       g.ok(titles.map(t => t.trim()).join('|') === '01 入门|02 进阶|03 生态与实战|04 响应式原理|05 渲染原理|06 架构与工程', '阶段标题：' + titles.map(t => t.trim()).join('|'))
       const counts = await p.$$eval('.VPSidebar .VPSidebarItem.level-0 > .item', es => es.map(e => e.dataset.count))
-      g.ok(counts.join() === '2/4,1/7,0/5,0/4,0/7,0/8', '各阶段完成数：' + counts)
+      const wantCounts = [2, 1, 0, 0, 0, 0].map((d, i) => `${d}/${REQ(i + 1)}`) // 选读章不计入分母
+      g.ok(counts.join() === wantCounts.join(), '各阶段完成数（只数必读章）：' + counts + ' 应为 ' + wantCounts)
       const count1 = await p.locator('.VPSidebar .VPSidebarItem.level-0 > .item').first().evaluate(e => getComputedStyle(e, '::after').content)
-      g.ok(count1.includes('2/4'), '完成数显示在标题右侧（::after）：' + count1)
+      g.ok(count1.includes(wantCounts[0]), '完成数显示在标题右侧（::after）：' + count1)
       g.ok(await p.locator('.VPSidebar a[href*="01-first"]').getAttribute('data-state') === 'done', '第 1 章有完成标记')
       g.ok(await p.locator('.VPSidebar a[href*="01-first"] .text').evaluate(e => getComputedStyle(e, '::after').content).then(c => c.includes('✓')), '完成标记是 ✓')
       g.ok(await p.locator('.VPSidebar a[href*="06-comm"]').getAttribute('data-state') === 'done', '第 6 章（阶段 2）有完成标记')
@@ -131,6 +136,79 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       const g = R.group('服务端渲染的 HTML 里没有进度数字（挂载后才显示，避免水合不一致）')
       const html = await (await fetch(site.base + '/chapters/03-refs.html')).text()
       g.ok(!new RegExp(`已完成 \\d+/${N}`).test(html) && !html.includes('data-count='), '静态 HTML 里没有“已完成 N/总章数”和阶段完成数')
+      g.end()
+    }
+
+    // ---------- 选读章 ----------
+    {
+      const g = R.group('选读章：侧边栏、章头、首页都有“选读”标记；学完照常显示已完成，但不计入总进度和阶段完成数的分母')
+      const p = await site.newPage()
+      const o = OPT[0]
+      g.ok(OPT.length >= 1 && PROGRESS_CH.every(c => typeof c.optional === 'boolean'), '章元数据都有 optional 字段，选读章 ' + OPT.length + ' 章')
+      await seed(p, base, { first: fullChapter(byId('first'), { done: true }), [o.id]: fullChapter(o, { done: true }) })
+      await p.goto(base + byId('first').link + '.html')
+      await p.waitForSelector('.nav-progress'); await p.waitForTimeout(400)
+      const tagged = await p.$$eval('.VPSidebar a[href*="/chapters/"]', as => as.filter(a => a.querySelector('.opt-tag')).map(a => a.getAttribute('href')))
+      g.ok(tagged.length === OPT.length && OPT.every(c => tagged.some(h => h.includes(c.file))), `侧边栏恰好 ${OPT.length} 个选读标签，都在选读章名后：` + tagged.length)
+      g.ok((await p.locator('.VPSidebar a[href*="' + o.file + '"] .opt-tag').innerText()).trim() === '选读', '标签文字是“选读”')
+      // 学完的选读章：自己照常显示已完成（✓、data-state），但不进顶栏和阶段的计数
+      g.ok(await p.locator('.VPSidebar a[href*="' + o.file + '"]').getAttribute('data-state') === 'done', '学完的选读章显示已完成')
+      g.ok(new RegExp(`已完成 1/${N}(?!\\d)`).test(await p.locator('.nav-progress').innerText()), `顶栏只数必读章：1/${N}：` + (await p.locator('.nav-progress').innerText()))
+      g.ok(/选读 1\/\d+ 章/.test((await p.locator('.nav-progress').getAttribute('aria-label')) || ''), '顶栏的无障碍文字里有选读完成数')
+      const counts = await p.$$eval('.VPSidebar .VPSidebarItem.level-0 > .item', es => es.map(e => e.dataset.count))
+      g.ok(counts[o.stage - 1] === `${o.stage === 1 ? 1 : 0}/${REQ(o.stage)}`, `选读章所在阶段的完成数不含它：${counts[o.stage - 1]}（必读 ${REQ(o.stage)} 章）`)
+      // 章头
+      await p.goto(base + o.link + '.html'); await p.waitForSelector('.ch-meta'); await p.waitForTimeout(300)
+      g.ok((await p.locator('.ch-meta .crumb .opt-tag').allInnerTexts()).join() === '选读', '选读章的章头元信息行有“选读”')
+      await p.goto(base + byId('first').link + '.html'); await p.waitForSelector('.ch-meta'); await p.waitForTimeout(300)
+      g.ok(await p.locator('.ch-meta .crumb .opt-tag').count() === 0, '必读章的章头没有“选读”')
+      // 首页
+      await p.goto(base + '/'); await p.waitForSelector('.stage li'); await p.waitForTimeout(400)
+      g.ok(await p.locator('.stage li .opt-tag').count() === OPT.length, `首页阶段卡片里 ${OPT.length} 个选读标签`)
+      const prog = await p.locator('#progTxt').innerText()
+      g.ok(new RegExp(`已完成 1 / ${N} 章（必读）· 选读 1 / ${OPT.length} 章`).test(prog), '首页总进度只数必读章，选读单独统计：' + prog)
+      const sum = await p.locator(`.stage[data-stage="${o.stage}"] .stage-sum`).innerText()
+      g.ok(new RegExp(`已完成 ${o.stage === 1 ? 1 : 0} / ${REQ(o.stage)} 章`).test(sum) && /选读 1 \/ \d+ 章/.test(sum), '选读章所在阶段卡片：' + sum)
+      // 必读章全部学完 = 100%，不管选读学了几章
+      const all = {}
+      for (const c of PROGRESS_CH) if (!c.optional) all[c.id] = fullChapter(c, { done: true })
+      await seed(p, base, all)
+      await p.goto(base + '/'); await p.waitForSelector('.stage li'); await p.waitForTimeout(400)
+      g.ok(new RegExp(`已完成 ${N} / ${N} 章`).test(await p.locator('#progTxt').innerText()), '必读章全部学完：' + (await p.locator('#progTxt').innerText()))
+      g.ok(parseFloat(await p.locator('#progBar').evaluate(e => e.style.width)) === 100, '总进度条 100%')
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
+      g.end()
+    }
+
+    // ---------- 旧数据容错 ----------
+    {
+      const g = R.group('旧版本地数据：章 id、卡片键、阶段记录对不上时，各页面照常打开，不报错（课程发布前重排过章和阶段，没有写迁移）')
+      const p = await site.newPage()
+      const now = Date.now()
+      const ghostCard = { box: 2, n: 2, due: now - 1000, last: now - 86400000 }
+      await seed(p, base, {
+        'gone-chapter': { sc: { 0: 1 }, ex: { goneEx: { passed: true } }, done: true },
+        // 按阶段号存的阶段测验记录：阶段重排后含义变了，还有根本不存在的阶段 9；weak 里是已经没有的章 id
+        __stage: {
+          1: { passed: true, passedAt: now - 1000, last: { pct: 100, at: now - 1000 }, weak: ['gone-chapter'] },
+          3: { failedAt: now - 1000, last: { pct: 40, at: now - 1000 }, weak: ['gone-chapter', 'refs'] },
+          4: { pending: { n: 12, answered: 3, right: 2, at: now - 5000, weak: ['gone-chapter'] } },
+          9: { passed: true, passedAt: now - 1000 },
+        },
+        // 题已经不存在的卡片键（章没了、序号超出范围）
+        __srs: { 'gone-chapter#0': ghostCard, 'refs#999': ghostCard, 'refs#c999': ghostCard, 'patterns#99': ghostCard },
+        __pred: { 'demo-gone-lab': { pick: 1, checked: true } },
+        __last: { path: '/chapters/20-gone', anchor: '', h: '', t: now },
+      })
+      for (const u of ['/', '/review.html', '/glossary.html', '/chapters/06-comm.html', '/check/1.html', '/check/3.html', '/check/4.html']) {
+        await p.goto(base + u); await p.waitForSelector('.vp-doc h1, .home h1'); await p.waitForTimeout(700)
+        g.ok(await p.locator('.VPSidebar').count() >= 0, u + ' 打开了')
+      }
+      await p.goto(base + '/'); await p.waitForSelector('.nav-progress'); await p.waitForTimeout(400)
+      g.ok(new RegExp(`已完成 0/${N}(?!\\d)`).test(await p.locator('.nav-progress').innerText()), '不存在的章 id 不计入进度：' + (await p.locator('.nav-progress').innerText()))
+      g.ok(!(await p.locator('#reviewEntry').count()) || /已学过 0 道|0 道题到期/.test(await p.locator('#reviewEntry').innerText()), '题已经不存在的卡片不计入复习数')
+      g.ok(await p.locator('#resumeLink').getAttribute('href') === BASE_PATH.replace(/\/$/, '') + PROGRESS_CH[0].link, '记的阅读位置已经不存在：继续学习指向第 1 章')
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
       g.end()
     }
 

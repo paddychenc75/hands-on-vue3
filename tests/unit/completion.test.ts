@@ -6,7 +6,8 @@ import {
   meetsCompletion,
   scMissing,
   shouldAutoComplete,
-  takesPart
+  takesPart,
+  tallyProgress
 } from '../../course/engine/logic/completion.ts'
 import type { ChapterProgress, ChapterSpec } from '../../course/engine/types.ts'
 
@@ -85,5 +86,30 @@ describe('借助答案', () => {
     const c = cp({ ex: { refsFill: { passed: true }, fixReactive: { passed: false, sawSol: true } } })
     expect(meetsCompletion(c, spec)).toBe(false)
     expect(helpedExercises(c, spec)).toEqual([])
+  })
+})
+
+describe('完成度统计：选读章不计入分母和已完成数，单独统计', () => {
+  const list = [
+    { id: 'a' },
+    { id: 'b', optional: false },
+    { id: 'c' },
+    { id: 'x', optional: true },
+    { id: 'y', optional: true }
+  ]
+  it('只数必读章：done / total', () => {
+    expect(tallyProgress(list, id => id === 'a')).toEqual({ done: 1, total: 3, optionalDone: 0, optionalTotal: 2 })
+  })
+  it('选读章学完了照常记录，但只进选读的计数，不进 done', () => {
+    expect(tallyProgress(list, id => id === 'x' || id === 'a')).toEqual({ done: 1, total: 3, optionalDone: 1, optionalTotal: 2 })
+  })
+  it('全部必读章学完就是满分，不管选读学了几章', () => {
+    const t = tallyProgress(list, id => ['a', 'b', 'c'].includes(id))
+    expect(t.done).toBe(t.total)
+    expect(t.optionalDone).toBe(0)
+  })
+  it('没有选读章，或空列表', () => {
+    expect(tallyProgress([{ id: 'a' }, { id: 'b' }], id => id === 'b')).toEqual({ done: 1, total: 2, optionalDone: 0, optionalTotal: 0 })
+    expect(tallyProgress([], () => true)).toEqual({ done: 0, total: 0, optionalDone: 0, optionalTotal: 0 })
   })
 })

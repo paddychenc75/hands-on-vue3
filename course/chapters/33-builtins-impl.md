@@ -2,6 +2,7 @@
 title: 内置组件的实现
 id: builtins-impl
 stage: 5
+optional: true
 chapter: 33
 desc: KeepAlive、Teleport、Transition、Suspense 和异步组件在运行时里怎样实现
 ---

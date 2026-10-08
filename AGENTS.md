@@ -225,7 +225,8 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 - **实验台直接用的 Vue 编译器和开发构建**：第 17 章的实验台动态载入 `@vue/compiler-dom` 和 `@vue/compiler-sfc` 的浏览器构建；第 16、33、34 章的实验台动态载入 `vue/dist/vue.esm-browser.js`（开发构建，因为 `onRenderTracked`、`onRenderTriggered` 等钩子只有开发构建才有；第 34 章还把它当作“库自带的第二份 Vue”）。它们都是按需加载的独立分块（第 16、33、34 章共用同一个 `vue.esm-browser.js` 分块），只在用到它们的章页面预加载，不在站点入口里；页面上因此有两份 Vue（站点自己的生产构建和实验台里的开发构建，各有各的响应式和调度队列，实验台的应用挂在自己新建的 div 里）。两份 Vue 之间断开的是响应式（“当前正在运行的副作用”各记各的），**当前组件实例不会断开**：runtime-core 把设置当前实例的函数登记在 `globalThis.__VUE_INSTANCE_SETTERS__`，每份 Vue 设置当前实例时通知所有副本，所以 `provide/inject` 和生命周期钩子跨副本仍然能用。后果是响应式悄悄失效而没有任何报错（第 34 章实测）。`@vue/compiler-dom`、`@vue/compiler-sfc` 在 `devDependencies` 里固定为和 `vue` 相同的版本，升级 `vue` 时三个一起升（Dependabot 已把 `@vue/*` 和 `vue` 分在同一组）。
 - **练习和实验台只在浏览器里渲染**，服务端渲染出来的只有占位。练习需要运行时编译模板，`Exercise` 组件挂载后动态 `import('vue/dist/vue.esm-bundler.js')`，所以**不要给站点的 `vue` 做 alias**。
 - **侧边栏**由 `sidebar.mts` 从各章 frontmatter（`chapter`、`stage`、`title`）自动生成，不用手写；顶部固定入口是今日复习、术语表、速查表；动态标记由 `AppEffects` 写成属性（`data-badge`、`data-count`、`data-check`）。
-- **章头**（`ChapterMeta`：阶段标签、第 N / 总章数 章、`desc`、阅读时间）由 `config.mts` 在一级标题后自动注入；阅读时间取自章里的 `::: rt` 块，正文里不再渲染那个块。
+- **选读章**：frontmatter 写 `optional: true`。侧边栏（`sidebar.mts` 在章名后加 `.opt-tag` 标签）、章头、首页阶段卡片显示“选读”；顶栏和首页的“已完成 N/M”、各阶段完成数只数必读章，选读章学了照常记录和显示已完成，另外统计（`engine/logic/completion.ts` 的 `tallyProgress`，界面经 `learn.ts` 的 `stageCount`、`totalCount` 取）。
+- **章头**（`ChapterMeta`：阶段标签、第 N / 总章数 章、选读标签、`desc`、阅读时间）由 `config.mts` 在一级标题后自动注入；阅读时间取自章里的 `::: rt` 块，正文里不再渲染那个块。
 - **配置文件是 `config.mts` 和 `vitest.config.mts`，不是 `.ts`**（`package.json` 没有 `"type": "module"`，`.ts` 配置里写 ESM 会有警告）。
 - **`exercises/index.ts` 里的 `import.meta.glob` 那一行不要改写法**：`config.mts` 里有个 Vite 插件会按文本替换它的参数（只构建部分章时用）。
 - 其余的坑（`{{ }}` 插值、行首组件标签开 HTML 块、中文粗体、围栏里的 `<script>`、平滑滚动、锚点进入后的版面变化……）见 `course/AUTHORING.md` 第 9 节。

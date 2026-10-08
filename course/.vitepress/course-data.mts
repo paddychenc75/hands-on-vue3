@@ -31,6 +31,7 @@ export interface ChapterMeta {
   desc: string
   stage: number | null // 阶段 1 到 6（见 course/stages.ts）。速查表不属于任何阶段，是 null，不计入进度
   chapter: number | null // 没有章号的页面（速查表）是 null
+  optional: boolean // 选读章（frontmatter 写 optional: true）：不计入总进度和阶段完成数的分母，学了照常记录
   scCount: number // 本章自测题数（不含先猜）
   scAnswers: number[] // 本章自测的正确选项序号，按题号排列（长度 = scCount）
   ex: string[] // 本章练习 id
@@ -98,6 +99,7 @@ export function readChapters(chaptersDir: string): { meta: ChapterMeta; src: str
         desc: fm.desc || '',
         stage,
         chapter: fm.chapter ? Number(fm.chapter) : null,
+        optional: fm.optional === 'true',
         scCount: selfChecks.length,
         scAnswers: selfChecks.map(x => x.a),
         ex: [...src.matchAll(/<Exercise\s+id="([^"]+)"/g)].map(m => m[1]),

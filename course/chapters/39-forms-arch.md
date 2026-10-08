@@ -2,6 +2,7 @@
 title: 表单架构
 id: forms-arch
 stage: 6
+optional: true
 chapter: 39
 desc: 从零设计一个小表单库：状态模型、路径读写、字段注册、分层校验、异步竞态、字段数组、提交与类型
 ---

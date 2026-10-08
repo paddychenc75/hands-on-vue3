@@ -2,6 +2,7 @@
 title: Nuxt：把 SSR 交给框架
 id: nuxt
 stage: 6
+optional: true
 chapter: 37
 desc: 【待写】一句话说明这一章学什么
 ---

@@ -707,3 +707,7 @@ html:not(.dark) .vp-doc .shiki, html:not(.dark) .vp-doc .shiki span { color: var
 .vp-doc [class*='language-'] > button.copy { background-color: var(--code-bg); border-color: #2a3a3e; }
 .vp-doc :not(pre) > code { color: var(--ink); background-color: var(--accent-soft); font-size: .88em; padding: .1em .38em; border-radius: 4px; }
 .vp-doc a > code { color: var(--accent); }
+
+/* ---- 选读章的小标签：侧边栏章名后、上一章/下一章、章头、首页阶段卡片共用 ---- */
+.opt-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--vp-c-divider, var(--muted)); border-radius: 99px; font-size: 11px; line-height: 16px; font-weight: 500; color: var(--muted); white-space: nowrap; vertical-align: 1px; }
+.crumb .opt-tag { margin-left: 0; }

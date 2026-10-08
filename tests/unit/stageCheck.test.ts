@@ -203,3 +203,20 @@ describe('通过多少天了', () => {
     expect(daysSincePass({}, NOW)).toBe(0);
   });
 });
+
+describe('旧版本地数据容错：重新划分阶段后，按阶段号存的记录可能对不上', () => {
+  // 课程发布前重排过阶段，没有写迁移：旧记录按阶段号留在原处，页面读到对不上的内容时照常处理，不能抛错
+  it('空记录、只有 pending、weak 里是已经不存在的章 id：stageStatus 都不抛错', () => {
+    expect(stageStatus(undefined, NOW)).toBe('none');
+    expect(stageStatus({}, NOW)).toBe('none');
+    expect(stageStatus({ pending: { n: 12, answered: 3, right: 2, at: NOW, weak: ['gone-chapter'] } }, NOW)).toBe('none');
+    expect(stageStatus({ passed: true, passedAt: NOW - DAY, last: { pct: 100, at: NOW - DAY }, weak: ['gone-chapter'] } as any, NOW)).toBe('passed');
+  });
+  it('没有章 id 对应的 weak 照样能结算：settlePending 只搬运它，不查章', () => {
+    const rec = { pending: { n: 12, answered: 4, right: 4, at: NOW - 5 * MIN, weak: ['gone-chapter', 'patterns'] } } as any;
+    const next = settlePending(rec);
+    expect(next.pending).toBeUndefined();
+    expect(next.weak).toEqual(['gone-chapter', 'patterns']);
+    expect(next.passed).toBeFalsy();
+  });
+});

@@ -2,6 +2,7 @@
 title: 自定义渲染器
 id: renderer
 stage: 5
+optional: true
 chapter: 32
 desc: createRenderer、渲染到 Canvas
 ---

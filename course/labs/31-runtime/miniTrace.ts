@@ -26,14 +26,15 @@ export interface Step {
   html: string
 }
 
-export type ScenarioId = 'mount' | 'child-self' | 'parent-props' | 'parent-other' | 'batch'
+export type ScenarioId = 'mount' | 'child-self' | 'parent-props' | 'parent-other' | 'batch' | 'requeue'
 
 export const SCENARIOS: { id: ScenarioId; name: string; desc: string }[] = [
   { id: 'mount', name: '首次挂载', desc: '调用 createApp(App).mount(容器)，App 的模板里有子组件 Counter。' },
   { id: 'child-self', name: '子组件自己的数据变了', desc: 'Counter 内部的 n 加 1。App 不用参与。' },
   { id: 'parent-props', name: '父组件改了传给子组件的数据', desc: 'App 的 state.count 加 1，Counter 收到的 count 变了。' },
   { id: 'parent-other', name: '父组件改了与子组件无关的数据', desc: 'App 的 state.label 变了，Counter 的 props 没变。' },
-  { id: 'batch', name: '同步改三次，父子的数据都改', desc: 'state.count 加 3 次，同时 Counter 的 n 加 1。看更新队列怎样去重。' }
+  { id: 'batch', name: '同步改三次，父子的数据都改', desc: 'state.count 加 3 次，同时 Counter 的 n 加 1。看更新队列怎样去重。' },
+  { id: 'requeue', name: '更新任务运行到一半，又有数据改变', desc: 'Counter 的 n 加 1。它的 onBeforeUpdate 钩子在更新过程中改了 App 的 state.label，App 的更新任务在刷新期间新入队，紧接着运行。' }
 ]
 
 // 被追踪的函数。名字都是迷你 Vue 里的 function 声明，和真实的 runtime-core 同名
@@ -83,6 +84,32 @@ export function runScenario(id: ScenarioId): { steps: Step[]; finalHtml: string 
   }
   const here = () => stack.length
 
+  // 把队列里的任务包一层，好看到「运行」和「没变脏，跳过」。包装函数带着原任务的字段，运行后把原任务的 queued 复位。
+  // 每次入队之后都包一次（见 onReturn 里的 queueJob）：刷新期间新入队的任务（更新任务运行到一半又改了数据）也要包到，
+  // 否则它们运行时没有「运行 X.update」这一步。
+  function wrapQueuedJobs() {
+    const q: any[] = vue.queue
+    q.forEach((job, i) => {
+      if (job.__orig) return
+      const w: any = () => {
+        if (job.allowRecurse) job.queued = false
+        const inst = instances.find(x => x.uid === job.id)
+        const before = renders.get(inst) || 0
+        const saved = off
+        rec(here(), 'job', '运行 ' + jobName(job) + '（它是渲染副作用函数的 runIfDirty）', 'call')
+        off = saved + 1
+        job()
+        off = saved
+        if ((renders.get(inst) || 0) === before) rec(here() + 1, 'runIfDirty', jobName(job) + ' 已经被父组件的 patch 同步更新过，不再是脏的：什么也不做，不渲染', 'call')
+        job.queued = false
+      }
+      w.id = job.id; w.__orig = true
+      // 这几个字段会在入队之后被改（卸载时置 disposed），读原任务的
+      for (const k of ['allowRecurse', 'disposed', 'pre']) Object.defineProperty(w, k, { get: () => job[k] })
+      q[i] = w
+    })
+  }
+
   // 追踪事件 → 一条步骤。note 里写这一步在做什么
   function onTrace(e: TraceEvent) {
     const a = e.args as any[]
@@ -103,25 +130,7 @@ export function runScenario(id: ScenarioId): { steps: Step[]; finalHtml: string 
         break
       case 'flushJobs': {
         rec(d, 'flushJobs', '同步代码结束，微任务开始：按顺序运行队列里的更新任务', 'flush')
-        // 把队列里的任务包一层，好看到「运行」和「没变脏，跳过」。包装函数带着原任务的字段，运行后把原任务的 queued 复位
-        const q: any[] = vue.queue
-        q.forEach((job, i) => {
-          if (job.__orig) return
-          const w: any = () => {
-            if (job.allowRecurse) job.queued = false
-            const inst = instances.find(x => x.uid === job.id)
-            const before = renders.get(inst) || 0
-            const saved = off
-            rec(here(), 'job', '运行 ' + jobName(job) + '（它是渲染副作用函数的 runIfDirty）', 'call')
-            off = saved + 1
-            job()
-            off = saved
-            if ((renders.get(inst) || 0) === before) rec(here() + 1, 'runIfDirty', jobName(job) + ' 已经被父组件的 patch 同步更新过，不再是脏的：什么也不做，不渲染', 'call')
-            job.queued = false
-          }
-          w.id = job.id; w.allowRecurse = job.allowRecurse; w.disposed = job.disposed; w.__orig = true
-          q[i] = w
-        })
+        wrapQueuedJobs()
         break
       }
       case 'flushPostFlushCbs':
@@ -174,7 +183,9 @@ export function runScenario(id: ScenarioId): { steps: Step[]; finalHtml: string 
   function onReturn(e: TraceEvent, result: unknown) {
     stack.pop()
     const a = e.args as any[]
-    if (e.fn === 'createComponentInstance') {
+    if (e.fn === 'queueJob') {
+      wrapQueuedJobs()
+    } else if (e.fn === 'createComponentInstance') {
       const inst = result as any
       instances.push(inst)
       rec(e.depth, 'createComponentInstance', '创建 ' + a[0].type.name + ' 的实例（uid = ' + inst.uid + '），记下 vnode 和 parent', 'call')
@@ -222,10 +233,17 @@ export function runScenario(id: ScenarioId): { steps: Step[]; finalHtml: string 
   // ---------- 场景里的组件和数据（用迷你 Vue 的 reactive、h、onMounted、createApp） ----------
   const state = vue.reactive({ count: 0, label: 'a' })
   const local = vue.reactive({ n: 0 })
+  let armed = false                                // requeue 场景：Counter 第一次更新时，在 onBeforeUpdate 里改 App 的数据
   const Counter = {
     name: 'Counter',
     setup(props: any) {
       vue.onMounted(hook('Counter 的 onMounted'))
+      vue.onBeforeUpdate(() => {
+        if (!armed) return
+        armed = false
+        rec(here(), 'onBeforeUpdate', 'Counter 更新前的钩子运行，这时更新任务正在运行：它把 state.label 改成 b', 'hook')
+        state.label = 'b'
+      })
       return () => vue.h('i', null, 'count = ' + props.count + '，n = ' + local.n)
     }
   }
@@ -259,6 +277,10 @@ export function runScenario(id: ScenarioId): { steps: Step[]; finalHtml: string 
     } else if (id === 'parent-other') {
       rec(0, "state.label = 'b'", 'App 的数据改变：触发 trigger', 'call')
       state.label = 'b'
+    } else if (id === 'requeue') {
+      armed = true
+      rec(0, 'local.n++', 'Counter 内部的数据改变：触发 trigger。Counter 的 onBeforeUpdate 里还会再改 App 的数据', 'call')
+      local.n++
     } else {
       rec(0, 'state.count++ ×3，local.n++', '同步连续修改。每次修改都触发 trigger', 'call')
       state.count++
@@ -268,5 +290,7 @@ export function runScenario(id: ScenarioId): { steps: Step[]; finalHtml: string 
     }
     doFlush()
   }
+  // 每一步记的是「进入这个函数时」的页面，最后一次 DOM 操作的结果要多一步才看得到
+  rec(0, '（刷新结束）', '更新队列和后置队列都空了。这是此时页面上的 HTML', 'call')
   return { steps, finalHtml: container.innerHTML }
 }

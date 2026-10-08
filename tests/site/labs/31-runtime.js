@@ -53,6 +53,21 @@ module.exports = [
       ok(batch.includes('runIfDirty'), '父组件已经同步更新了子组件，子组件排队的更新任务运行时发现不脏，什么也不做（runIfDirty）')
       ok(batch.filter(n => n === 'queueJob').length >= 3, 'queueJob 被调用多次（重复的任务不再入队）')
       ok(renders(await inst()).Counter === 2, '批量更新后 Counter 的 render 次数是 2（初始 1 次加更新 1 次）')
+
+      // 更新任务运行到一半，又有数据改变：刷新期间新入队的 App.update 也要有自己的「运行」步骤（它不是在 flushJobs 开始时就在队列里的）
+      await body.locator('#rtScenario').selectOption({ label: '更新任务运行到一半，又有数据改变' })
+      await body.getByRole('button', { name: '运行到底' }).click()
+      const rq = await list()
+      const iHook = rq.indexOf('onBeforeUpdate')
+      ok(iHook > 0, '有 onBeforeUpdate 这一步（' + rq.join(',') + '）')
+      const jobIdx = rq.map((n, i) => (n === 'job' ? i : -1)).filter(i => i >= 0)
+      ok(jobIdx.length === 2, '队列里的两个更新任务各有一步「运行」：Counter.update、App.update（实际 ' + jobIdx.length + ' 步）')
+      ok(jobIdx.length === 2 && jobIdx[0] < iHook && iHook < jobIdx[1], 'onBeforeUpdate 在第一个任务运行期间，第二个任务（刷新中新入队的）在它之后运行')
+      ok(rq.slice(iHook).includes('queueJob'), 'onBeforeUpdate 之后有 queueJob：App.update 在刷新期间入队')
+      const rRq = renders(await inst())
+      ok(rRq.App === 2 && rRq.Counter === 2, '最后 App 渲染 2 次、Counter 渲染 2 次（' + JSON.stringify(rRq) + '）')
+      ok(/label = b/.test(await body.locator('#rtHtml').textContent()), '容器里最后是 label = b')
+      ok((await body.locator('#rtQueue .pill').count()) === 0, '运行到底后更新队列是空的')
     }
   }
 ]

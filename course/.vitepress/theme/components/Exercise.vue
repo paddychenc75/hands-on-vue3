@@ -1,12 +1,13 @@
 <script setup lang="ts">
 // 可判题的代码练习：<Exercise id="counter" />
 // 练习定义在 course/exercises/<章>.ts。整个组件只在浏览器里渲染。
+// 进度存在引擎里这一章的 ex[练习 id]（通过、草稿、是否看过答案、借助答案的标记），见 course/engine/logic/exerciseState.ts。
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { exercises } from '../../../exercises'
 import type { ExerciseHelper } from '../../../exercises/types'
 import { useData } from 'vitepress'
-import { store, storeRev, markStoreReady } from '../composables/store'
-import { autoDone } from '../composables/progress'
+import { completeIfMet, chapterOf, cpOf, ensureReady, mutate } from '../composables/learn'
+import { recordPass, resetExercise, saveDraft, viewSolution } from '../../../engine/logic/exerciseState'
 
 const props = defineProps<{ id: string }>()
 const ex = exercises[props.id]
@@ -29,9 +30,13 @@ const resNote = ref('')
 
 const hints = ex ? ex.hints : []
 const { frontmatter } = useData()
-const passed = computed(() => (void storeRev.value, store.get<Record<string, unknown>>('ex', {})[props.id]))
-const badge = computed(() => (passed.value === true ? '✓ 已通过' : passed.value ? '看过答案后通过' : '未完成'))
-const badgeTitle = computed(() => (passed.value && passed.value !== true ? '点“重置”，不看答案再写一次，就算通过' : ''))
+const chapterId = computed(() => frontmatter.value.id as string)
+const ep = computed(() => cpOf(chapterId.value)?.ex[props.id])
+const passed = computed(() => !!ep.value?.passed)
+/** 借助答案通过的（通过那一刻看过参考答案） */
+const helped = computed(() => !!(ep.value?.passed && ep.value.help))
+const badge = computed(() => (!passed.value ? '未完成' : helped.value ? '看过答案后通过' : '✓ 已通过'))
+const badgeTitle = computed(() => (helped.value ? '借助了参考答案。过几天不看答案再写一遍，记得更牢' : ''))
 const solOpen = computed(() => hintLv.value >= hints.length || solSeen.value || !!passed.value)
 const hintBtn = computed(() => (hintLv.value > 0 && hintLv.value < hints.length ? '下一级提示' : '提示'))
 
@@ -45,8 +50,12 @@ let cmTpl: any = null
 let cmJs: any = null
 let app: any = null
 
+/** 保存草稿。每个按键都会调用，只写存储，不通知界面 */
 function save() {
-  store.set('ex:' + props.id, { tpl: tpl.value, js: js.value })
+  mutate(() => {
+    const c = chapterOf(chapterId.value)
+    c.ex[props.id] = saveDraft(c.ex[props.id], { tpl: tpl.value, js: js.value })
+  }, { silent: true })
 }
 function setCode(t: string, j: string) {
   tpl.value = t
@@ -137,10 +146,11 @@ async function check() {
   results.value = rs
   allPassed.value = all
   if (all) {
-    const p = store.get<Record<string, unknown>>('ex', {})
-    if (p[props.id] !== true) p[props.id] = solSeen.value ? 'sol' : true
-    store.set('ex', p)
-    autoDone(frontmatter.value.id) // 自测答完、练习也通过时，自动标记本章完成
+    mutate(p => {
+      const c = chapterOf(chapterId.value)
+      c.ex[props.id] = recordPass(c.ex[props.id])
+      completeIfMet(p, chapterId.value) // 自测全部答对、练习也通过时，自动标记本章完成
+    })
   }
 }
 
@@ -154,9 +164,10 @@ function onHint() {
 function onSol() {
   if (!solOpen.value) return
   solSeen.value = true
-  const ss = store.get<Record<string, boolean>>('exSol', {})
-  ss[props.id] = true
-  store.set('exSol', ss)
+  mutate(() => {
+    const c = chapterOf(chapterId.value)
+    c.ex[props.id] = viewSolution(c.ex[props.id])
+  })
   setCode(ex.solTpl || ex.tpl, ex.solJs || ex.js)
   res0()
   resNote.value = '编辑器中是参考答案。阅读答案，然后点击“运行并检查”。'
@@ -167,21 +178,22 @@ function onReset() {
   res0()
   hintLv.value = 0
   if (solSeen.value) {
-    solSeen.value = false
-    const ss = store.get<Record<string, boolean>>('exSol', {})
-    delete ss[props.id]
-    store.set('exSol', ss)
+    solSeen.value = false // 重置后要用完提示才能再看答案
+    mutate(() => {
+      const c = chapterOf(chapterId.value)
+      c.ex[props.id] = resetExercise(c.ex[props.id])
+    })
   }
   run()
 }
 
 onMounted(async () => {
   if (!ex) return
-  markStoreReady()
-  const saved = store.get<{ tpl: string; js: string } | null>('ex:' + props.id, null)
+  ensureReady()
+  const saved = ep.value?.code
   tpl.value = saved ? saved.tpl : ex.tpl
   js.value = saved ? saved.js : ex.js
-  solSeen.value = !!store.get<Record<string, boolean>>('exSol', {})[props.id]
+  solSeen.value = !!ep.value?.sawSol && !ep.value.rewrite // 看过答案后点过“重置”的，不算看过
   mounted.value = true
   await nextTick()
   // 带编译器的 Vue 构建。它和站点用的运行时构建共用 @vue/runtime-dom，
@@ -234,7 +246,7 @@ onBeforeUnmount(() => {
   <div v-else ref="root" class="ex" :data-ex="id">
     <div class="ex-head">
       <b>练习：{{ ex.title }}</b>
-      <span class="badge" :class="{ pass: passed === true }" :title="badgeTitle">{{ badge }}</span>
+      <span class="badge" :class="{ pass: passed && !helped }" :title="badgeTitle">{{ badge }}</span>
     </div>
     <div class="ex-body">
       <div class="ex-task" v-html="ex.task"></div>

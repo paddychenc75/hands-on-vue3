@@ -45,6 +45,8 @@ export interface Exercise {
   wrong?: WrongSolution[]
   /** 为 true 时，进入页面不自动运行 */
   lazy?: boolean
+  /** 半成品（先给一部分代码，删掉关键处让学习者补全）。可选：没有时提示阶梯跳过这一级。内容以后再填 */
+  faded?: { tpl?: string; js?: string }
 }
 
 /**

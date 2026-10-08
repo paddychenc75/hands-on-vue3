@@ -1,32 +1,30 @@
-// 跨章学习功能的测试：章节完成、总进度、继续学习、间隔复习、类比/深入开关、图片放大。
+// 跨章学习功能的测试：自测答错的行为、章完成（掌握标准条）、侧边栏和顶栏进度、首页、继续学习、
+// 存储键和旧键迁移、类比/深入块、图片放大。
 // 用法：node tests/site/progress.test.js     （用 course/.vitepress/dist，要先 npm run build）
-// 进度都是写 localStorage（键前缀 vue3deep:），所以大部分用例先 seed 写好进度，再打开页面看结果。
-const { makeReporter, startSite, loadChapters, loadExercises, loadQuestions, seed, read } = require('./helpers')
+// 进度都存在单个 localStorage 键 hands-on-vue3-v1（结构见 course/engine/types.ts），
+// 所以大部分用例先 seed 写好进度，再打开页面看结果。
+const { makeReporter, startSite, loadChapters, loadExercises, seed, seedLegacy, read, fullChapter, STORE_KEY } = require('./helpers')
 
-const DAY = 864e5
 const R = makeReporter()
 const CH = loadChapters()
 const EX = loadExercises()
-const Q = loadQuestions()
 const byId = id => CH.find(c => c.id === id)
-
-/** 综合测验页上，一个题目框里哪个选项是对的（返回按钮序号）。q 题的正确答案是题库里第一个选项，sc 题是 :a */
-async function rightIndex(box) {
-  const key = await box.getAttribute('data-key')
-  if (key.startsWith('s:')) {
-    const [cid, i] = key.slice(2).split(':')
-    return byId(cid).selfchecks[+i].a
-  }
-  const right = Q[+key.slice(1)][1][0]
-  const texts = await box.locator('.opt').allTextContents()
-  return texts.findIndex(t => t.replace(/^[A-Z]\.\s*/, '').trim() === right.trim())
-}
+const PROGRESS_CH = CH.filter(c => c.stage != null) // 计入进度的章：26 章
 
 async function chapterState(p) { return p.locator('.chapter-foot').getAttribute('data-state') }
 async function waitState(p, st) {
   await p.waitForFunction(s => document.querySelector('.chapter-foot')?.getAttribute('data-state') === s, st, { timeout: 8000 }).catch(() => {})
   return chapterState(p)
 }
+/** 打开章节页，等进度读出来（章末条出现） */
+async function openChapter(p, base, c) {
+  await p.goto(base + c.link + '.html')
+  await p.waitForSelector('.chapter-foot')
+  await p.waitForTimeout(300)
+}
+const scBox = (p, i) => p.locator('.vp-doc .sc:not(.predict)').nth(i)
+/** 选一个错误选项的序号 */
+const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
 
 ;(async () => {
   const site = await startSite()
@@ -34,7 +32,7 @@ async function waitState(p, st) {
   try {
     // ---------- 元数据和页面一致 ----------
     {
-      const g = R.group('章元数据（自测题数、练习 id）和页面一致：' + CH.length + ' 页')
+      const g = R.group('章元数据（自测题数、正确答案、练习 id）和页面一致：' + CH.length + ' 页')
       const p = await site.newPage()
       for (const c of CH) {
         await p.goto(base + c.link + '.html')
@@ -42,157 +40,268 @@ async function waitState(p, st) {
         await p.waitForTimeout(250)
         const n = await p.$$eval('.vp-doc .sc:not(.predict)', es => es.length)
         const ex = await p.$$eval('.vp-doc .ex[data-ex]', es => es.map(e => e.dataset.ex))
-        g.ok(n === c.scCount, `${c.file} 自测 ${n} ≠ ${c.scCount}`)
+        g.ok(n === c.scCount && c.scAnswers.length === n, `${c.file} 自测 ${n} ≠ ${c.scCount}`)
         g.ok(JSON.stringify(ex) === JSON.stringify(c.ex), `${c.file} 练习 ${ex} ≠ ${c.ex}`)
       }
+      g.ok(PROGRESS_CH.length === 26, '计入进度的有 26 章（不含速查表和综合测验）：' + PROGRESS_CH.length)
       g.end()
     }
 
     // ---------- 首页 ----------
     {
-      const g = R.group('首页：学习路线说明、四个阶段、27 章、全部未开始')
+      const g = R.group('首页：6 个阶段、26 章、全部未开始，没有复习入口')
       const p = await site.newPage()
       await seed(p, base, {})
       await p.goto(base + '/')
       await p.waitForSelector('.stage li')
       const txt = await p.locator('.home').innerText()
-      g.ok(txt.includes('本课程有 4 个阶段：25 章正文、1 个综合实战和一套综合测验。'), '路线说明')
-      g.ok(txt.includes('阶段四介绍组件设计模式、Pinia、Router、TypeScript、性能、工程化、SSR 和迁移，并包含一个完整的小项目。'), '路线说明第二句')
+      g.ok(txt.includes('本课程有 6 个阶段：25 章正文、1 个综合实战和一套综合测验。'), '路线说明')
+      g.ok(!/四个阶段|4 个阶段/.test(txt), '没有旧的“4 个阶段”说法')
       g.ok(await p.locator('details.ste').count() === 1 && await p.locator('#glossary tr').count() === 15, '写作规则和术语表')
-      g.ok(await p.locator('.stage').count() === 4, '四个阶段')
-      g.ok(await p.locator('.stage li[data-id]').count() === 27, '27 章')
-      g.ok(await p.locator('.stage li[data-state="todo"]').count() === 27, '全部未开始')
-      g.ok(/已完成 0 \/ 27 章/.test(await p.locator('#progTxt').innerText()), '总进度 0 / 27')
+      g.ok(await p.locator('.stage').count() === 6, '六个阶段')
+      const lvs = await p.locator('.stage .lv').allInnerTexts()
+      g.ok(lvs.map(x => x.slice(0, 2)).join() === '01,02,03,04,05,06', '阶段编号 01 到 06：' + lvs)
+      g.ok(await p.locator('.stage li[data-id]').count() === 26, '26 章')
+      g.ok(await p.locator('.stage li[data-state="todo"]').count() === 26, '全部未开始')
+      g.ok(/已完成 0 \/ 26 章/.test(await p.locator('#progTxt').innerText()), '总进度 0 / 26')
       g.ok(await p.locator('#resumeLink').getAttribute('href').then(h => /01-first/.test(h)), '没有记录时继续学习指向第 1 章')
-      g.ok(await p.locator('#review').count() === 0, '没有完成的章时不显示复习提醒')
+      g.ok(await p.locator('#review').count() === 0 && !/复习/.test(await p.locator('.resume').allInnerTexts().then(a => a.join())), '首页没有复习提示和入口')
+      g.ok(await p.locator('.stage li.aside a').count() === 2, '首页有速查表和综合测验两个附加链接')
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
       g.end()
     }
 
-    // ---------- 自动完成：答完最后一道自测 ----------
-    const first = byId('first')
-    const scAll = {}
-    first.selfchecks.forEach((s, i) => { scAll['first:' + i] = s.a })
-    const exAll = Object.fromEntries(first.ex.map(x => [x, true]))
+    // ---------- 侧边栏和顶栏 ----------
     {
-      const g = R.group('自动完成：练习都过、自测只差最后一道（进行中）；答完后章末、侧边栏、首页都变成已完成')
+      const g = R.group('侧边栏按 6 个阶段分组并显示完成数、已完成的章带 ✓；顶栏显示总进度；速查表和综合测验是顶部固定入口')
       const p = await site.newPage()
-      const part = { ...scAll }; delete part['first:3']
-      await seed(p, base, { sc: part, ex: exAll })
-      await p.goto(base + first.link + '.html')
-      await p.waitForSelector('.chapter-foot')
-      await p.waitForTimeout(300)
+      await seed(p, base, {
+        first: fullChapter(byId('first'), { done: true }),
+        template: fullChapter(byId('template'), { done: true }),
+        comm: fullChapter(byId('comm'), { done: true }),
+        refs: { sc: { 0: byId('refs').scAnswers[0] }, ex: {}, done: false }
+      })
+      await p.goto(base + '/chapters/03-refs.html')
+      await p.waitForSelector('.nav-progress')
+      await p.waitForTimeout(400)
+      const titles = await p.locator('.VPSidebar .VPSidebarItem.level-0 > .item').allInnerTexts()
+      g.ok(titles.map(t => t.trim()).join('|') === '01 入门|02 进阶|03 高级|04 原理与架构|05 生态与实战|06 深入', '阶段标题：' + titles.map(t => t.trim()).join('|'))
+      const counts = await p.$$eval('.VPSidebar .VPSidebarItem.level-0 > .item', es => es.map(e => e.dataset.count))
+      g.ok(counts.join() === '2/4,1/7,0/3,0/3,0/5,0/4', '各阶段完成数：' + counts)
+      const count1 = await p.locator('.VPSidebar .VPSidebarItem.level-0 > .item').first().evaluate(e => getComputedStyle(e, '::after').content)
+      g.ok(count1.includes('2/4'), '完成数显示在标题右侧（::after）：' + count1)
+      g.ok(await p.locator('.VPSidebar a[href*="01-first"]').getAttribute('data-state') === 'done', '第 1 章有完成标记')
+      g.ok(await p.locator('.VPSidebar a[href*="01-first"] .text').evaluate(e => getComputedStyle(e, '::after').content).then(c => c.includes('✓')), '完成标记是 ✓')
+      g.ok(await p.locator('.VPSidebar a[href*="05-comm"]').getAttribute('data-state') === 'done', '第 5 章（阶段 2）有完成标记')
+      g.ok(await p.locator('.VPSidebar a[href*="03-refs"]').getAttribute('data-state') === 'doing', '答过自测的章是进行中')
+      g.ok(await p.locator('.VPSidebar a[href*="04-computed"]').getAttribute('data-state') === 'todo', '别的章没有标记')
+      const top = await p.locator('.VPSidebar .VPSidebarItem.level-0').first().locator('a').allInnerTexts()
+      g.ok(top.join('|') === '速查表|综合测验', '顶部固定入口：' + top)
+      g.ok(/已完成 3\/26/.test(await p.locator('.nav-progress').innerText()), '顶栏：已完成 3/26：' + await p.locator('.nav-progress').innerText())
+      const w = await p.locator('.nav-progress .np-bar i').evaluate(e => e.style.width)
+      g.ok(Math.abs(parseFloat(w) - (3 / 26) * 100) < 0.5, '顶栏进度条宽度 ' + w)
+      // 速查表、综合测验页没有章末条，侧边栏也没有标记
+      await p.goto(base + '/chapters/cheat.html'); await p.waitForSelector('.vp-doc h1'); await p.waitForTimeout(300)
+      g.ok(await p.locator('.chapter-foot').count() === 0, '速查表页没有章末状态')
+      await p.goto(base + '/chapters/27-quiz.html'); await p.waitForSelector('.vp-doc h1'); await p.waitForTimeout(300)
+      g.ok(await p.locator('.chapter-foot').count() === 0, '综合测验页没有章末状态')
+      g.ok(/已完成 3\/26/.test(await p.locator('.nav-progress').innerText()), '综合测验页顶栏也有总进度')
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
+      g.end()
+    }
+    {
+      const g = R.group('服务端渲染的 HTML 里没有进度数字（挂载后才显示，避免水合不一致）')
+      const html = await (await fetch(site.base + '/chapters/03-refs.html')).text()
+      g.ok(!/已完成 \d+\/26/.test(html) && !html.includes('data-count='), '静态 HTML 里没有“已完成 N/26”和阶段完成数')
+      g.end()
+    }
+
+    // ---------- 自测答错：不亮答案，不显示解析，重试隐藏上次选项，答对才显示解析 ----------
+    {
+      const first = byId('first')
+      const g = R.group('自测答错：只标出选错的项，不亮正确答案、不显示解析，提示再试；重试时隐藏上次选错的项；答对才显示解析')
+      const p = await site.newPage()
+      await seed(p, base, {})
+      await openChapter(p, base, first)
+      const sc = scBox(p, 0)
+      await sc.scrollIntoViewIfNeeded()
+      const a = first.scAnswers[0], bad = wrongOf(first, 0)
+      const nOpt = await sc.locator('.sc-o').count()
+      await sc.locator('.sc-o').nth(bad).click()
+      g.ok(await sc.locator('.sc-o.wrong').count() === 1 && await sc.locator('.sc-o').nth(bad).evaluate(e => e.classList.contains('wrong')), '选错的项标红')
+      g.ok(await sc.locator('.sc-o.right').count() === 0, '没有亮出正确答案')
+      g.ok(await sc.locator('.sc-x:not(.no)').count() === 0 && !(await sc.evaluate(e => e.classList.contains('answered'))), '没有解析，也不是“已答对”状态')
+      g.ok(/不对/.test(await sc.locator('.sc-x.no').innerText()) && await sc.locator('.sc-retry').count() === 1, '提示再试，有“再答一次”按钮')
+      let st = await read(p)
+      g.ok(st.first.sc[0] === bad && st.first.tried[0] === true && st.first.first[0] === false, '记了作答：sc、tried、first=false ' + JSON.stringify([st.first.sc, st.first.tried, st.first.first]))
+      g.ok(st.__srs['first#0'] && st.__srs['first#0'].box === 0 && st.__srs['first#0'].n === 1, '首答错：复习卡片在盒子 0 ' + JSON.stringify(st.__srs['first#0']))
+      // 刷新后仍是答错等待重试的样子
+      await p.reload(); await p.waitForSelector('.chapter-foot'); await p.waitForTimeout(400)
+      const sc1 = scBox(p, 0)
+      g.ok(await sc1.locator('.sc-x.no').count() === 1 && await sc1.locator('.sc-o.right').count() === 0 && await sc1.locator('.sc-x:not(.no)').count() === 0, '刷新后：仍是答错状态，没有解析')
+      // 重试：上次选错的项隐藏
+      await sc1.locator('.sc-retry').click()
+      const vis = await sc1.locator('.sc-o').evaluateAll(es => es.map(e => getComputedStyle(e).display !== 'none'))
+      g.ok(vis.length === nOpt && vis.filter(Boolean).length === nOpt - 1 && vis[bad] === false, `重试时隐藏上次选错的项（可见 ${vis}）`)
+      g.ok(await sc1.locator('.sc-x').count() === 0, '重试时提示和解析都收起')
+      // 再选错另一项：仍然不显示解析；上一项重新出现，新的错项被标红
+      const bad2 = [0, 1, 2, 3].filter(i => i < nOpt).find(i => i !== a && i !== bad)
+      if (bad2 != null) {
+        await sc1.locator('.sc-o').nth(bad2).click()
+        g.ok(await sc1.locator('.sc-x:not(.no)').count() === 0 && await sc1.locator('.sc-o.right').count() === 0, '第二次也选错：仍不显示解析和正确项')
+        await sc1.locator('.sc-retry').click()
+      }
+      // 答对
+      await sc1.locator('.sc-o').nth(a).click()
+      g.ok(await sc1.locator('.sc-o.right').count() === 1 && await sc1.locator('.sc-x').count() === 1 && /^正确/.test(await sc1.locator('.sc-x').innerText()), '答对：标出正确项并显示解析')
+      g.ok(await sc1.locator('.sc-o:visible').count() === nOpt, '答对后四个选项都显示')
+      st = await read(p)
+      g.ok(st.first.sc[0] === a && st.first.first[0] === false, '后来答对只更新选项，首答记录仍是答错 ' + JSON.stringify(st.first.first))
+      g.ok(st.__srs['first#0'].n === 1 && st.__srs['first#0'].box === 0, '只有第一次作答计入复习卡片（n 仍是 1）：' + JSON.stringify(st.__srs['first#0']))
+      await p.reload(); await p.waitForSelector('.chapter-foot'); await p.waitForTimeout(400)
+      g.ok(await scBox(p, 0).locator('.sc-o.right').count() === 1 && await scBox(p, 0).locator('.sc-x').count() === 1, '刷新后答对状态还在')
+      // 第一次就答对的题：首答正确
+      const sc2 = scBox(p, 1)
+      await sc2.scrollIntoViewIfNeeded()
+      await sc2.locator('.sc-o').nth(first.scAnswers[1]).click()
+      st = await read(p)
+      g.ok(st.first.first[1] === true && st.__srs['first#1'].box === 1, '第一次就答对：首答正确，进盒子 1 ' + JSON.stringify(st.__srs['first#1']))
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
+      g.end()
+    }
+
+    // ---------- 章完成：掌握标准条、自动完成 ----------
+    const first = byId('first')
+    {
+      const g = R.group('掌握标准条：列出还差什么；自测只差最后一道时进行中，答对后章末、侧边栏、顶栏、首页都变成已完成')
+      const p = await site.newPage()
+      const full = fullChapter(first)
+      delete full.sc[first.scCount - 1]
+      await seed(p, base, { first: full })
+      await openChapter(p, base, first)
       g.ok(await chapterState(p) === 'doing', '差一道时是进行中')
-      g.ok(/自测 3\/4 题/.test(await p.locator('.chapter-foot').innerText()), '章末显示自测 3/4')
-      g.ok(await read(p, 'done') === null, '还没有 done 记录')
-      const last = p.locator('.vp-doc .sc:not(.predict)').nth(3)
+      const txt = await p.locator('.chapter-foot').innerText()
+      g.ok(txt.includes('掌握标准') && txt.includes(`自测还有 1 道没答对：第 ${first.scCount} 题`), '掌握标准条写出还差哪一道自测：' + txt.replace(/\n/g, ' '))
+      g.ok(!/练习还有/.test(txt), '练习都过了，不再列练习')
+      g.ok(await p.locator('.chapter-foot .done-btn, .chapter-foot button').count() === 0, '没有手动标记按钮')
+      g.ok(!(await read(p)).first.done, '还没有 done 标记')
+      const last = scBox(p, first.scCount - 1)
       await last.scrollIntoViewIfNeeded()
-      await last.locator('.sc-o').nth(first.selfchecks[3].a).click()
-      g.ok(await waitState(p, 'done') === 'done', '答完后章末变成已完成')
-      g.ok((await read(p, 'done')).first === true, 'done.first = true')
-      const at = (await read(p, 'doneAt')).first
-      g.ok(Math.abs(Date.now() - at) < 60000, 'doneAt 记了时间')
-      g.ok(/已完成/.test(await p.locator('.chapter-foot').innerText()), '章末文字')
+      // 先答错：不完成
+      await last.locator('.sc-o').nth(wrongOf(first, first.scCount - 1)).click()
+      await p.waitForTimeout(200)
+      g.ok(await chapterState(p) === 'doing', '答错不算完成')
+      await last.locator('.sc-retry').click()
+      await last.locator('.sc-o').nth(first.scAnswers[first.scCount - 1]).click()
+      g.ok(await waitState(p, 'done') === 'done', '答对后章末变成已完成')
+      const st = await read(p)
+      g.ok(st.first.done === true && Math.abs(Date.now() - st.first.doneAt) < 60000, 'done、doneAt 已记录')
+      g.ok(/本章已完成/.test(await p.locator('.chapter-foot').innerText()) && !/自测还有/.test(await p.locator('.chapter-foot').innerText()), '章末文字：本章已完成')
       await p.waitForTimeout(300)
       g.ok(await p.locator('.VPSidebar a[href*="01-first"]').getAttribute('data-state') === 'done', '侧边栏这一章有完成标记')
-      g.ok(await p.locator('.VPSidebar a[href*="02-template"]').getAttribute('data-state') === 'todo', '侧边栏别的章没有标记')
+      g.ok(/已完成 1\/26/.test(await p.locator('.nav-progress').innerText()), '顶栏 1/26')
       await p.goto(base + '/')
       await p.waitForSelector('.stage li')
       g.ok(await p.locator('.stage li[data-id="first"]').getAttribute('data-state') === 'done', '首页这一章已完成')
-      g.ok(/已完成 1 \/ 27 章/.test(await p.locator('#progTxt').innerText()), '首页总进度 1 / 27')
+      g.ok(/已完成 1 \/ 26 章/.test(await p.locator('#progTxt').innerText()), '首页总进度 1 / 26')
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
       g.end()
     }
-
-    // ---------- 自动完成：通过最后一道练习 ----------
     {
-      const g = R.group('自动完成：自测都答了，通过最后一道练习后标记完成')
+      const g = R.group('章完成：自测全部答对，通过最后一道练习后自动完成；掌握标准条列出没通过的练习')
       const p = await site.newPage()
-      await seed(p, base, { sc: scAll, ex: { [first.ex[0]]: true } })
+      const prog = fullChapter(first)
+      delete prog.ex[first.ex[1]]
+      await seed(p, base, { first: prog })
       await p.goto(base + first.link + '.html')
       await p.waitForSelector('.ex[data-ex] .cm-content', { timeout: 15000 })
       await p.waitForTimeout(500)
       g.ok(await chapterState(p) === 'doing', '差一道练习时是进行中')
+      const txt = await p.locator('.chapter-foot').innerText()
+      g.ok(txt.includes('练习还有 1 道没通过') && txt.includes(EX[first.ex[1]].title), '写出没通过的练习名：' + txt.replace(/\n/g, ' '))
       const id = first.ex[1], e = EX[id]
       await p.evaluate(async ([id, tpl, js]) => {
         const r = document.querySelector('.ex[data-ex="' + id + '"]')
         r.scrollIntoView(); r.__setCode(tpl, js); r.querySelector('[data-a="check"]').click()
       }, [id, e.solTpl || e.tpl, e.solJs || e.js])
       g.ok(await waitState(p, 'done') === 'done', '练习通过后变成已完成')
+      const st = await read(p)
+      g.ok(st.first.ex[id].passed === true && !st.first.ex[id].help, '练习记录：passed，没有借助答案 ' + JSON.stringify(st.first.ex[id]).slice(0, 80))
       g.end()
     }
     {
-      const g = R.group('练习只是“看过答案后通过”（值 sol）时，不自动完成')
+      const g = R.group('借助答案：看过答案后通过的练习算通过，章照常完成，掌握标准条单独标注')
       const p = await site.newPage()
-      await seed(p, base, { sc: scAll, ex: { [first.ex[0]]: true, [first.ex[1]]: 'sol' } })
+      const prog = fullChapter(first)
+      delete prog.ex[first.ex[1]]
+      await seed(p, base, { first: prog })
       await p.goto(base + first.link + '.html')
-      await p.waitForSelector('.chapter-foot')
-      await p.waitForTimeout(400)
-      g.ok(await chapterState(p) === 'doing', '仍是进行中')
+      await p.waitForSelector('.ex[data-ex] .cm-content', { timeout: 15000 })
+      await p.waitForTimeout(500)
+      const id = first.ex[1], e = EX[id]
+      const box = p.locator('.ex[data-ex="' + id + '"]')
+      await box.scrollIntoViewIfNeeded()
+      // 用完提示才能看答案（这一步的规则保持原样）
+      for (let i = 0; i < e.hints.length; i++) await box.locator('[data-a="hint"]').click()
+      await box.locator('[data-a="sol"]').click()
+      await p.waitForTimeout(300)
+      let st = await read(p)
+      g.ok(st.first.ex[id].sawSol === true && !st.first.ex[id].passed, '看答案：记 sawSol，还没通过 ' + JSON.stringify(st.first.ex[id]).slice(0, 120))
+      await box.locator('[data-a="check"]').click()
+      g.ok(await waitState(p, 'done') === 'done', '看过答案后改写通过：章完成')
+      st = await read(p)
+      g.ok(st.first.ex[id].passed === true && ['solution', 'rewrite'].includes(st.first.ex[id].help), '练习记录：借助答案 help=' + st.first.ex[id].help)
+      g.ok(/借助了参考答案/.test(await p.locator('.chapter-foot').innerText()) && (await p.locator('.chapter-foot').innerText()).includes(e.title), '掌握标准条单独标注借助答案的练习')
+      g.ok(/看过答案后通过/.test(await box.locator('.badge').innerText()), '练习徽章：看过答案后通过')
       g.end()
     }
 
-    // ---------- 手动标记 ----------
+    // ---------- 目标勾选 ----------
     {
-      const g = R.group('手动标记完成、取消；取消后不会马上被自动标回；刷新后保持')
+      const g = R.group('目标勾选：自测要答对才算，练习要通过才算')
+      const c = byId('directives') // 目标里有 sc:3 和 ex:dirBinding
       const p = await site.newPage()
-      await seed(p, base, { sc: scAll, ex: exAll, done: { first: true }, doneAt: { first: Date.now() } })
-      await p.goto(base + first.link + '.html')
-      await p.waitForSelector('.chapter-foot')
-      await p.waitForTimeout(300)
-      g.ok(await chapterState(p) === 'done', '已完成的章打开是已完成')
-      await p.locator('.done-btn').click()
-      g.ok(await chapterState(p) === 'doing', '取消后回到进行中（自测答过）')
-      g.ok(!((await read(p, 'done')) || {}).first, 'done 记录被清掉')
-      await p.waitForTimeout(500)
-      g.ok(await chapterState(p) === 'doing', '没有被自动标回去')
-      await p.reload(); await p.waitForSelector('.chapter-foot'); await p.waitForTimeout(300)
-      g.ok(await chapterState(p) === 'doing', '刷新后仍是取消状态')
-      await p.locator('.done-btn').click()
-      g.ok(await chapterState(p) === 'done', '再点一次：已完成')
-      await p.reload(); await p.waitForSelector('.chapter-foot'); await p.waitForTimeout(300)
-      g.ok(await chapterState(p) === 'done' && await p.locator('.done-btn').getAttribute('aria-pressed') === 'true', '刷新后保持已完成')
-      // 一章什么都没做时手动标记
-      await p.goto(base + byId('refs').link + '.html')
-      await p.waitForSelector('.chapter-foot'); await p.waitForTimeout(300)
-      g.ok(await chapterState(p) === 'todo' || await chapterState(p) === 'doing', '没动过的章不是已完成：' + await chapterState(p))
-      await p.locator('.done-btn').click()
-      g.ok(await chapterState(p) === 'done', '直接手动标记')
-      g.ok(!!(await read(p, 'doneAt')).refs, '手动标记也记 doneAt（复习从它算起）')
-      g.end()
-    }
-    {
-      const g = R.group('速查表不计入进度：没有章末状态，首页只给一个链接')
-      const p = await site.newPage()
-      await seed(p, base, {})
-      await p.goto(base + '/chapters/cheat.html')
-      await p.waitForSelector('.vp-doc h1')
-      g.ok(await p.locator('.chapter-foot').count() === 0, '速查表页没有章末状态')
-      await p.goto(base + '/'); await p.waitForSelector('.stage li')
-      g.ok(await p.locator('.stage li.aside a').count() === 1, '首页有速查表链接')
+      await seed(p, base, { directives: { sc: { 3: wrongOf(c, 3) }, ex: {}, done: false } })
+      await p.goto(base + c.link + '.html')
+      await p.waitForSelector('.goal-item'); await p.waitForTimeout(500)
+      g.ok(await p.locator('.goal-item.met').count() === 0, '答错的自测不算达成')
+      await seed(p, base, { directives: { sc: { 3: c.scAnswers[3] }, ex: { dirBinding: { passed: false, fails: 2 } }, done: false } })
+      await p.goto(base + c.link + '.html')
+      await p.waitForSelector('.goal-item'); await p.waitForTimeout(500)
+      const goals = await p.locator('.goal-item').evaluateAll(es => es.map(e => [e.querySelector('.gtag')?.textContent, e.classList.contains('met')]))
+      const g3 = (await p.locator('.goal-item').allInnerTexts()).findIndex(t => /判断一个功能/.test(t))
+      g.ok(goals[g3] && goals[g3][1], '答对的自测达成（sc:3）')
+      const gEx = (await p.locator('.goal-item').allInnerTexts()).findIndex(t => /读取 binding/.test(t))
+      g.ok(goals[gEx] && !goals[gEx][1], '练习没通过时目标（sc:4,ex:dirBinding）不达成')
+      await seed(p, base, { directives: { sc: { 4: c.scAnswers[4] }, ex: { dirBinding: { passed: true, help: 'solution', sawSol: true } }, done: false } })
+      await p.goto(base + c.link + '.html')
+      await p.waitForSelector('.goal-item'); await p.waitForTimeout(500)
+      const goals2 = await p.locator('.goal-item').evaluateAll(es => es.map(e => e.classList.contains('met')))
+      g.ok(goals2[gEx], '自测答对且练习通过（含借助答案）后达成')
       g.end()
     }
 
     // ---------- 继续学习 ----------
     {
-      const g = R.group('继续学习：记住上次的章和小节，首页按钮回到那里')
+      const g = R.group('继续学习：记住上次的章和小节（引擎的 __last），首页按钮回到那里')
       const p = await site.newPage()
       await seed(p, base, {})
       const c = byId('comm')
       await p.goto(base + c.link + '.html')
       await p.waitForSelector('.vp-doc h3[id]')
       await p.waitForTimeout(400)
-      let last = await read(p, 'last')
+      let last = (await read(p)).__last
       g.ok(last && last.path === c.link && last.anchor === '', '进入这一章就记下章路径')
       const hid = await p.evaluate(() => { const h = document.querySelectorAll('.vp-doc h3[id]')[3]; h.scrollIntoView({ behavior: 'instant' }); return h.id })
       await p.waitForTimeout(1500) // 实验台和编辑器晚挂载会撑高上方内容，等版面稳定后再对一次
       await p.evaluate(id => document.getElementById(id).scrollIntoView({ behavior: 'instant' }), hid)
       await p.mouse.wheel(0, 2) // 用户操作后才记录小节
-      await p.waitForFunction(id => { try { return JSON.parse(localStorage.getItem('vue3deep:last')).anchor === id } catch (e) { return false } }, hid, { timeout: 6000 }).catch(() => {})
-      last = await read(p, 'last')
+      await p.waitForFunction(([k, id]) => { try { return JSON.parse(localStorage.getItem(k)).__last.anchor === id } catch (e) { return false } }, [STORE_KEY, hid], { timeout: 6000 }).catch(() => {})
+      last = (await read(p)).__last
       g.ok(last && last.anchor === hid, `记下小节锚点 ${hid}（实际 ${last && last.anchor}）`)
       g.ok(last && /\d+\.\d+/.test(last.h), '记下小节标题：' + (last && last.h))
       await p.goto(base + '/'); await p.waitForSelector('#resumeLink')
+      await p.waitForFunction(() => /上次停在/.test(document.querySelector('#resumeTxt')?.textContent || ''))
       const resumeTxt = await p.locator('#resumeTxt').innerText()
       g.ok(/第 5 章/.test(resumeTxt) && resumeTxt.includes(last.h), '首页写出上次位置：' + resumeTxt)
       g.ok(await p.locator('.stage li[data-id="comm"]').getAttribute('data-state') === 'doing', '读到过的章是进行中')
@@ -206,73 +315,56 @@ async function waitState(p, st) {
       g.end()
     }
 
-    // ---------- 间隔复习 ----------
+    // ---------- 存储键和旧键迁移 ----------
     {
-      const g = R.group('间隔复习：到期提示、未到期提示、规则 2/7/30 天')
+      const g = R.group('存储键：只写单键 hands-on-vue3-v1，不再写旧的零散键')
       const p = await site.newPage()
-      const now = Date.now()
-      // first、template 完成 3 天（到期）；refs 刚完成；computed 完成 20 天，3 天前复习过一次 n=1（隔 7 天，不到期）；
-      // comm 完成 80 天，29 天前复习过 n=2（隔 30 天，不到期）
-      await seed(p, base, {
-        done: { first: true, template: true, refs: true, computed: true, comm: true },
-        doneAt: { first: now - 3 * DAY, template: now - 3 * DAY, refs: now - 3600e3, computed: now - 20 * DAY, comm: now - 80 * DAY },
-        revAt: { computed: { t: now - 3 * DAY, n: 1 }, comm: { t: now - 29 * DAY, n: 2 } }
-      })
-      await p.goto(base + '/'); await p.waitForSelector('#review')
-      const t = await p.locator('#reviewTxt').innerText()
-      g.ok(/复习时间到了：2 章/.test(t) && t.includes('第一个 Vue 应用') && t.includes('模板语法与指令'), '首页提示 2 章到期：' + t)
-      g.ok(await p.locator('#reviewLink').count() === 1, '有“开始复习”链接')
-      // n=2 的章间隔 30 天：29 天前复习还没到期；改成 31 天前就到期
-      await p.evaluate(now => { const r = JSON.parse(localStorage.getItem('vue3deep:revAt')); r.comm.t = now - 31 * 864e5; localStorage.setItem('vue3deep:revAt', JSON.stringify(r)) }, now)
-      await p.reload(); await p.waitForSelector('#review')
-      g.ok(/复习时间到了：3 章/.test(await p.locator('#reviewTxt').innerText()), 'n=2 的章隔 30 天，31 天后到期')
-      await seed(p, base, { done: { first: true }, doneAt: { first: now - 1 * DAY } })
-      await p.goto(base + '/'); await p.waitForSelector('#review')
-      g.ok(/下次复习：\d+ 月 \d+ 日/.test(await p.locator('#reviewTxt').innerText()) && await p.locator('#reviewLink').count() === 0, '未到期：只提示下次日期')
+      await seed(p, base, {})
+      await openChapter(p, base, first)
+      await scBox(p, 0).locator('.sc-o').nth(first.scAnswers[0]).click()
+      const keys = (await p.evaluate(() => Object.keys(localStorage))).filter(k => k !== 'vitepress-theme-appearance') // 后者是 VitePress 自己存的深浅色偏好
+      g.ok(keys.includes(STORE_KEY), '有单键 ' + STORE_KEY + '：' + keys)
+      g.ok(!keys.some(k => k.startsWith('vue3deep:')), '没有旧前缀的键：' + keys)
+      g.ok(keys.length === 1, '只有一个键：' + keys)
       g.end()
     }
     {
-      const g = R.group('待复习标签页：只出到期章的题（每章 3 题，含各章自测题）；全对 n+1，有错 n=0；回到首页不再到期')
+      const g = R.group('旧键迁移：预置旧的零散进度后打开页面，已完成的章、通过的练习、答对的自测、先猜、阅读位置都还在')
       const p = await site.newPage()
-      const now = Date.now()
-      await seed(p, base, { done: { first: true, template: true }, doneAt: { first: now - 3 * DAY, template: now - 3 * DAY } })
-      await p.goto(base + '/'); await p.waitForSelector('#reviewLink')
-      await p.locator('#reviewLink').click()
-      await p.waitForURL(u => u.pathname.includes('27-quiz'))
-      await p.waitForSelector('#qzList .q')
-      g.ok(await p.locator('#qzTabs button.on').innerText() === '待复习', '直接打开“待复习”标签')
-      const boxes = p.locator('#qzList .q')
-      g.ok(await boxes.count() === 6, '2 章 × 3 题 = 6 题（实际 ' + await boxes.count() + '）')
-      const sids = []
-      for (let i = 0; i < 6; i++) {
-        const key = await boxes.nth(i).getAttribute('data-key')
-        sids.push(key.startsWith('s:') ? key.slice(2).split(':')[0] : Q[+key.slice(1)][3])
-      }
-      g.ok(sids.every(s => s === 'first' || s === 'template') && sids.filter(s => s === 'first').length === 3, '题目都属于到期的两章：' + sids)
-      // first 全答对，template 故意答错一题
-      let wrongDone = false
-      for (let i = 0; i < 6; i++) {
-        const b = boxes.nth(i)
-        const ri = await rightIndex(b)
-        let pick = ri
-        if (sids[i] === 'template' && !wrongDone) { pick = ri === 0 ? 1 : 0; wrongDone = true }
-        await b.locator('.opt').nth(pick).click()
-        g.ok(await b.locator('.explain').count() === 1, `第 ${i + 1} 题显示解析`)
-      }
-      const msg = await p.locator('#qzMsg').innerText()
-      g.ok(/本次复习完成，答对 5 题/.test(msg), '得分 5 / 6：' + msg)
-      g.ok(/模板语法与指令.*2 天后再复习/.test(msg), '提示答错的章 2 天后再复习')
-      const rev = await read(p, 'revAt')
-      g.ok(rev.first && rev.first.n === 1 && Math.abs(rev.first.t - Date.now()) < 60000, '全对的章：n=1 ' + JSON.stringify(rev.first))
-      g.ok(rev.template && rev.template.n === 0, '有错的章：n=0 ' + JSON.stringify(rev.template))
-      g.ok(await read(p, 'quiz3') === null, '复习的答案不写进综合测验成绩')
-      await p.goto(base + '/'); await p.waitForSelector('#review')
-      g.ok(/下次复习/.test(await p.locator('#reviewTxt').innerText()), '回到首页：这两章都不再到期')
-      // 再次打开“待复习”：没有题
-      await p.goto(base + '/chapters/27-quiz.html')
-      await p.waitForSelector('#qzTabs')
-      await p.locator('#qzTabs button', { hasText: '待复习' }).click()
-      g.ok(/现在没有需要复习的章节/.test(await p.locator('#qzList').innerText()), '没有到期章时给出说明')
+      const tpl = byId('template'), refs = byId('refs')
+      const legacySc = { ['refs:0']: refs.scAnswers[0], ['refs:1']: wrongOf(refs, 1), 'p:somelab': 2 }
+      await seedLegacy(p, base, {
+        done: { first: true, template: true },
+        doneAt: { first: Date.now() - 5 * 864e5, template: Date.now() - 864e5 },
+        ex: { [refs.ex[0]]: true, [refs.ex[1]]: 'sol' },
+        exSol: { [refs.ex[1]]: true },
+        sc: legacySc,
+        guess: { 'p:other': 1 },
+        revAt: { first: { t: 1, n: 2 } },
+        quiz3: { 0: 0 },
+        last: { path: refs.link, anchor: '', h: '', t: Date.now() - 3600e3 },
+        ['ex:' + refs.ex[0]]: { tpl: '<p>草稿</p>', js: 'return {}' }
+      })
+      await p.goto(base + refs.link + '.html')
+      await p.waitForSelector('.nav-progress'); await p.waitForTimeout(600)
+      const st = await read(p)
+      g.ok(st && st.first && st.first.done === true && st.template.done === true, '已完成的章迁过来了')
+      g.ok(/已完成 2\/26/.test(await p.locator('.nav-progress').innerText()), '顶栏：已完成 2/26')
+      g.ok(await p.locator('.VPSidebar a[href*="01-first"]').getAttribute('data-state') === 'done' && await p.locator('.VPSidebar a[href*="02-template"]').getAttribute('data-state') === 'done', '侧边栏两章有 ✓')
+      g.ok(st.refs.ex[refs.ex[0]].passed === true && !st.refs.ex[refs.ex[0]].help, '通过的练习迁过来了')
+      g.ok(st.refs.ex[refs.ex[1]].passed === true && st.refs.ex[refs.ex[1]].help === 'solution' && st.refs.ex[refs.ex[1]].sawSol, '看过答案后通过的练习：借助答案标记保留')
+      g.ok(st.refs.sc[0] === refs.scAnswers[0] && !(1 in st.refs.sc), '自测只迁答对的')
+      g.ok(st.__pred && st.__pred.somelab && st.__pred.somelab.checked === true && st.__pred.other && !st.__pred.other.checked, '先猜：已核对和未核对的都迁了')
+      g.ok(st.__last && st.__last.path === refs.link, '阅读位置迁了')
+      g.ok(!('__srs' in st) && !('__stage' in st), '旧的复习和综合测验记录不迁')
+      g.ok(await p.locator('.chapter-foot').getAttribute('data-state') === 'doing', '这一章进行中')
+      g.ok(await p.locator('.ex[data-ex="' + refs.ex[0] + '"] .badge').innerText().then(t => /已通过/.test(t)), '页面上练习显示已通过')
+      const keys = await p.evaluate(() => Object.keys(localStorage))
+      g.ok(keys.includes('vue3deep:done'), '旧键没有被删除')
+      // 新键已存在后不再迁移：改掉旧键，刷新，进度以新键为准
+      await p.evaluate(() => localStorage.setItem('vue3deep:done', JSON.stringify({})))
+      await p.reload(); await p.waitForSelector('.nav-progress'); await p.waitForTimeout(400)
+      g.ok(/已完成 2\/26/.test(await p.locator('.nav-progress').innerText()), '新键存在后不再迁移，进度不变')
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
       g.end()
     }
@@ -289,6 +381,20 @@ async function waitState(p, st) {
       g.ok(n > 0 && await p.locator('details.deep[open]').count() === n, `${n} 个深入块默认都带 open`)
       g.ok(await p.locator('.view-toggles').count() === 0, '页面上不存在 .view-toggles')
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
+      g.end()
+    }
+
+    // ---------- 手机宽度 ----------
+    {
+      const g = R.group('390px 宽度：首页和章节页没有横向滚动，顶栏进度可见')
+      const p = await site.newPage({ viewport: { width: 390, height: 800 } })
+      await seed(p, base, { first: fullChapter(first, { done: true }) })
+      for (const u of ['/', first.link + '.html']) {
+        await p.goto(base + u); await p.waitForSelector('.nav-progress'); await p.waitForTimeout(400)
+        const o = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }))
+        g.ok(o.sw <= o.cw, `${u} 没有横向滚动（${o.sw} ≤ ${o.cw}）`)
+        g.ok(await p.locator('.nav-progress').isVisible(), `${u} 顶栏进度可见`)
+      }
       g.end()
     }
 

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // 不显示任何东西，只做几件全站的事（挂在布局的 layout-bottom 插槽里，整个站点只有一个实例）：
-//   1. 侧边栏里已完成/进行中章的标记（侧边栏是 VitePress 默认主题渲染的，这里按链接地址补上 data-state）
-//   2. 阅读位置：进入一章时记下这章；滚动停下后记下读到的小节（键 last）
+//   1. 侧边栏里已完成/进行中章的标记（侧边栏是 VitePress 默认主题渲染的，这里按链接地址补上 data-state），
+//      以及每个阶段标题右侧的完成数（data-count，由 CSS 显示）。进度在浏览器里才有，所以挂载后才补，服务端渲染的是空的
+//   2. 阅读位置：进入一章时记下这章；滚动停下后记下读到的小节（引擎进度里的 __last）
 //   3. 带 #锚点 进入一章时，实验台和编辑器晚一点才挂载，会把版面撑高，所以持续补对齐（用户没动过才补）
 import { nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute } from 'vitepress'
-import { markStoreReady, store, storeRev } from '../composables/store'
-import { chapterByPath, chapterState, type LastPos } from '../composables/progress'
+import { chapterByPath, chapterState, ensureReady, getLast, ready, rev, setLast, stageCount, type LastPos } from '../composables/learn'
 
 const route = useRoute()
 let acted = false // 用户在这个页面上动过（滚轮、触摸、按键、点击）
@@ -16,6 +16,15 @@ let cleanups: (() => void)[] = []
 let paintRaf = 0
 function paintSidebar() {
   paintRaf = 0
+  if (!ready.value) return
+  // 阶段标题（“01 入门”）右侧的完成数
+  document.querySelectorAll<HTMLElement>('.VPSidebar .VPSidebarItem.level-0 > .item').forEach(it => {
+    const m = /^(\d\d)\s/.exec((it.textContent || '').trim())
+    if (!m) return
+    const { done, total } = stageCount(Number(m[1]))
+    const v = `${done}/${total}`
+    if (it.dataset.count !== v) it.dataset.count = v
+  })
   document.querySelectorAll<HTMLAnchorElement>('.VPSidebar a[href*="/chapters/"]').forEach(a => {
     const c = chapterByPath(new URL(a.href, location.href).pathname)
     if (!c || c.stage == null) return
@@ -47,17 +56,17 @@ function savePos() {
   const heads = [...document.querySelectorAll('.vp-doc h2[id], .vp-doc h3[id]')]
   let cur: Element | null = null
   for (const h of heads) if (h.getBoundingClientRect().top <= line) cur = h
-  store.set('last', { path: c.link, anchor: cur?.id || '', h: cur ? headingText(cur) : '', t: Date.now() } satisfies LastPos)
+  setLast({ path: c.link, anchor: cur?.id || '', h: cur ? headingText(cur) : '', t: Date.now() } satisfies LastPos)
 }
 function enterChapter() {
   const c = chapterByPath(route.path)
   if (!c || c.stage == null) return
   const hash = decodeURIComponent(location.hash.slice(1))
-  const last = store.get<LastPos | null>('last', null)
+  const last = getLast()
   // 同一章保留已有的小节位置，除非地址里带了锚点
   if (last && last.path === c.link && !hash) return
   const el = hash ? document.getElementById(hash) : null
-  store.set('last', { path: c.link, anchor: hash, h: el ? headingText(el) : '', t: Date.now() } satisfies LastPos)
+  setLast({ path: c.link, anchor: hash, h: el ? headingText(el) : '', t: Date.now() } satisfies LastPos)
 }
 
 // ---- 5：带锚点进入时补对齐 ----
@@ -92,7 +101,7 @@ async function onPage() {
 }
 
 onMounted(() => {
-  markStoreReady()
+  ensureReady()
   const mark = () => { acted = true }
   const evs = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
   evs.forEach(e => window.addEventListener(e, mark, { passive: true, capture: true }))
@@ -116,7 +125,7 @@ onBeforeUnmount(() => { cleanups.forEach(f => f()); cleanups = [] })
 
 watch(() => route.path, onPage)
 // 进度变化（包括别的标签页改的）：重新应用
-watch(storeRev, () => { schedulePaint() })
+watch([rev, ready], () => { schedulePaint() })
 </script>
 
 <template><span hidden /></template>

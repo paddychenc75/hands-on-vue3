@@ -1,12 +1,11 @@
 <script setup lang="ts">
 // 目标里的一条。checks="sc:0,sc:1,ex:counter"：
-//   sc:N  本章第 N 道自测（从 0 起）答对
-//   ex:id 练习通过（不含“看过答案后通过”）
+//   sc:N  本章第 N 道自测（从 0 起）答对（答错或没答都不算）
+//   ex:id 练习通过（借助答案通过的也算通过，章末的“掌握标准”条会另外标注）
 // 题数标签（自测 N 题 · 练习 M 道）由 checks 自动算出。
 import { computed, onMounted } from 'vue'
 import { useData } from 'vitepress'
-import { store, storeReady, markStoreReady } from '../composables/store'
-import { scRegistry } from '../composables/registry'
+import { chapterById, cpOf, ensureReady, ready } from '../composables/learn'
 
 const props = defineProps<{ checks?: string }>()
 const { frontmatter } = useData()
@@ -27,17 +26,18 @@ const tag = computed(() => {
 })
 
 const met = computed(() => {
-  if (!storeReady.value || !parts.value.length) return false
-  const ans = store.get<Record<string, number>>('sc', {})
-  const ex = store.get<Record<string, unknown>>('ex', {})
+  if (!ready.value || !parts.value.length) return false
+  const id = frontmatter.value.id as string
+  const cp = cpOf(id)
+  const answers = chapterById(id)?.scAnswers ?? []
   return parts.value.every(([t, v]) => {
-    if (t === 'ex') return ex[v] === true
-    const k = frontmatter.value.id + ':' + v
-    return k in scRegistry && ans[k] === scRegistry[k]
+    if (t === 'ex') return !!cp?.ex[v]?.passed
+    const n = Number(v)
+    return answers[n] != null && cp?.sc[n] === answers[n]
   })
 })
 
-onMounted(markStoreReady)
+onMounted(ensureReady)
 </script>
 
 <template>

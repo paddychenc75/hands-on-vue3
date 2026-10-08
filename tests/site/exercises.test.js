@@ -5,7 +5,7 @@
 // 起 vitepress preview，对每章页面：
 //   1. 每道练习：初始代码不通过，答案通过，每个 wrong 都不通过
 //   2. 页面没有控制台报错
-//   3. 自测题点选后刷新页面，选择仍在
+//   3. 自测题：答错不显示解析、刷新后仍是答错状态、重试隐藏上次选项、答对才显示解析、刷新后答对仍在；目标勾选
 //   4. 实验台：先猜之前实验台不显示，答完后出现，做一次有代表性的操作，断言结果。
 //      每章的实验台数据在 tests/site/labs/<章文件名>.js（见下面的 loadLabs），章里每个 <Lab id> 都必须有一项
 //   5. 练习 id 全局不重复
@@ -16,6 +16,8 @@ const fs = require('fs')
 const net = require('net')
 const path = require('path')
 const esbuild = require('esbuild')
+const { loadChapters, STORE_KEY } = require('./helpers')
+const CHAPTERS = loadChapters()
 
 const ROOT = path.resolve(__dirname, '../..')
 // 教学内容故意触发的控制台报错：第 23 章的“水合不一致”练习会让 Vue 打印 Hydration mismatch，不算页面报错
@@ -192,35 +194,63 @@ async function runLabs(browser, base, ch) {
         log(/Z/.test(txt), `${ids[0]}: 在编辑器里键入文字有效`)
       }
 
-      // ---- 自测：点选后刷新仍在 ----
+      // ---- 自测：答错不显示解析；答对才显示；刷新后状态仍在 ----
       const scCount = await p.$$eval('.vp-doc .sc:not(.predict)', es => es.length)
       if (scCount) {
-        const pick = await p.evaluate(() => {
-          const out = []
-          document.querySelectorAll('.vp-doc .sc:not(.predict)').forEach((sc, i) => {
-            const os = sc.querySelectorAll('.sc-o'); const j = (i + 1) % os.length
-            os[j].click(); out.push(j)
-          })
-          return out
-        })
-        const shown = await p.$$eval('.vp-doc .sc.answered .sc-x', es => es.length)
-        log(shown === scCount, `${ch}: 点选后 ${scCount} 道自测都显示解析`)
+        const meta = CHAPTERS.find(c => c.file === ch)
+        const answers = meta.scAnswers
+        const wrongIdx = answers.map(a => (a === 0 ? 1 : 0))
+        // 每道题先选一个错的选项
+        await p.evaluate(wrong => {
+          document.querySelectorAll('.vp-doc .sc:not(.predict)').forEach((sc, i) => { sc.querySelectorAll('.sc-o')[wrong[i]].click() })
+        }, wrongIdx)
+        await p.waitForTimeout(200)
+        const st = await p.evaluate(() => ({
+          no: document.querySelectorAll('.vp-doc .sc.wrong .sc-x.no').length,
+          explain: document.querySelectorAll('.vp-doc .sc:not(.predict) .sc-x:not(.no)').length,
+          right: document.querySelectorAll('.vp-doc .sc:not(.predict) .sc-o.right').length,
+          wrong: document.querySelectorAll('.vp-doc .sc:not(.predict) .sc-o.wrong').length
+        }))
+        log(st.no === scCount && st.explain === 0 && st.right === 0 && st.wrong === scCount, `${ch}: 选错后 ${scCount} 道自测都只提示再试：不显示解析、不亮正确答案`)
         await p.reload()
-        await p.waitForSelector('.vp-doc .sc.answered', { timeout: 10000 }).catch(() => {})
+        await p.waitForSelector('.vp-doc .sc.wrong', { timeout: 10000 }).catch(() => {})
         await p.waitForTimeout(300)
         const after = await p.evaluate(() => [...document.querySelectorAll('.vp-doc .sc:not(.predict)')].map(sc => {
           const os = [...sc.querySelectorAll('.sc-o')]
+          return { wrong: sc.classList.contains('wrong'), picked: os.findIndex(o => o.getAttribute('aria-pressed') === 'true'), explain: sc.querySelectorAll('.sc-x:not(.no)').length }
+        }))
+        log(after.every((x, i) => x.wrong && x.picked === wrongIdx[i] && x.explain === 0), `${ch}: 刷新后自测仍是答错状态`)
+        // 重试：隐藏上次选错的项，再选正确项
+        const retry = await p.evaluate(async right => {
+          const out = []
+          const scs = [...document.querySelectorAll('.vp-doc .sc:not(.predict)')]
+          scs.forEach(sc => sc.querySelector('.sc-retry').click())
+          await new Promise(r => setTimeout(r, 100))
+          scs.forEach((sc, i) => {
+            const os = [...sc.querySelectorAll('.sc-o')]
+            out.push(os.filter(o => getComputedStyle(o).display !== 'none').length === os.length - 1)
+            os[right[i]].click()
+          })
+          return out
+        }, answers)
+        log(retry.every(Boolean), `${ch}: 重试时每道题恰好隐藏了一个选项（上次选错的）`)
+        await p.waitForTimeout(200)
+        const shown = await p.$$eval('.vp-doc .sc.answered .sc-x', es => es.length)
+        log(shown === scCount, `${ch}: 答对后 ${scCount} 道自测都显示解析`)
+        await p.reload()
+        await p.waitForSelector('.vp-doc .sc.answered', { timeout: 10000 }).catch(() => {})
+        await p.waitForTimeout(300)
+        const after2 = await p.evaluate(() => [...document.querySelectorAll('.vp-doc .sc:not(.predict)')].map(sc => {
+          const os = [...sc.querySelectorAll('.sc-o')]
           return { answered: sc.classList.contains('answered'), picked: os.findIndex(o => o.getAttribute('aria-pressed') === 'true') }
         }))
-        log(after.every((x, i) => x.answered && x.picked === pick[i]), `${ch}: 刷新后自测选择仍在（${JSON.stringify(pick)}）`)
-        // 目标勾选：自测都写成正确答案、练习写成通过，刷新后所有目标都应完成
-        const right = await p.evaluate(() => [...document.querySelectorAll('.vp-doc .sc:not(.predict)')].map(sc => [...sc.querySelectorAll('.sc-o')].findIndex(o => o.classList.contains('right'))))
-        const chId = /^id:\s*(\S+)/m.exec(fs.readFileSync(path.join(ROOT, 'course/chapters', ch + '.md'), 'utf8'))[1]
-        await p.evaluate(([right, ids, chId]) => {
-          const sc = {}; right.forEach((a, i) => { sc[chId + ':' + i] = a })
-          localStorage.setItem('vue3deep:sc', JSON.stringify(sc))
-          const ex = {}; ids.forEach(i => { ex[i] = true }); localStorage.setItem('vue3deep:ex', JSON.stringify(ex))
-        }, [right, ids, chId])
+        log(after2.every((x, i) => x.answered && x.picked === answers[i]), `${ch}: 刷新后自测答对状态仍在`)
+        // 目标勾选：自测都答对、练习写成通过，刷新后所有目标都应完成
+        await p.evaluate(([k, chId, answers, ids]) => {
+          const sc = {}; answers.forEach((a, i) => { sc[i] = a })
+          const ex = {}; ids.forEach(i => { ex[i] = { passed: true, help: false } })
+          localStorage.setItem(k, JSON.stringify({ [chId]: { sc, ex, done: false } }))
+        }, [STORE_KEY, meta.id, answers, ids])
         await p.reload()
         await p.waitForSelector('.goal-item.met', { timeout: 10000 }).catch(() => {})
         const total = await p.$$eval('.goal-item', es => es.length)

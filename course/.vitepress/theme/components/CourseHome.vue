@@ -1,56 +1,40 @@
 <script setup lang="ts">
-// 首页：学习路线说明（旧首页 header.hero 的文字）、继续学习、复习提醒、总进度、四个阶段的章节和状态。
-// 进度只在浏览器里读（storeReady 之后），服务端渲染出来的是“全部未开始”的样子，所以不会水合不一致。
+// 首页：学习路线说明、继续学习、总进度、6 个阶段的章节和状态。阶段的名称和说明来自 course/stages.ts。
+// 进度只在浏览器里读（ready 之后），服务端渲染出来的是“全部未开始”的样子，所以不会水合不一致。
+// 按题的间隔复习是下一步的事，这一步首页不显示复习入口。
 import { computed, onMounted } from 'vue'
 import { withBase } from 'vitepress'
-import { markStoreReady, store, storeReady } from '../composables/store'
-import {
-  agoText, chapterByPath, chapterState, dueChapters, nextDue, progressChapters, STATE_LABEL, chapterById, type LastPos
-} from '../composables/progress'
 import { chapters } from 'virtual:course-meta'
-import { STAGES } from '../../../stages'
+import { agoText, chapterByPath, chapterState, chaptersOfStage, ensureReady, getLast, progressChapters, ready, STAGES, STATE_LABEL } from '../composables/learn'
 
-const cheat = chapters.find(c => c.chapter == null)
+const cheat = chapters.find(c => c.id === 'cheat')
+const quiz = chapters.find(c => c.id === 'quiz')
 
-onMounted(markStoreReady)
+onMounted(ensureReady)
 
 const cards = computed(() =>
   STAGES.map((info, i) => {
-    const s = i + 1
-    const list = progressChapters.filter(c => c.stage === s).map(c => ({
+    const stage = i + 1
+    const list = chaptersOfStage(stage).map(c => ({
       ...c,
-      state: storeReady.value ? chapterState(c.id) : ('todo' as const)
+      state: ready.value ? chapterState(c.id) : ('todo' as const)
     }))
     const done = list.filter(c => c.state === 'done').length
-    return { stage: s, ...info, list, done, pct: list.length ? (done / list.length) * 100 : 0 }
+    return { stage, ...info, list, done, pct: list.length ? (done / list.length) * 100 : 0 }
   })
 )
 const total = computed(() => cards.value.reduce((a, c) => a + c.list.length, 0))
 const doneN = computed(() => cards.value.reduce((a, c) => a + c.done, 0))
 const doingN = computed(() => cards.value.reduce((a, c) => a + c.list.filter(x => x.state === 'doing').length, 0))
 
-// 继续学习：回到上次阅读的章（有小节锚点时定位到小节）
+// 继续学习：回到上次阅读的章（有小节锚点时定位到小节）。阅读位置存在引擎进度的 __last
 const resume = computed(() => {
   const first = progressChapters[0]
-  const last = storeReady.value ? store.get<LastPos | null>('last', null) : null
+  const last = ready.value ? getLast() : null
   const c = last && chapterByPath(last.path)
   if (!last || !c) return { href: withBase(first.link), text: '还没有学习记录，从第 1 章开始。', has: false }
   const label = `第 ${c.chapter} 章 ${c.title}` + (last.h ? ' · ' + last.h : '') + `（${agoText(last.t)}）`
   return { href: withBase(c.link) + (last.anchor ? '#' + encodeURIComponent(last.anchor) : ''), text: '上次停在：' + label, has: true }
-})
-
-// 间隔复习提醒
-const review = computed(() => {
-  if (!storeReady.value) return null
-  const due = dueChapters()
-  if (due.length) {
-    const names = due.slice(0, 3).map(id => chapterById(id)!.title).join('、') + (due.length > 3 ? ' 等' : '')
-    return { later: false, text: `复习时间到了：${due.length} 章（${names}）。每章抽 3 道题回忆一次，记得更牢。` }
-  }
-  const ts = progressChapters.map(c => nextDue(c.id)).filter((t): t is number => !!t)
-  if (!ts.length) return null
-  const t = new Date(Math.min(...ts))
-  return { later: true, text: `下次复习：${t.getMonth() + 1} 月 ${t.getDate()} 日。到时这里会提醒你。` }
 })
 </script>
 
@@ -64,10 +48,6 @@ const review = computed(() => {
       <div class="resume show" id="resume">
         <span id="resumeTxt">{{ resume.text }}</span>
         <a class="b pri" id="resumeLink" :href="resume.href">继续学习</a>
-      </div>
-      <div v-if="review" class="resume review show" :class="{ later: review.later }" id="review">
-        <span id="reviewTxt">{{ review.text }}</span>
-        <a v-if="!review.later" class="b" id="reviewLink" :href="withBase('/chapters/27-quiz') + '#review'">开始复习</a>
       </div>
 
       <div class="progress-sum" id="progress">
@@ -86,6 +66,7 @@ const review = computed(() => {
               <span class="st">{{ STATE_LABEL[x.state] }}</span>
             </li>
             <li v-if="c.stage === STAGES.length && cheat" class="aside"><a :href="withBase(cheat.link)">附：{{ cheat.title }}</a></li>
+            <li v-if="c.stage === STAGES.length && quiz" class="aside"><a :href="withBase(quiz.link)">附：{{ quiz.title }}</a></li>
           </ul>
           <div class="cap stage-sum">已完成 {{ c.done }} / {{ c.list.length }} 章</div>
           <div class="meter"><i :style="{ width: c.pct + '%' }"></i></div>

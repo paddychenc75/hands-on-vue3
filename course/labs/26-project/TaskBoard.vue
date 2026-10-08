@@ -16,7 +16,7 @@ const STEPS: { title: string; ch: string; what: string; code: string }[] = [
     code: '// useTasks.js\nexport function useTasks(key = \'tasks\') {\n  const tasks = ref(JSON.parse(localStorage.getItem(key) || \'[]\'))\n  watch(tasks, v => localStorage.setItem(key, JSON.stringify(v)), { deep: true })\n\n  const filter = ref(\'all\')\n  const shown = computed(() => /* 同第 3 步 */)\n  const left = computed(() => tasks.value.filter(t => !t.done).length)\n  function add(text) { /* … */ }\n  function toggle(id) { /* … */ }\n  function remove(id) { /* … */ }\n  return { tasks, filter, shown, left, add, toggle, remove }\n}\n\n// 组件里只剩一行逻辑\nconst { filter, shown, left, add, toggle, remove } = useTasks()' }
 ];
 
-const KEY = 'vue3deep:kanban'
+const KEY = 'hov3-demo:kanban'
 type Task = { id: number; text: string; done: boolean }
 const seed = (): Task[] => [{ id: 1, text: '读完响应式原理', done: true }, { id: 2, text: '完成练习', done: false }, { id: 3, text: '写一个 useFetch', done: false }]
 

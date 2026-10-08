@@ -189,7 +189,7 @@ export const kanbanSave: Exercise = {
 ]
 
 // 第 5 步的 useTasks。只修改这个函数。
-function useTasks(key = 'vue3deep:ex26-tasks') {
+function useTasks(key = 'hov3-demo:ex26-tasks') {
   // TODO 2：先从 localStorage 读取。没有数据时，用 seed()。
   const tasks = ref(seed())
   // TODO 3：tasks 改变时，写入 localStorage。
@@ -238,7 +238,7 @@ return { reloads, components: { TaskBoard } }`,
   { id: 3, text: '写一个 useFetch', done: false }
 ]
 
-function useTasks(key = 'vue3deep:ex26-tasks') {
+function useTasks(key = 'hov3-demo:ex26-tasks') {
   const saved = localStorage.getItem(key)          // 没有数据时得到 null
   const tasks = ref(saved ? JSON.parse(saved) : seed())
   // deep：push 和修改 done 也触发保存
@@ -288,7 +288,7 @@ return { reloads, components: { TaskBoard } }`,
     'function remove(id) { tasks.value = tasks.value.filter(t => t.id !== id) }\n\nconst saved = localStorage.getItem(key)\nconst tasks = ref(saved ? JSON.parse(saved) : seed())\nwatch(tasks, v => localStorage.setItem(key, JSON.stringify(v)), { deep: true })'
   ],
   async check(T) {
-    try { localStorage.removeItem('vue3deep:ex26-tasks'); } catch (e) {}
+    try { localStorage.removeItem('hov3-demo:ex26-tasks'); } catch (e) {}
     const reload = async () => { const b = T.btn('模拟刷新'); if (b) await T.click(b); };
     const name = li => ((li.querySelector('span') || {}).textContent || '').trim();
     const row = n => T.$$('li').find(li => name(li) === n);

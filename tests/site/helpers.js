@@ -1,6 +1,6 @@
 // 站点测试的公共部分：起 vitepress preview、读章节数据、读练习和题库数据。
-//   progress.test.js  跨章学习功能（进度、复习、开关、图片放大）
-//   quiz.test.js      综合测验
+//   progress.test.js  跨章学习功能（进度、自测答错、章完成、侧边栏和顶栏、首页、旧键迁移、图片放大）
+//   quiz.test.js      综合测验（最小版：按阶段筛选、点选出解析，答案只在内存里）
 // 都用已经构建好的 course/.vitepress/dist（npm run test:site 会先构建）。
 const { chromium } = require('playwright')
 const { spawn } = require('child_process')
@@ -84,11 +84,26 @@ function loadQuestions() {
   return loadTs(path.join(ROOT, 'course/labs/27-quiz/questions.ts')).Q
 }
 
-/** 在浏览器里往 localStorage 写进度（键前缀 vue3deep:）。要在 goto 之前对同源页面调用，所以先打开一个空白的站内页 */
-async function seed(p, base, data) {
+/** 进度存储的键（单键，结构见 course/engine/types.ts 的 Progress） */
+const STORE_KEY = 'hands-on-vue3-v1'
+
+/** 在浏览器里写进度：清空 localStorage，再把 progress（引擎的 Progress 结构）写进单键。要在 goto 之前对同源页面调用，所以先打开一个空白的站内页 */
+async function seed(p, base, progress = {}) {
+  await p.goto(base + '/')
+  await p.evaluate(([k, d]) => { localStorage.clear(); if (Object.keys(d).length) localStorage.setItem(k, JSON.stringify(d)) }, [STORE_KEY, progress])
+}
+/** 写旧版的零散进度键（前缀见引擎的迁移代码），用来测一次性迁移。data 的键是去掉前缀的键名 */
+async function seedLegacy(p, base, data) {
   await p.goto(base + '/')
   await p.evaluate(d => { localStorage.clear(); for (const [k, v] of Object.entries(d)) localStorage.setItem('vue3deep:' + k, JSON.stringify(v)) }, data)
 }
-const read = (p, key) => p.evaluate(k => { const v = localStorage.getItem('vue3deep:' + k); return v == null ? null : JSON.parse(v) }, key)
+/** 读整个进度（没有返回 null） */
+const read = p => p.evaluate(k => { const v = localStorage.getItem(k); return v == null ? null : JSON.parse(v) }, STORE_KEY)
+/** 一章的进度：自测全部答对、练习全部通过时的样子。overrides 可以改其中的字段 */
+function fullChapter(c, overrides = {}) {
+  const sc = {}; c.scAnswers.forEach((a, i) => { sc[i] = a })
+  const ex = {}; c.ex.forEach(id => { ex[id] = { passed: true, help: false } })
+  return { sc, ex, done: false, ...overrides }
+}
 
-module.exports = { ROOT, makeReporter, startSite, loadChapters, loadExercises, loadQuestions, seed, read }
+module.exports = { ROOT, makeReporter, startSite, loadChapters, loadExercises, loadQuestions, seed, seedLegacy, read, fullChapter, STORE_KEY }

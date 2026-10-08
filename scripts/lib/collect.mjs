@@ -42,6 +42,9 @@ export async function collect(root = ROOT) {
   // 首页“写作规则”里的固定用词表（也是术语表页“不这样说”一栏的数据）
   const writingTerms = (await import(pathToFileURL(rd('course/writing-terms.mjs')).href)).WRITING_TERMS;
 
+  // 首页「学习路线」的三条路线（用章 id 引用章，章号由首页组件从元数据取）
+  const learningPaths = (await import(pathToFileURL(rd('course/learning-paths.mjs')).href)).LEARNING_PATHS;
+
   const labTests = {};
   const labsDir = rd('tests/site/labs');
   if (fs.existsSync(labsDir))
@@ -56,5 +59,5 @@ export async function collect(root = ROOT) {
   const vueFiles = {};
   for (const rel of files) if (/^course\/(?:labs|figures)\/.+\.vue$/.test(rel)) vueFiles[rel] = fs.readFileSync(rd(rel), 'utf8');
   const snapshot = fs.existsSync(rd('course/card-keys.snapshot.json')) ? JSON.parse(fs.readFileSync(rd('course/card-keys.snapshot.json'), 'utf8')) : null;
-  return { chapterFiles, extraPages, writingTerms, exercises, questions, stageCount, stageQuestions, labTests, files, vueFiles, snapshot };
+  return { chapterFiles, extraPages, writingTerms, learningPaths, exercises, questions, stageCount, stageQuestions, labTests, files, vueFiles, snapshot };
 }

@@ -180,6 +180,33 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       g.end()
     }
 
+    // ---------- 首页的三条学习路线 ----------
+    {
+      const g = R.group('首页学习路线：三条路线，章号和标题从章元数据取（改号不会过期），选读章带标签，链接都能用')
+      const p = await site.newPage()
+      await seed(p, base, {})
+      await p.goto(base + '/'); await p.waitForSelector('#routes .route'); await p.waitForTimeout(300)
+      const titles = await p.locator('#routes .route h3').allInnerTexts()
+      g.ok(titles.join('|') === '想尽快能做项目|想系统掌握|已有 Vue 经验，想补原理', '三条路线：' + titles.join('|'))
+      const chip = id => p.locator(`.route[data-route="quick-project"] .chips a[href$="${byId(id).file}"]`)
+      g.ok(await chip('data-fetching').count() === 1 && (await chip('data-fetching').innerText()).startsWith(byId('data-fetching').chapter + '.'), '路线 1 列出数据请求章，章号 = 元数据里的章号：' + await chip('data-fetching').innerText())
+      g.ok(await chip('project').count() === 1 && await chip('migrate').count() === 0, '路线 1 有项目章，没有选读的迁移章')
+      const sys = p.locator('.route[data-route="systematic"]')
+      g.ok((await sys.locator('.steps li').count()) === STAGE_COUNT, '路线 2 每个阶段一步')
+      g.ok(/全部必读章：第 1–5 章/.test(await sys.locator('.steps li').first().innerText()), '路线 2 的第 1 步按元数据写出章范围：' + (await sys.locator('.steps li').first().innerText()).replace(/\n/g, ' '))
+      g.ok(/选读章（第 \d+/.test(await sys.locator('.skip').innerText()), '路线 2 说明选读章可以跳过：' + await sys.locator('.skip').innerText())
+      const int = p.locator('.route[data-route="internals"]')
+      g.ok((await int.locator('.chips a .opt-tag').count()) >= 1, '路线 3 里的选读章带“选读”标签')
+      g.ok(await int.locator('.step-head a[href*="/check/1"]').count() === 1, '路线 3 链到阶段测验')
+      const hrefs = await p.$$eval('#routes a', as => as.map(a => a.getAttribute('href')))
+      g.ok(hrefs.length > 20 && hrefs.every(h => h.startsWith(BASE_PATH)), '路线里的链接都带 base：' + hrefs.length)
+      const bad = []
+      for (const h of [...new Set(hrefs)].slice(0, 60)) { const r = await p.request.get(site.origin + h.replace(/(?<!\.html)$/, h.includes('/chapters/') || h.includes('/check/') ? '.html' : '')); if (r.status() >= 400) bad.push(r.status() + ' ' + h) }
+      g.ok(bad.length === 0, '路线里的链接没有 4xx：' + bad.slice(0, 3))
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
+      g.end()
+    }
+
     // ---------- 旧数据容错 ----------
     {
       const g = R.group('旧版本地数据：章 id、卡片键、阶段记录对不上时，各页面照常打开，不报错（课程发布前重排过章和阶段，没有写迁移）')
@@ -538,7 +565,7 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       const g = R.group('390px 宽度：首页和章节页没有横向滚动，顶栏进度可见')
       const p = await site.newPage({ viewport: { width: 390, height: 800 } })
       await seed(p, base, { first: fullChapter(first, { done: true }) })
-      for (const u of ['/', first.link + '.html']) {
+      for (const u of ['/', first.link + '.html', OPT[0].link + '.html', byId('project').link + '.html']) {
         await p.goto(base + u); await p.waitForSelector('.nav-progress'); await p.waitForTimeout(400)
         const o = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }))
         g.ok(o.sw <= o.cw, `${u} 没有横向滚动（${o.sw} ≤ ${o.cw}）`)

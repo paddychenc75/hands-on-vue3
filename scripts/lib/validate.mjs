@@ -20,6 +20,7 @@ const nonEmpty = v => typeof v === 'string' && v.trim() !== '';
  *   chapterFiles   { 文件名(不带 .md): 源文件文字 }
  *   extraPages     { 'course/glossary.md': 源文件文字 }：首页、术语表、今日复习、阶段测验页。只扫章引用和站内链接（没有这个字段则不扫）
  *   writingTerms   首页“写作规则”表的数据（course/writing-terms.mjs 的 WRITING_TERMS）；没有则不检查
+ *   learningPaths  首页“学习路线”的数据（course/learning-paths.mjs 的 LEARNING_PATHS）；没有则不检查
  *   exercises      { 练习文件名(不带 .ts): 导出对象 }
  *   questions      checks/questions.ts 的 Q
  *   stageCount     阶段数
@@ -310,6 +311,54 @@ export function validate(inp, opts = {}) {
         if (seenTerm.has(t)) fail(`wterm-dup:${t}`, where, `术语“${t}”和第 ${seenTerm.get(t)} 条重复`);
         else seenTerm.set(t, i + 1);
         if (!glossaryTerms.has(t)) fail(`wterm-missing:${t}`, where, `术语“${t}”在术语表里找不到（没有哪一章的“本章术语”块写了它）`, '在合适的章的术语块里补上这个术语，或改这里的 terms 与术语块的写法一致（不要为此改章节内容时，先登记到 scripts/lib/known-issues.mjs）');
+      }
+    });
+  }
+
+  // ---------- 首页学习路线 ----------
+  // 路线用章 id 引用章，章号由首页组件从元数据取：这里校验 id 真实存在、阶段号在范围内、章不重复、按章号从小到大排列
+  if (inp.learningPaths) {
+    const seenPath = new Set();
+    const okStage = n => Number.isInteger(n) && n >= 1 && n <= inp.stageCount;
+    inp.learningPaths.forEach((path, i) => {
+      const where = `course/learning-paths.mjs 第 ${i + 1} 条路线（${path?.title}）`;
+      const k = s => `path:${path?.id}:${s}`;
+      if (!path || !nonEmpty(path.id) || !nonEmpty(path.title) || !nonEmpty(path.who)) return fail(`path:${i}`, where, '每条路线要有 id、title、who');
+      if (seenPath.has(path.id)) fail(k('dup'), where, `路线 id "${path.id}" 重复`);
+      seenPath.add(path.id);
+      if (!Array.isArray(path.parts) || !path.parts.length) return fail(k('parts'), where, 'parts 不能为空');
+      const order = [];
+      path.parts.forEach((part, j) => {
+        const at = `${where} 的第 ${j + 1} 步`;
+        if (!nonEmpty(part?.text)) fail(k(`text${j}`), at, '每一步要有 text 说明');
+        if (part?.stage !== undefined && !okStage(part.stage)) fail(k(`stage${j}`), at, `stage 必须是 1 到 ${inp.stageCount} 的整数（实际是 ${part.stage}）`);
+        if (part?.checkStages !== undefined && !(Array.isArray(part.checkStages) && part.checkStages.length && part.checkStages.every(okStage))) fail(k(`check${j}`), at, `checkStages 必须是 1 到 ${inp.stageCount} 的阶段号数组`);
+        if (part?.ids === 'all') {
+          if (!okStage(part.stage)) fail(k(`all${j}`), at, "ids 写 'all' 时必须同时写 stage");
+          else order.push(...chapters.filter(c => c.stage === part.stage && c.fm.optional !== 'true').map(c => c.fm.id));
+        } else if (part?.ids !== undefined) {
+          if (!Array.isArray(part.ids) || !part.ids.length) fail(k(`ids${j}`), at, "ids 必须是章 id 数组，或 'all'");
+          else
+            for (const id of part.ids) {
+              const c = chById.get(id);
+              if (!c) fail(k(`id:${id}`), at, `章 id "${id}" 不存在`, '用 frontmatter 里的 id，不是文件名');
+              else if (okStage(part.stage) && c.stage !== part.stage) fail(k(`id-stage:${id}`), at, `章 "${id}" 属于阶段 ${c.stage}，不在这一步写的阶段 ${part.stage} 里`);
+              else order.push(id);
+            }
+        } else if (part?.checkStages === undefined) fail(k(`empty${j}`), at, '每一步至少要有 ids 或 checkStages');
+      });
+      const dup = order.find((id, n) => order.indexOf(id) !== n);
+      if (dup) fail(k(`dup-ch:${dup}`), where, `章 "${dup}" 在这条路线里出现了两次`);
+      for (let n = 1; n < order.length; n++) {
+        const a = chById.get(order[n - 1]);
+        const b = chById.get(order[n]);
+        if (a && b && a.no >= b.no) fail(k(`order:${order[n]}`), where, `章 "${order[n]}"（第 ${b.no} 章）排在 "${order[n - 1]}"（第 ${a.no} 章）后面：路线里的章要按章号从小到大排`);
+      }
+      const sk = path.skip;
+      if (sk !== undefined) {
+        if (!sk || typeof sk !== 'object' || !nonEmpty(sk.text)) fail(k('skip'), where, 'skip 要有 text 说明');
+        else if (sk.stages !== undefined && !(Array.isArray(sk.stages) && sk.stages.every(okStage))) fail(k('skip'), where, `skip.stages 必须是 1 到 ${inp.stageCount} 的阶段号数组`);
+        else if (sk.optional !== undefined && typeof sk.optional !== 'boolean') fail(k('skip'), where, 'skip.optional 必须是布尔值');
       }
     });
   }

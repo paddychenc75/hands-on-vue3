@@ -68,6 +68,31 @@ describe('选读标记（frontmatter 的 optional）', () => {
   })
 })
 
+describe('首页学习路线（course/learning-paths.mjs）', () => {
+  const withPaths = (paths: any[]) => ({ ...base, learningPaths: paths })
+  const ok = { id: 't', title: 'T', who: 'W', parts: [{ stage: 1, ids: 'all', text: 'x' }] }
+  it('真实的三条路线通过校验', () => {
+    expect(base.learningPaths.length).toBe(3)
+    expect(run(base)).toEqual([])
+  })
+  it('章 id 不存在 -> 报错', () => {
+    expectError(run(withPaths([{ ...ok, parts: [{ ids: ['nope'], text: 'x' }] }])), /章 id "nope" 不存在/)
+  })
+  it('章不按章号从小到大排、重复 -> 报错', () => {
+    expectError(run(withPaths([{ ...ok, parts: [{ ids: ['refs', 'first'], text: 'x' }] }])), /要按章号从小到大排/)
+    expectError(run(withPaths([{ ...ok, parts: [{ ids: ['first'], text: 'x' }, { ids: ['first'], text: 'y' }] }])), /出现了两次/)
+  })
+  it('阶段号越界、ids: all 没写 stage、章不在写明的阶段里 -> 报错', () => {
+    expectError(run(withPaths([{ ...ok, parts: [{ stage: 9, ids: 'all', text: 'x' }] }])), /stage 必须是 1 到 6/)
+    expectError(run(withPaths([{ ...ok, parts: [{ ids: 'all', text: 'x' }] }])), /同时写 stage/)
+    expectError(run(withPaths([{ ...ok, parts: [{ stage: 2, ids: ['first'], text: 'x' }] }])), /不在这一步写的阶段 2 里/)
+  })
+  it('缺 text、skip 格式不对 -> 报错', () => {
+    expectError(run(withPaths([{ ...ok, parts: [{ stage: 1, ids: 'all' }] }])), /每一步要有 text/)
+    expectError(run(withPaths([{ ...ok, skip: { stages: [7], text: 'x' } }])), /skip.stages 必须是/)
+  })
+})
+
 describe('自测题', () => {
   it('调换两道自测题 -> 报“现在放的是原来 X 的题”', () => {
     const inp = editChapter('03-refs', src => {

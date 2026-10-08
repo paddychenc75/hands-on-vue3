@@ -7,7 +7,10 @@ import { withBase } from 'vitepress'
 import { chapters } from 'virtual:course-meta'
 import { tallyProgress } from '../../../engine/logic/completion'
 import { WRITING_TERMS } from '../../../writing-terms.mjs'
-import { agoText, chapterByPath, chapterState, chaptersOfStage, CHECK_LABEL, checkLink, dueCount, ensureReady, getLast, learnedCount, progressChapters, ready, stageCheckStatus, STAGES, STATE_LABEL } from '../composables/learn'
+import { LEARNING_PATHS } from '../../../learning-paths.mjs'
+import { chapterRanges } from '../../../engine/logic/text'
+import { agoText, chapterById, chapterByPath, chapterState, chaptersOfStage, CHECK_LABEL, checkLink, dueCount, ensureReady, getLast, learnedCount, progressChapters, ready, stageCheckStatus, STAGES, STATE_LABEL } from '../composables/learn'
+import { stageTitle } from '../../../stages'
 
 const cheat = chapters.find(c => c.id === 'cheat')
 
@@ -32,6 +35,26 @@ const optionalTotal = computed(() => cards.value.reduce((a, c) => a + c.optional
 const optionalDone = computed(() => cards.value.reduce((a, c) => a + c.optionalDone, 0))
 const doingN = computed(() => cards.value.reduce((a, c) => a + c.list.filter(x => x.state === 'doing').length, 0))
 
+// 学习路线：路线数据（course/learning-paths.mjs）只写章 id，章号和标题在这里从章元数据取，改章号不会过期
+const routes = LEARNING_PATHS.map(path => {
+  const parts = path.parts.map(part => {
+    const all = part.ids === 'all'
+    const list = all ? chaptersOfStage(part.stage).filter(c => !c.optional) : (part.ids || []).map(id => chapterById(id)).filter((c): c is NonNullable<typeof c> => !!c)
+    return {
+      text: part.text,
+      label: part.stage ? stageTitle(part.stage) : '',
+      all,
+      list,
+      range: chapterRanges(list.map(c => c.chapter as number)),
+      checks: (part.checkStages || []).map((s: number) => ({ stage: s, title: stageTitle(s), href: checkLink(s) }))
+    }
+  })
+  const sk = path.skip
+  const skipStages = (sk?.stages || []).map((s: number) => stageTitle(s))
+  const skipOptional = sk?.optional ? chapterRanges(progressChapters.filter(c => c.optional).map(c => c.chapter as number)) : ''
+  return { id: path.id, title: path.title, who: path.who, test: path.test as string | undefined, parts, skip: sk ? { text: sk.text as string, stages: skipStages.join('、'), optional: skipOptional } : null }
+})
+
 const due = computed(() => (ready.value ? dueCount() : 0))
 const learned = computed(() => (ready.value ? learnedCount() : 0))
 const scTotal = progressChapters.reduce((a, c) => a + c.scCount, 0)
@@ -53,7 +76,7 @@ const resume = computed(() => {
     <header class="hero">
       <div class="eyebrow">VUE 3.5 · 中文互动课程</div>
       <h1>动手学 <em>Vue 3</em></h1>
-      <p>本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章（其中 {{ optionalTotal }} 章选读），每个阶段末尾有一次阶段测验。阶段一和阶段二教你使用 Vue：模板、响应式、组件、内置组件、自定义指令、组合式函数、插件和表单。阶段三和阶段四说明 Vue 的内部原理：响应式、更新队列、渲染函数、watch 与 effectScope 的实现、响应式陷阱诊断、模板编译、虚拟 DOM 与 diff、组件运行时，以及组件与组合式函数的 API 设计。阶段五介绍 Pinia、Router、状态归属、TypeScript、性能优化、工程化和 Vue 2 迁移。阶段六讲 SSR、自定义渲染器、内置组件的实现、错误处理与监控、表单架构、性能诊断实战和组件库工程，并包含一个完整的小项目。</p>
+      <p>本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章（其中 {{ optionalTotal }} 章选读），每个阶段末尾有一次阶段测验。{{ STAGES[0].name }}和{{ STAGES[1].name }}教你使用 Vue。{{ STAGES[2].name }}把常用工具接进项目。{{ STAGES[3].name }}和{{ STAGES[4].name }}说明 Vue 的内部原理。{{ STAGES[5].name }}讲组件设计、服务端渲染和工程实践。标题以“项目：”开头的章是动手做项目的章。带“选读”标签的章不计入总进度，学了照常记录。</p>
 
       <p class="prereq"><b>开始前你需要会：</b>HTML 和 CSS 基础（标签、属性、选择器），JavaScript 基础（变量、函数、箭头函数、数组的 map 和 filter、对象和数组的解构与展开、import 和 export 模块、Promise 与 async/await）。讲工程化的章节还会用到命令行和 npm。还不熟的话，先花一两周补 JavaScript，再回来学会轻松很多。</p>
 
@@ -117,7 +140,27 @@ const resume = computed(() => {
       <p class="section-sub"><b>掌握学习：</b>一章的自测全部答对、练习全部通过才算完成；一个阶段测验达到 80% 才算掌握。建议每天先清空“今日复习”，再学新章。</p>
 
       <h2 class="section-title" id="path-title">学习路线</h2>
-      <p class="path-sub">六个阶段循序渐进。建议按顺序学习；如果已有基础，可以先做阶段测验，看看自己哪些地方已经掌握。</p>
+      <p class="path-sub">{{ STAGES.length }} 个阶段循序渐进。下面先给三条路线，选一条适合你的。不确定时从头按顺序学，也可以先做阶段测验，看看哪些地方已经掌握。</p>
+      <div class="routes" id="routes">
+        <article v-for="r in routes" :key="r.id" class="route" :data-route="r.id">
+          <h3>{{ r.title }}</h3>
+          <p class="who">{{ r.who }}</p>
+          <ol class="steps">
+            <li v-for="(part, i) in r.parts" :key="i">
+              <div class="step-head">
+                <b v-if="part.label">{{ part.label }}</b>
+                <span v-if="part.range" class="rng">{{ part.all ? '全部必读章：' : '' }}{{ part.range }}</span>
+                <template v-if="part.checks.length">先做 <template v-for="(c, k) in part.checks" :key="c.stage"><template v-if="k">、</template><a :href="withBase(c.href)">{{ c.title }}</a></template> 的阶段测验</template>
+              </div>
+              <p>{{ part.text }}</p>
+              <div v-if="!part.all && part.list.length" class="chips"><a v-for="c in part.list" :key="c.id" :href="withBase(c.link)"><span class="num">{{ c.chapter }}.</span> {{ c.title }}<span v-if="c.optional" class="opt-tag">选读</span></a></div>
+            </li>
+          </ol>
+          <p v-if="r.skip" class="skip"><b>可以跳过：</b><template v-if="r.skip.stages">{{ r.skip.stages }}。</template><template v-if="r.skip.optional">选读章（{{ r.skip.optional }}）。</template>{{ r.skip.text }}</p>
+          <p v-if="r.test" class="test">{{ r.test }}</p>
+        </article>
+      </div>
+      <h3 class="stages-title" id="stages-title">各阶段的章</h3>
       <div class="path" id="path">
         <div v-for="c in cards" :key="c.stage" class="stage" :data-stage="c.stage">
           <div class="lv">{{ c.no }} · {{ c.en }}</div>

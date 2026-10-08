@@ -711,3 +711,24 @@ html:not(.dark) .vp-doc .shiki, html:not(.dark) .vp-doc .shiki span { color: var
 /* ---- 选读章的小标签：侧边栏章名后、上一章/下一章、章头、首页阶段卡片共用 ---- */
 .opt-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--vp-c-divider, var(--muted)); border-radius: 99px; font-size: 11px; line-height: 16px; font-weight: 500; color: var(--muted); white-space: nowrap; vertical-align: 1px; }
 .crumb .opt-tag { margin-left: 0; }
+
+/* ---- 首页的三条学习路线 ---- */
+.home .routes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-block: 0 22px; }
+.home .route { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.home .route h3 { font-family: var(--f-display); font-size: 20px; margin: 0; line-height: 1.3; border: 0; padding: 0; }
+.home .route .who { font-size: 14px; color: var(--muted); line-height: 1.65; margin: 0; }
+.home .route .steps { margin: 4px 0 0; padding: 0; list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 10px; }
+.home .route .steps li { counter-increment: step; position: relative; padding-left: 26px; margin: 0; font-size: 14px; line-height: 1.65; }
+.home .route .steps li::before { content: counter(step); position: absolute; left: 0; top: 1px; width: 18px; height: 18px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font: 700 11.5px/18px var(--f-mono); text-align: center; }
+.home .route .steps p { margin: 2px 0 0; font-size: 13.5px; }
+.home .route .step-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.home .route .step-head .rng { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); }
+.home .route .chips { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
+.home .route .chips a { font-size: 12.5px; line-height: 1.5; color: var(--ink); text-decoration: none; padding: 1px 8px; border: 1px solid var(--line); border-radius: 99px; background: var(--sunken); }
+.home .route .chips a:hover { color: var(--accent); border-color: var(--accent); }
+.home .route .chips .num { font-family: var(--f-mono); color: var(--muted); }
+.home .route .skip, .home .route .test { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--muted); }
+.home .route .skip { padding-top: 8px; border-top: 1px dashed var(--line); }
+.home .stages-title { font-family: var(--f-display); font-size: 18px; margin: 4px 0 10px; border: 0; padding: 0; }
+@media (max-width: 1100px) { .home .routes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .home .routes { grid-template-columns: minmax(0, 1fr); } .home .route .chips a { padding: 4px 10px; } }

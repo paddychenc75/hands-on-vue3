@@ -545,13 +545,16 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
       g.end()
     }
-    {
-      // 深度补强过的 9 个章（15、16、17、18、21、26、27、28、29）：练习编辑器和实验台都挂载、深入块展开之后，页面不能被撑宽；
+    for (const [title, chapters] of [
+      ['第 17、18、19、20、23、28、29、33、35 章', ['17-compiler', '18-diff', '19-runtime', '20-patterns', '23-state-arch', '28-ssr', '29-renderer', '33-perf-clinic', '35-project']],
+      ['第 12、13、14、15、16、30、31、32、34 章', ['12-reactivity', '13-scheduler', '14-render', '15-watch-impl', '16-reactivity-pitfalls', '30-builtins-impl', '31-errors', '32-forms-arch', '34-lib']],
+    ]) {
+      // 深度补强和新写的章：练习编辑器和实验台都挂载、深入块展开之后，页面不能被撑宽；
       // 也不能有没被任何可滚动容器包住、却伸出窗口右边的元素（页面本身 overflow 被裁掉时 scrollWidth 看不出来）
-      const g = R.group('390px 宽下没有横向滚动：第 17、18、19、20、23、28、29、33、35 章（编辑器和实验台挂载后，深入块展开）')
+      const g = R.group('390px 宽下没有横向滚动：' + title + '（编辑器和实验台挂载后，深入块展开）')
       const p = await site.newPage({ viewport: { width: 390, height: 844 } })
       const wide = []
-      for (const c of ['17-compiler', '18-diff', '19-runtime', '20-patterns', '23-state-arch', '28-ssr', '29-renderer', '33-perf-clinic', '35-project']) {
+      for (const c of chapters) {
         await p.goto(base + '/chapters/' + c + '.html'); await p.waitForSelector('.vp-doc h1')
         await p.waitForSelector('.ex[data-ex] .cm-content', { timeout: 20000 }).catch(() => {})
         await p.waitForTimeout(1500)

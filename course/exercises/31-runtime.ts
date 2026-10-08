@@ -220,14 +220,14 @@ const SOL_2 = EARLIER + answer(focus(COMP, ['setupRenderEffect'])) + demo('mu')
 export const miniUpdateEffect: Exercise = {
   title: '补全 setupRenderEffect 的更新分支和更新队列',
   ch: 31,
-  task: '<p>上一道练习写了首次渲染。这一道补完 <code>setupRenderEffect</code> 的另一半（<code>mountComponent</code> 和首次渲染分支已经写好）：</p><ol><li><b>TODO 1</b>：<code>componentUpdateFn</code> 的更新分支。父组件触发的更新带着 <code>instance.next</code>，要先更新 props；然后渲染新子树，和旧子树 patch。</li><li><b>TODO 2</b>：创建渲染副作用函数。<code>lazy</code>，数据改变时不直接运行，由调度函数把更新任务放进更新队列；任务的 <code>id</code> 用 <code>instance.uid</code>。最后手动运行第一次。</li></ol><p>补全后，点“count 同步加 3”：App 和 Counter 各只多渲染一次。点“改 label”：只有 App 渲染，Counter 的 props 没变，不渲染。</p>',
+  task: '<p>上一道练习写了首次渲染。这一道补完 <code>setupRenderEffect</code> 的另一半（<code>mountComponent</code> 和首次渲染分支已经写好）：</p><ol><li><b>TODO 1</b>：<code>componentUpdateFn</code> 的更新分支。父组件触发的更新带着 <code>instance.next</code>，要先更新 props；然后渲染新子树，和旧子树 patch。</li><li><b>TODO 2</b>：创建渲染副作用函数。用迷你版的 <code>lazy</code> 选项（创建时不运行；真实的 3.5 没有这个选项），数据改变时不直接运行，由调度函数把更新任务放进更新队列；任务的 <code>id</code> 用 <code>instance.uid</code>。最后手动运行第一次。</li></ol><p>补全后，点“count 同步加 3”：App 和 Counter 各只多渲染一次。点“改 label”：只有 App 渲染，Counter 的 props 没变，不渲染。</p>',
   tpl: tpl('mu'),
   js: EARLIER + build(focus(COMP, ['setupRenderEffect']), { setupRenderEffect: SRE_START_2 }) + demo('mu'),
   solJs: SOL_2,
   faded: { js: EARLIER + build(focus(COMP, ['setupRenderEffect']), { setupRenderEffect: SRE_FADED_2 }) + demo('mu') },
   hints: [
     '先看第 31.4 节的两条路径对照表。更新分支比首次渲染多两件事：先用 instance.next 更新 props，再拿新旧子树 patch。',
-    '副作用函数用 effect(componentUpdateFn, { lazy: true, scheduler: … }) 创建。lazy 表示创建时不运行。调度函数只做一件事：queueJob(job)。update 是 e.run（直接运行），job 是 e.runIfDirty（放进队列的任务），job.id = instance.uid，创建完以后手动调用一次 update()。',
+    '副作用函数用 effect(componentUpdateFn, { lazy: true, scheduler: … }) 创建。lazy 是迷你版的选项，表示创建时不运行（真实的 3.5 没有它）。调度函数只做一件事：queueJob(job)。update 是 e.run（直接运行），job 是 e.runIfDirty（放进队列的任务），job.id = instance.uid，创建完以后手动调用一次 update()。',
     '更新分支里 patch 的参数：patch(prevTree, nextTree, hostParentNode(prevTree.el), getNextHostNode(prevTree), instance)。instance.next 不为空时，要先调用 updateComponentPreRender(instance, instance.next)，子组件才能拿到新的 props。',
     SRE
   ],

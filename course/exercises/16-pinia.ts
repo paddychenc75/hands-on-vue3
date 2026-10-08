@@ -235,7 +235,7 @@ return { filter, open, showMyTodo, components: { FilterPanel } }`
 export const filterPersist: Exercise = {
   title: '用真实的 Pinia：setup store 的重置、$patch 和 $subscribe 保存', ch: 16,
   libs: ['pinia'],
-  task: '<p>看板的筛选条件放在 <code>filter</code> store 里：owner、status、keyword。要求：刷新后恢复上次的条件，任何改动都保存，“重置”能回到默认值。现在有三处问题。</p><ol><li>TODO 1：setup store 没有可用的 <code>$reset()</code>，在 store 里自己写 <code>reset()</code>，把三个字段改回 <code>\'\'</code>、<code>\'all\'</code>、<code>\'\'</code>。</li><li>TODO 2：启动时，把 localStorage 里保存的数据一次恢复到 store（用 <code>$patch</code>）。</li><li>TODO 3：保存的订阅写在 FilterPanel 里。点“关闭面板”后，筛选条件的改动不再保存了。让它在面板关闭后继续保存。</li></ol>',
+  task: '<p>第 13 章的 <code>boardSave</code> 用 <code>watch</code> 手写过保存；这道题换成 Pinia 的 <code>$patch</code> 和 <code>$subscribe</code>。看板的筛选条件放在 <code>filter</code> store 里：owner、status、keyword。要求：刷新后恢复上次的条件，任何改动都保存，“重置”能回到默认值。现在有三处问题。</p><ol><li>TODO 1：setup store 没有可用的 <code>$reset()</code>，在 store 里自己写 <code>reset()</code>，把三个字段改回 <code>\'\'</code>、<code>\'all\'</code>、<code>\'\'</code>。</li><li>TODO 2：启动时，把 localStorage 里保存的数据一次恢复到 store（用 <code>$patch</code>）。</li><li>TODO 3：保存的订阅写在 FilterPanel 里。点“关闭面板”后，筛选条件的改动不再保存了。让它在面板关闭后继续保存。</li></ol>',
   tpl: `<p class="state">owner：{{ filter.owner || '(空)' }}，status：{{ filter.status }}，keyword：{{ filter.keyword || '(空)' }}</p>
 <button @click="showMyTodo">我的待办</button>
 <button @click="filter.reset()">重置</button>

@@ -81,20 +81,17 @@ describe('卡片键规则：章内自测 章id#N，阶段测验专用题 章id#c
   })
 })
 
-describe('120 道阶段测验专用题（题库 course/checks/questions.ts），按所属章分组、组内按题库出现顺序编号', () => {
-  it('题库有 120 题，每题都能变成一张卡片', () => {
-    expect(Q.length).toBe(120)
-    expect(catalog.all.filter(c => c.kind === 'check').length).toBe(120)
+describe('179 道阶段测验专用题（题库 course/checks/questions.ts），按所属章分组、组内按题库出现顺序编号', () => {
+  it('题库有 179 题，每题都能变成一张卡片', () => {
+    expect(Q.length).toBe(179)
+    expect(catalog.all.filter(c => c.kind === 'check').length).toBe(179)
   })
 
   it('每章的专用题数量（锁住：题库只能在末尾追加，已有的键不能变）', () => {
     const counts: Record<string, number> = {}
     for (const c of catalog.all.filter(c => c.kind === 'check')) counts[c.chapterId] = (counts[c.chapterId] || 0) + 1
     expect(counts).toEqual({
-      first: 2, template: 5, refs: 2, computed: 2, comm: 4, lifecycle: 2, composables: 2, builtins: 2, directives: 2, forms: 2, app: 2,
-      reactivity: 8, scheduler: 6, render: 5, compiler: 6, diff: 5, runtime: 4, patterns: 2, 'api-design': 4, pinia: 2, router: 2, 'state-arch': 4, ts: 2, perf: 2, tooling: 2,
-      ssr: 5, renderer: 5, 'perf-clinic': 3, migrate: 2, project: 5,
-      'watch-impl': 3, 'reactivity-pitfalls': 3, 'builtins-impl': 3, errors: 4, 'forms-arch': 3, lib: 3
+      template: 5, refs: 2, computed: 2, comm: 4, lifecycle: 2, composables: 2, builtins: 5, directives: 2, forms: 2, app: 2, reactivity: 12, scheduler: 9, render: 3, compiler: 10, diff: 3, patterns: 4, pinia: 4, router: 4, ts: 4, perf: 2, tooling: 3, ssr: 5, renderer: 9, migrate: 2, project: 5, first: 2, runtime: 8, 'api-design': 4, 'state-arch': 4, 'perf-clinic': 3, 'watch-impl': 7, 'reactivity-pitfalls': 4, 'builtins-impl': 6, errors: 4, 'forms-arch': 4, lib: 4, capstone: 4, 'data-fetching': 4, nuxt: 4, 'project-board': 3, 'project-todo': 3, testing: 4
     })
   })
 

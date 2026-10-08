@@ -3,7 +3,7 @@ import { sub } from './types'
 import { nextTick } from 'vue'
 
 // 第 13 章：项目「任务看板」（页面版）。六道练习是同一个应用的六步：后一步的起始代码 = 前一步的参考答案 + 这一步要写的空位。
-// 任务的字段与第 23 章一致：{ id, title, status: 'todo' | 'doing' | 'done', due: 'YYYY-MM-DD' 或 '' }。
+// 任务的字段名与第 23 章一致：{ id, title, status: 'todo' | 'doing' | 'done', due: 'YYYY-MM-DD' 或 '' }（第 23 章把没有日期改成可选字段 due?）。
 // localStorage 的键只在第 6 步用，判题开始和结束时都清掉。弹窗用 Teleport 渲染到 body，所以判题用 document 查弹窗。
 
 const KEY = 'hov3-demo:board-ch13'

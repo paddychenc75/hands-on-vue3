@@ -85,7 +85,7 @@ export const miniWatch: Exercise = {
   solJs: WATCH_FULL,
   faded: { js: EARLIER + '\n' + WATCH_FADED + WATCH_DEMO },
   hints: [
-    '先看第 26.1 到 26.3 节。骨架是:getter 放进 lazy 的 effect,调度函数把更新任务放进 queueJob,更新任务里用 runner.run() 重新运行 getter 拿新值。创建 effect 时用 lazy,因为你要自己决定什么时候第一次运行。',
+    '先看第 26.1 到 26.3 节。骨架是:getter 放进 lazy 的 effect,调度函数把更新任务放进 queueJob,更新任务里用 runner.run() 重新运行 getter 拿新值。创建 effect 时用迷你版的 lazy 选项（真实的 3.5 没有它），因为你要自己决定什么时候第一次运行。',
     '更新任务里用 Object.is(newValue, oldValue) 比较,不同才调用回调。没有 immediate 时,创建 effect 之后手动 oldValue = runner.run(),记下初始值并收集依赖。有 immediate 时,直接调用 job(),旧值还是 undefined(用一个哨兵对象表示“还没有旧值”)。',
     '清理函数:onCleanup(fn) 把 fn 存起来。更新任务里在调用回调之前运行它(运行后清空),runner.onStop 也设成同一个运行清理的函数,停止时就会调用。停止还要靠 runner.active:更新任务第一行检查它,已经排进队列的任务一进来就返回。',
     region(PARTS.watch, 'watch')

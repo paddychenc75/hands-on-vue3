@@ -58,7 +58,7 @@ import BoardDemo from '../labs/13-project-board/BoardDemo.vue'
 <BoardDemo />
 </Lab>
 
-任务是 `{ id, title, status, due }`。`status` 是 `todo`、`doing`、`done` 之一，`due` 是 `YYYY-MM-DD` 或空字符串。这些字段和第 23 章一致。
+任务是 `{ id, title, status, due }`。`status` 是 `todo`、`doing`、`done` 之一，`due` 是 `YYYY-MM-DD` 或空字符串（空字符串表示没有截止日期）。字段名和第 23 章一致；第 23 章用 TypeScript 写，会把“没有日期”改成可选字段 `due?`，不再用空字符串。
 
 | 编号 | 需求 |
 |---|---|

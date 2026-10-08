@@ -1,4 +1,4 @@
-// 第 13 章成品看板的任务逻辑。字段与第 23 章一致：{ id, title, status, due }。
+// 第 13 章成品看板的任务逻辑。字段名与第 23 章一致：{ id, title, status, due }（没有日期时 due 是空字符串；第 23 章改成可选字段 due?）。
 import { computed, ref, watch } from 'vue'
 
 export type Status = 'todo' | 'doing' | 'done'

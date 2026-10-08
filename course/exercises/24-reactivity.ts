@@ -77,7 +77,7 @@ async function computedCheck(T: any) {
 
 export const computedFill: Exercise = {
   title: '补全：迷你 computed 的缓存标记', ch: 24,
-  task: '<p>脚本里的 <code>computed</code>（零件 1）只差两处。它用 <code>stale</code> 标记决定要不要重新计算，用 <code>effect</code> 的 <code>lazy</code> 和调度函数 <code>scheduler</code> 实现惰性。补全 2 处 TODO：</p><ol><li>TODO 1：依赖改变时，<code>scheduler</code> 作废缓存。如果缓存原来是有效的，再通知读过 <code>.value</code> 的副作用函数（<code>trigger(c, \'value\')</code>）。它不计算。</li><li>TODO 2：重新计算后，标记缓存已是最新。原因：否则每次读取都运行 getter，没有缓存。</li></ol><p>页面上的按钮会检查：创建时不计算、读取两次只算一次、改数据后不立即计算、外层 effect 能收到通知。</p>',
+  task: '<p>脚本里的 <code>computed</code>（零件 1）只差两处。它用 <code>stale</code> 标记决定要不要重新计算，用迷你版 <code>effect</code> 的 <code>lazy</code> 选项（真实的 3.5 没有它，是迷你版的简化）和调度函数 <code>scheduler</code> 实现惰性。补全 2 处 TODO：</p><ol><li>TODO 1：依赖改变时，<code>scheduler</code> 作废缓存。如果缓存原来是有效的，再通知读过 <code>.value</code> 的副作用函数（<code>trigger(c, \'value\')</code>）。它不计算。</li><li>TODO 2：重新计算后，标记缓存已是最新。原因：否则每次读取都运行 getter，没有缓存。</li></ol><p>页面上的按钮会检查：创建时不计算、读取两次只算一次、改数据后不立即计算、外层 effect 能收到通知。</p>',
   tpl: CP_TPL,
   js: CP_EARLIER + sub(CP_SOL, '    scheduler() { if (!stale) { stale = true; trigger(c, \'value\') } }   // 依赖变了：作废缓存，通知读过它的副作用函数',
     '    scheduler() {\n      // TODO 1：作废缓存；原来有效的话，通知读过 .value 的副作用函数\n    }') .replace('      if (stale) { value = runner.run(); stale = false }', '      if (stale) {\n        value = runner.run()\n        // TODO 2：标记缓存已是最新\n      }') + CP_DEMO,
@@ -88,7 +88,7 @@ export const computedFill: Exercise = {
       '      if (stale) { value = runner.run(); stale = /* ✏️ 刚计算完：缓存已是最新，该把标记设成什么 */ true }') + CP_DEMO
   },
   hints: [
-    'computed 用一个 stale 标记实现缓存：依赖改变时设为 true，计算后设为 false。effect 的 lazy 选项让 getter 创建时不运行，scheduler 选项让“依赖变了”时调用它，而不是直接重新运行。',
+    'computed 用一个 stale 标记实现缓存：依赖改变时设为 true，计算后设为 false。迷你版 effect 的 lazy 选项（真实的 3.5 没有）让 getter 创建时不运行，scheduler 选项让“依赖变了”时调用它，而不是直接重新运行。',
     'TODO 1 在 scheduler() 里：先判断 !stale，再把 stale 设为 true，并调用 trigger(c, \'value\')。TODO 2 在 value = runner.run() 的下一行，给 stale 赋另一个值。',
     'scheduler() { if (!stale) { stale = true; trigger(c, \'value\') } }\n…\nif (stale) { value = runner.run(); stale = false }'
   ],
@@ -151,7 +151,7 @@ function computed(getter) {
 ` + CP_DEMO
   },
   hints: [
-    'computed 要同时做三件事。惰性和缓存靠 effect(getter, { lazy: true, scheduler }) 加一个 stale 标记。依赖靠第 24.5 节讲的两个角色：读取 .value 时 track(c, \'value\')，依赖改变时 trigger(c, \'value\')。',
+    'computed 要同时做三件事。惰性和缓存靠迷你版的 effect(getter, { lazy: true, scheduler })（lazy 是迷你版的简化，真实的 3.5 没有）加一个 stale 标记。依赖靠第 24.5 节讲的两个角色：读取 .value 时 track(c, \'value\')，依赖改变时 trigger(c, \'value\')。',
     '1. 声明 let value、let stale = true。2. 用 effect(getter, { lazy: true, scheduler() { … } }) 得到 runner。3. 返回对象 c：get value() 里先 track(c, \'value\')，stale 为 true 时运行 runner.run() 并把 stale 设为 false。4. scheduler 里，stale 原来是 false 时，把它设为 true 并 trigger(c, \'value\')。',
     'function computed(getter) {\n  let value\n  let stale = true\n  const runner = effect(getter, {\n    lazy: true,\n    scheduler() { if (!stale) { stale = true; trigger(c, \'value\') } }\n  })\n  const c = {\n    __v_isRef: true,\n    get value() {\n      track(c, \'value\')\n      if (stale) { value = runner.run(); stale = false }\n      return value\n    }\n  }\n  return c\n}'
   ],

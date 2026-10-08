@@ -273,7 +273,7 @@ const draftTail = (payload: string) => DRAFT_JS_TAIL.replace('SUBMIT', payload)
 
 export const draftForm: Exercise = {
   title: '写一个先改草稿再提交的表单', ch: 34,
-  task: '<p>UserForm 编辑父组件传来的 <code>user</code>。用户没点“保存”之前，父组件的数据不能变。</p><ol><li>在 UserForm 的 setup 里，用 <code>props.user</code> 复制出一份响应式的草稿 <code>draft</code>。输入框已经绑定了 <code>draft</code>。</li><li>点“保存”时，表单把草稿的<b>副本</b>发给父组件。模板里的 submit 事件已经写好，请把载荷改成副本。</li><li>父组件把 <code>user</code> 换成另一个用户时，草稿要重置成新用户的数据。</li></ol><p>“取消”只发出 cancel 事件，不用改父组件的数据。</p>',
+  task: '<p>第 13 章的 <code>TaskForm</code> 已经用过“先改草稿”；这道题多一个要求：父组件换了数据，草稿要跟着重置。UserForm 编辑父组件传来的 <code>user</code>。用户没点“保存”之前，父组件的数据不能变。</p><ol><li>在 UserForm 的 setup 里，用 <code>props.user</code> 复制出一份响应式的草稿 <code>draft</code>。输入框已经绑定了 <code>draft</code>。</li><li>点“保存”时，表单把草稿的<b>副本</b>发给父组件。模板里的 submit 事件已经写好，请把载荷改成副本。</li><li>父组件把 <code>user</code> 换成另一个用户时，草稿要重置成新用户的数据。</li></ol><p>“取消”只发出 cancel 事件，不用改父组件的数据。</p>',
   tpl: `<UserForm :user="user" @submit="onSubmit" @cancel="cancels++" />
 <p class="now">当前用户：{{ user.name }}，{{ user.city }}</p>
 <p class="cnt">已保存 {{ submits }} 次，取消 {{ cancels }} 次</p>

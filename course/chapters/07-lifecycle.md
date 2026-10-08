@@ -306,7 +306,7 @@ count.value++
 nextTick(() => console.log(el.textContent))
 ```
 
-下面的练习修改数据后读取 DOM。nextTick 为什么能等到 DOM 更新，见[第 25.2 节](/chapters/25-scheduler)。
+下面的练习修改数据后读取 DOM。nextTick 为什么能等到 DOM 更新，见[第 25.5 节](/chapters/25-scheduler)。
 
 <Exercise id="tickReadFill" />
 

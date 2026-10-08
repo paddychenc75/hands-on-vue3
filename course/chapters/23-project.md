@@ -60,7 +60,7 @@ import ProDataFlow from '../figures/23-project/ProDataFlow.vue'
 | 页面 | 一页 | 看板、详情页、404，详情页可编辑 |
 | 交付 | 看效果 | 需求、验收清单、性能预算、设计决策记录 |
 
-数据结构沿用第 13 章：任务有 `id`、`title`、`status`（`todo`、`doing`、`done` 三选一）和可选的 `due`（`YYYY-MM-DD`）。页面版里的 `done` 布尔值在这里变成三列。
+数据结构沿用第 13 章：任务有 `id`、`title`、`status`（`todo`、`doing`、`done` 三选一）和可选的 `due`（`YYYY-MM-DD`）。第 13 章里“没有截止日期”写成空字符串 `''`，这里用 TypeScript 的可选字段 `due?` 表示，没有就不写；表单里要用输入框时再转成空字符串。
 
 <Figure caption="组件只读 store 的状态，通过 action 改变它。action 调用 api 层，api 层把所有失败规范成 ApiError。失败存成 store 的状态，界面据此显示。">
 <ProDataFlow />

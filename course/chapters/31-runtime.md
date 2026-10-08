@@ -238,7 +238,7 @@ const setupRenderEffect = (instance, initialVNode, container, anchor) => {
 
 - `effect`：渲染副作用函数，是第 24 章的 `ReactiveEffect`。`renderComponentRoot` 运行渲染函数，读到的所有响应式数据都成为它的依赖。
 - 调度函数（`effect.scheduler`）：数据变化时，`trigger` 找到这个 effect，发现它有调度函数，就调用调度函数，不直接运行。调度函数只做一件事：`queueJob(job)`（25.1 节）。
-- `job`：放进更新队列的更新任务。3.5 里它是 `effect.runIfDirty`：先检查依赖的版本号，没有真的变化就不运行（24.6 节）。`job.id` 是 `uid`，父组件先于子组件。
+- `job`：放进更新队列的更新任务。3.5 里它是 `effect.runIfDirty`：先检查依赖的版本号，没有真的变化就不运行（24.9 节）。`job.id` 是 `uid`，父组件先于子组件。
 - `update`：直接运行 effect，不检查依赖有没有变。`$forceUpdate` 把它放进队列，31.5 节的子组件更新则同步调用它。
 
 两条路径的差别：
@@ -252,9 +252,9 @@ const setupRenderEffect = (instance, initialVNode, container, anchor) => {
 
 渲染函数里读取的数据变了，页面怎样更新，现在可以走完全程：
 
-1. 渲染函数读取 `state.count`，`track` 把渲染副作用函数记进 `state.count` 的依赖（24.1 节）。
+1. 渲染函数读取 `state.count`，`track` 把渲染副作用函数记进 `state.count` 的依赖（24.3 节）。
 2. `state.count++`，`trigger` 找到这个副作用函数，调用它的调度函数。
-3. `queueJob(job)` 按 id 把任务放进队列。同一个任务不会重复入队（25.1 节）。
+3. `queueJob(job)` 按 id 把任务放进队列。同一个任务不会重复入队（25.2 节）。
 4. 同步代码结束，微任务里运行 `flushJobs`，调用 `job`。
 5. `job` 运行 `componentUpdateFn` 的更新分支：渲染新子树，和旧子树 patch，DOM 才改变。
 6. 队列清空后，运行后置队列里的 `onUpdated`（25.4 节）。
@@ -486,7 +486,7 @@ function inject(key, defaultValue) {
 
 | 零件 | 来自 | 对应真实源码（`packages/…/src/`） |
 |---|---|---|
-| `reactive`、`effect`（带 `lazy` 和 `scheduler` 选项）、`track`、`trigger` | 第 24 章 | `reactivity/effect.ts`、`reactive.ts` |
+| `reactive`、`effect`（带 `lazy` 和 `scheduler` 选项）、`track`、`trigger` | 第 24 章（`lazy` 是迷你版的简化，真实 3.5 的 `effect` 没有这个选项） | `reactivity/effect.ts`、`reactive.ts` |
 | `queueJob`、`flushJobs`、`queuePostFlushCb`、`nextTick` | 第 25 章 | `runtime-core/scheduler.ts` |
 | `watch`、`effectScope`，以及组件里 `watch` 的 `flush: 'pre'` 排在所属组件更新之前 | 第 26 章（本章设置 `currentInstance` 后生效） | `runtime-core/apiWatch.ts`、`reactivity/effectScope.ts` |
 | vnode、`shapeFlag`、`h` | 第 28 章 | `runtime-core/vnode.ts`、`h.ts` |

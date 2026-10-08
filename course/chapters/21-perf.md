@@ -331,24 +331,7 @@ const [user2, posts2, stats2] = await Promise.all([getUser(id), getPosts(id), ge
 ```
 :::
 
-::: deep 客户端缓存
-stale-while-revalidate 策略先显示缓存的数据。同时，它在后台请求新数据。新数据返回后，页面更新。用户不用看加载动画。
-
-```js
-const cache = new Map()
-
-export function useCachedFetch(url) {
-  const data = ref(cache.get(url) ?? null)        // 有缓存：立即显示
-  fetch(url).then(r => r.json()).then(json => {   // 同时请求最新的数据
-    cache.set(url, json)
-    data.value = json
-  })
-  return { data }
-}
-```
-
-实际项目中，使用 TanStack Query 或 Pinia Colada。它们还处理重复请求、过期时间和失效。数据请求的缓存和取消，第 18 章会系统地讲。
-:::
+请求缓存（先显示旧数据、后台刷新、去重、失效）是服务端状态的问题，[第 18 章](/chapters/18-data-fetching) 18.6 节已经讲过，这里不重复。
 
 ### 21.7 测量，然后选择方法
 

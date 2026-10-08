@@ -128,7 +128,7 @@ const left = computed(() => visible.value.length)   // computed 可以读取 com
 <Exercise id="cart" />
 
 ::: deep computed 的实现：标记和版本号
-下面是简化的 computed。依赖改变时，scheduler 只设置 dirty。读取 value 时，dirty 为真才重新计算。
+下面是简化的 computed。依赖改变时，scheduler 只设置 dirty。代码里的 `lazy` 是迷你版 `effect` 的简化选项，真实的 Vue 3.5 没有它（第 24 章 24.5 节讲真实的做法）。读取 value 时，dirty 为真才重新计算。
 
 ```js
 function computed(getter) {

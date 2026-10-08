@@ -316,7 +316,7 @@ return () => props.nodes.map(n => [h('h' + level, …), …])
 
 | 模板 | 渲染函数里手写 | 编译器实际生成 |
 |---|---|---|
-| `v-if / v-else` | `ok ? h(A) : h(B)` | 同样的三元表达式，两个分支带不同的 key。没有 `v-else` 时，另一侧是注释节点 |
+| `v-if / v-else` | `ok ? h(A) : h(B)` | 同样的三元表达式。模板里编译器会自动给两个分支加不同的 key；手写渲染函数时，只有两个分支是同类型的元素又不想复用时才需要自己写 key。没有 `v-else` 时，另一侧是注释节点 |
 | `v-for` | `list.map(it => h('li', { key: it.id }, it.name))` | `renderList(list, …)`，外面包一层 `Fragment` |
 | `v-show` | `h('div', { style: { display: ok ? '' : 'none' } })` | `withDirectives(…, [[vShow, ok]])`。指令会记住元素原来的 `display` |
 | `@click.stop` | `onClick: withModifiers(fn, ['stop'])` | 同左 |

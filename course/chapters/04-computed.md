@@ -508,7 +508,7 @@ const double = computed(() => count * 2)
 
 <Sc :a="1">
 
-预算以分存储，输入框以元显示。输入框写 `v-model.lazy="budgetYuan"`。用户输入 24.3 后，budgetCents 要变为 1230。set 应该怎样写？
+预算以分存储，输入框以元显示。输入框写 `v-model.lazy="budgetYuan"`。用户输入 12.3 后，budgetCents 要变为 1230。set 应该怎样写？
 
 ```js
 const budgetCents = ref(1999)

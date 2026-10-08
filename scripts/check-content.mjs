@@ -4,6 +4,7 @@
 //   npm run check:content -- --update            自测题 / 专用题 / 先猜题末尾追加了新题后，把新卡片键写进快照（只追加）
 //   npm run check:content -- --update --force    确认改的是错别字（题干换了个说法）时，允许改已有键的指纹
 //   npm run check:content -- --strict            把【待写】占位也当成错误（发布前用）
+//   npm run check:content -- --tense             另外列出“措辞和对象章的位置可能对不上”的人工清单（不算错误；可靠的冲突已经算错误了）
 //
 // 检查项（规则在 scripts/lib/validate.mjs，每条都有单元测试）：
 //   1. 章节文件与 frontmatter：id、chapter、stage、title 齐全且唯一；章号连续；文件名与章号、id 一致；一级标题以 title 开头；
@@ -16,6 +17,7 @@
 //   6. 阶段测验专用题（checks/questions.ts）：格式、章 id 存在；阶段：stage 范围、阶段测验页存在、每个阶段题量够抽 12 题。
 //   7. 复习卡片键快照 course/card-keys.snapshot.json：已有的键不能消失、不能换位置，只能在末尾追加。
 //   8. 站内引用：“第 N 章”在范围内；小节引用（N.M 节、并列、区间、见 N.M、表格引用列、第 X 章 N.M，见 lib/section-refs.mjs）和“N.M 标题”对应真实小节、区间不跨章、不带“节”的写法只指本章；站内链接目标存在。除章外，也扫首页、术语表、今日复习、阶段测验页。
+//   8a. 引用的时态：说“第 N 章讲过 / 回顾（第 N 章）”但第 N 章在本章后面，或说“第 N 章会讲 / 后面的第 N 章”但第 N 章在本章前面，算错误（规则见 lib/ref-tense.mjs）。
 //   8b. 术语：各章“本章术语”块格式正确；首页写作规则表（course/writing-terms.mjs）里的术语都能在术语表里找到。
 //   9. 残留：【待写】占位只提示（--strict 时算错误）。
 import fs from 'node:fs';
@@ -29,6 +31,7 @@ const args = process.argv.slice(2);
 const UPDATE = args.includes('--update');
 const FORCE = args.includes('--force');
 const STRICT = args.includes('--strict');
+const TENSE = args.includes('--tense');
 const SNAPSHOT = path.join(ROOT, 'course/card-keys.snapshot.json');
 const t0 = performance.now();
 
@@ -58,6 +61,10 @@ if (lines.length) {
   console.error(`check:content 发现 ${lines.length} 个问题：\n`);
   for (const l of lines) console.error('✗ ' + l + '\n');
   process.exit(1);
+}
+if (TENSE) {
+  console.log(`引用时态的人工清单（${res.tenseCandidates.length} 处，不算错误）：`);
+  for (const c of res.tenseCandidates) console.log(`  ${c.where}  ${c.text}（${c.dir}；${c.words.join('、')}）「${c.sentence}」`);
 }
 for (const n of res.notes) console.log('提示：' + n);
 if (exempted.length) console.log(`提示：${exempted.length} 处已知问题被临时豁免（scripts/lib/known-issues.mjs），见该文件里的说明`);

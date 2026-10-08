@@ -169,7 +169,7 @@ const job = (immediateFirstRun) => {
 1. **`effect.dirty`。**3.5 的 effect 有版本号（第 24 章）。侦听一个 computed，它依赖变了但算出的值没变时，`dirty` 为假，`job` 直接返回，getter 都不运行。实测：`watch(() => c.value, cb)`，`c` 是 `m % 2`，`m` 从 1 改到 3，getter 没有重新运行。
 2. **比较。**`hasChanged` 用 `Object.is`。值没变（例如 `ref` 先改成 1 再改回 0，同步完成）就不调用回调，也不会先调用清理函数。
 3. **`deep` 和 `forceTrigger` 跳过比较。**深度侦听 `ref({ x: 1 })`，`list.value.push(2)` 之后 getter 返回的还是同一个对象，比较永远是“没变”，所以必须跳过比较。同样的原因，**新值和旧值是同一个对象**，实测 `n === o` 为 `true`。需要旧值时，让 getter 返回拷贝：`watch(() => [...list.value], (n, o) => …)`。拷贝每次都是新数组，比较永远是“变了”，回调在每次依赖变化时都运行。
-4. **旧值先于回调更新。**`oldValue = newValue` 在调用 `cb` 之前。不带 `immediate` 的 `watch` 在创建时就运行了一次 getter，结果存进 `oldValue`（26.2 的第 ⑤ 步），所以第一次触发时的旧值是创建时的值。只有 `immediate` 的第一次调用，`oldValue` 还是哨兵：`job(true)` 同步运行，新值是当前值，旧值是 `undefined`（多个源时是 `[]`）。
+4. **旧值先于回调更新。**`oldValue = newValue` 在调用 `cb` 之前。不带 `immediate` 的 `watch` 在创建时就运行了一次 getter，结果存进 `oldValue`（26.1 骨架代码里的第 ⑤ 步），所以第一次触发时的旧值是创建时的值。只有 `immediate` 的第一次调用，`oldValue` 还是哨兵：`job(true)` 同步运行，新值是当前值，旧值是 `undefined`（多个源时是 `[]`）。
 5. **`once`。**`cb` 被包了一层：调用原回调，然后调用 `watchHandle()` 停止自己。
 
 **`watchEffect` 的差别。**它没有 `cb`：getter 就是副作用本身，`job` 只做 `effect.run()`，没有比较，没有新旧值。`watchEffect` 的 getter 外面有一层包装，每次运行副作用之前先调用清理函数（26.5）。`watchPostEffect` 和 `watchSyncEffect` 就是 `watchEffect` 加 `flush: 'post'` 或 `'sync'`，源码里只有一行 `doWatch(effect, null, extend({}, options, { flush }))`。`immediate`、`deep`、`once` 对没有回调的写法不生效，开发环境会警告。
@@ -355,7 +355,7 @@ const getCurrentScope = () => activeEffectScope
 
 - **收集靠“当前作用域”这个全局变量。**`run(fn)` 临时设置它，`fn` 里同步创建的 effect、watch、子作用域都登记到这个作用域。`fn` 里 `await` 之后创建的不会，原因和 26.6 一样。
 - **游离的作用域。**`effectScope(true)` 不挂在父作用域下。父作用域 `stop` 时，它仍然活着。`instance.scope` 本身就是游离的：组件的作用域不挂在父组件的作用域下，子组件靠 `unmountComponent` 递归卸载。
-- **`onScopeDispose(fn)`** 把 `fn` 放进当前作用域的 `cleanups`，作用域停止时运行。组件卸载时 `scope.stop()` 会调用它，`effectScope().run()` 里创建的同样有效，所以组合式函数用它清理（第 35 章讲过这个选择）。没有活动作用域时，它警告而不报错。
+- **`onScopeDispose(fn)`** 把 `fn` 放进当前作用域的 `cleanups`，作用域停止时运行。组件卸载时 `scope.stop()` 会调用它，`effectScope().run()` 里创建的同样有效，所以组合式函数用它清理（第 8 章 8.5 节讲过这个选择）。没有活动作用域时，它警告而不报错。
 - <b>`scope.stop()` 之后 `scope.run()`</b>：返回 `undefined`，不运行 `fn`，开发环境警告 `cannot run an inactive effect scope`。
 - <b>`pause()`、`resume()`</b>：对作用域内所有 effect 和子作用域逐个调用，行为同 26.6。
 - **computed 不在 `effects` 里。**只有 `ReactiveEffect` 的实例会登记。3.5 的 computed 不是 `ReactiveEffect`，所以 `scope.stop()` 不会“停止”它。实测：`scope.stop()` 之后修改依赖，读 `double.value` 仍然得到新的结果。它不泄漏，因为没有 effect 订阅它之后，它也不被任何依赖列表引用，可以被回收（所以第 8 章 8.5 节和第 35 章 35.1 节只说 `watch` 和 `watchEffect` 随作用域停止，`computed` 不用停止）。

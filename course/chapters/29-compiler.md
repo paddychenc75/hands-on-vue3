@@ -189,7 +189,7 @@ function patchElement(n1, n2) {
 所以 `dynamicChildren` 里有三类节点：
 
 - 带 PatchFlag 的元素。
-- 所有组件。组件 vnode 可以带 PatchFlag：有动态 props 时是 PROPS（8），例如 `<Comp :a="x" />` 编译出 `8 /* PROPS */` 和 dynamicProps `["a"]`。props 全是静态时没有 PatchFlag。不管有没有，组件都被收集。原因：父组件更新时，Vue 要把旧组件实例交给新的组件 vnode，以后才能正确卸载它。Vue 也要比较新旧 props，再决定要不要更新子组件（第 21 章）。
+- 所有组件。组件 vnode 可以带 PatchFlag：有动态 props 时是 PROPS（8），例如 `<Comp :a="x" />` 编译出 `8 /* PROPS */` 和 dynamicProps `["a"]`。props 全是静态时没有 PatchFlag。不管有没有，组件都被收集。原因：父组件更新时，Vue 要把旧组件实例交给新的组件 vnode，以后才能正确卸载它。Vue 也要比较新旧 props，再决定要不要更新子组件（第 31 章 31.5 节）。
 - 嵌套的子 Block，例如 `v-if` 的分支和 `v-for` 的 Fragment。子 Block 内部的节点在它自己的 `dynamicChildren` 里，不平铺到外层。
 
 有一个例外：PatchFlag 恰好是 32（NEED_HYDRATION）的元素不收集。例如带事件监听的 `<input @input="f">`。这个标记只在服务端渲染的水合阶段（第 36 章）有用，更新时没有东西要比较。`@click` 不加这个标记。

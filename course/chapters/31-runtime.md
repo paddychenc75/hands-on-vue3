@@ -242,7 +242,7 @@ const setupRenderEffect = (instance, initialVNode, container, anchor) => {
 
 - `effect`：渲染副作用函数，是第 24 章的 `ReactiveEffect`。`renderComponentRoot` 运行渲染函数，读到的所有响应式数据都成为它的依赖。
 - `scheduler`：数据变化时，`trigger` 找到这个 effect，发现它有 scheduler，就调用 scheduler，不直接运行。scheduler 只做一件事：`queueJob(job)`（25.1 节）。
-- `job`：放进队列的任务。3.5 里它是 `effect.runIfDirty`：先检查依赖的版本号，没有真的变化就不运行（第 24.5 节）。`job.id` 是 `uid`，父组件先于子组件。
+- `job`：放进队列的任务。3.5 里它是 `effect.runIfDirty`：先检查依赖的版本号，没有真的变化就不运行（第 24 章 24.6 节）。`job.id` 是 `uid`，父组件先于子组件。
 - `update`：直接运行 effect，不检查依赖有没有变。`$forceUpdate` 把它放进队列，31.5 节的子组件更新则同步调用它。
 
 两条路径的差别：

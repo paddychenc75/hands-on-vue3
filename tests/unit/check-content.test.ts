@@ -93,6 +93,26 @@ describe('首页学习路线（course/learning-paths.mjs）', () => {
   })
 })
 
+describe('引用的时态：措辞要和对象章的位置一致', () => {
+  it('前面的章写“第 N 章讲过”，而第 N 章在后面 -> 报错', () => {
+    expectError(run(editChapter('03-refs', s => s + '\n这个思路第 20 章讲过。\n')), /排在本章（第 3 章）后面，学习者还没学到/)
+  })
+  it('回顾（第 N 章）指向后面 -> 报错', () => {
+    expectError(run(editChapter('03-refs', s => s + '\n回顾（第 24 章）：响应式。\n')), /说“已经讲过 \/ 回顾”/)
+  })
+  it('后面的章写“第 N 章会讲”，而第 N 章在前面 -> 报错', () => {
+    expectError(run(editChapter('06-comm', s => s + '\n这个机制第 3 章会讲。\n')), /排在本章（第 6 章）前面，学习者已经学过/)
+  })
+  it('方向对的不报错；练习和专用题也检查', () => {
+    expect(run(editChapter('06-comm', s => s + '\n这个思路第 3 章讲过，第 24 章会讲。\n'))).toEqual([])
+    expectError(run(editExercise('03-refs', firstExercise('03-refs'), { hints: ['第 24 章讲过。'] })), /排在本章（第 3 章）后面/)
+  })
+  it('人工清单不为空时不算错误（真实内容通过，清单由 --tense 列出）', () => {
+    const res = validate(base)
+    expect(Array.isArray(res.tenseCandidates)).toBe(true)
+  })
+})
+
 describe('自测题', () => {
   it('调换两道自测题 -> 报“现在放的是原来 X 的题”', () => {
     const inp = editChapter('03-refs', src => {

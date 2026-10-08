@@ -4,6 +4,7 @@
 // 每条错误是 { key, text }：text 是给人看的“位置  问题 → 怎么修”，key 是稳定的标识（规则:对象），临时豁免（known-issues.mjs）按 key 匹配。
 import { checkContainers, collectGlossary, exercisesOf, frontmatterLines, goalsOf, h1Of, importsOf, labsOf, maskFences, maskInlineCode, normTitle, readFrontmatter, scanSc, sectionsOf } from '../../course/content-parse.mjs';
 import { compareSnapshot, computeCards } from './cards.mjs';
+import { tenseCandidates, tenseProblems } from './ref-tense.mjs';
 import { RANGE_SEP, scanSectionRefs } from './section-refs.mjs';
 
 /** 不是章的页面：旧地址的跳转页，没有 id */
@@ -435,6 +436,7 @@ export function validate(inp, opts = {}) {
   });
   const secOk = (n, m) => chByNo.get(n)?.sections.find(s => s.m === m);
   let refCount = 0;
+  const tenseList = []; // 人工清单：措辞和对象章的位置可能对不上（check:content --tense 列出）
   for (const { where, lines, ch: ownCh } of sources) {
     // 小节引用（N.M 节、见 N.M、区间和并列、表格引用列、第 X 章 N.M）：规则见 section-refs.mjs
     for (const chain of scanSectionRefs(lines.map(l => l[1]))) {
@@ -460,6 +462,9 @@ export function validate(inp, opts = {}) {
     }
     for (const [ln, line] of lines) {
       const at = ln ? `${where}:${ln}` : where;
+      // 措辞和对象章的位置要一致：“第 N 章讲过”不能指向后面的章，“第 N 章会讲”不能指向前面的章（规则见 ref-tense.mjs）
+      for (const p of tenseProblems(line, ownCh)) fail(`tense:${where}:${p.kind}:${p.n}`, at, `${p.why}`, p.kind === 'past-after' ? `改成“会讲”“详见”，或把引用换成前面讲过这件事的章` : '改成“讲过”“见”，或删掉“会讲”');
+      for (const c of tenseCandidates(line, ownCh)) tenseList.push({ where: at, own: ownCh, ...c });
       // 第 N 章 的范围，以及后面跟的“N.M 标题”“N.M 节”“词”
       for (const m of line.matchAll(/第\s*(\d+)\s*章/g)) {
         refCount++;
@@ -534,7 +539,7 @@ export function validate(inp, opts = {}) {
     cards: Object.keys(current.cards).length,
     terms: glossaryTerms.size,
   };
-  return { errors, notes, stats, current, snapshotDiff, chapters };
+  return { errors, notes, stats, current, snapshotDiff, chapters, tenseCandidates: tenseList };
 }
 
 /** 去掉临时豁免：exemptions 是 [{ key, why }]。返回 { errors（剩下的）, exempted（被豁免的）, stale（没匹配到任何错误的豁免） } */

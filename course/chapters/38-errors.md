@@ -385,7 +385,7 @@ export function report(err, inst, info, extra) {
 
 `.map` 文件会暴露源码，所以不对外公开。
 
-**监控 SDK 做了什么。**以 `@sentry/vue` 12.5 为例，读它的源码，`Sentry.init({ app, dsn })` 做的事，正是本章前面讲的这些入口：
+**监控 SDK 做了什么。**以 `@sentry/vue` 11.5 为例，读它的源码，`Sentry.init({ app, dsn })` 做的事，正是本章前面讲的这些入口：
 
 1. **包装 `app.config.errorHandler`。**它保存你原来的处理函数，换成自己的：取组件名和组件链、`$props`、`info`，放进错误的上下文，异步上报，再调用你原来的函数。如果你原来没有配置，它在最后重新抛出（Vue 会当作 `errorHandler` 自己出错处理）。
 2. **默认集成里有 `window` 的 `error` 和 `unhandledrejection`**（38.2 的兜底），还有去重和面包屑（记录出错之前的用户操作）。

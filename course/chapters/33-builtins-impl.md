@@ -387,7 +387,7 @@ registerDep(instance, setupRenderEffect) {
 事件的触发时机：`onPending` 在进入 pending 时（首次是挂载时，切换时是 `patchSuspense` 开头），`onFallback` 在 fallback 真正显示时，`onResolve` 在 `resolve` 末尾。
 
 ::: note
-知道了实现：fallback 只在首次加载，或切换根节点后超过 `timeout` 才出现，是因为切换时旧内容还在（`activeBranch`），新内容在后台排好，这是 Suspense 避免加载闪烁的设计。`async setup` 里 `await` 之后再调 `onMounted` 不起作用，因为这时 `currentInstance` 已经没有了（31.7 节）。服务器上的 Suspense 只渲染默认内容，第 36 章（36.8 节）讲过。
+知道了实现：fallback 只在首次加载，或切换根节点后超过 `timeout` 才出现，是因为切换时旧内容还在（`activeBranch`），新内容在后台排好，这是 Suspense 避免加载闪烁的设计。`async setup` 里 `await` 之后再调 `onMounted` 不起作用，因为这时 `currentInstance` 已经没有了（31.7 节）。服务器上的 Suspense 只渲染默认内容，第 36 章（36.8 节）会讲。
 :::
 
 ### 33.6 defineAsyncComponent：一个包装组件，两条路径
@@ -435,7 +435,7 @@ function defineAsyncComponent({ loader, loadingComponent, errorComponent, delay 
 
 `loader` 的结果被 `pendingRequest` 缓存：两个实例同时挂载，`loader` 只调用一次（实测）。`onError(err, retry, fail, attempts)` 里调 `retry()` 会清掉 `pendingRequest` 再 `load()`，所以重试是重新调用 `loader`。
 
-3.5 加的延迟水合（`hydrate` 选项和 `__asyncHydrate`）在第 36 章（36.9 节）讲过。
+3.5 加的延迟水合（`hydrate` 选项和 `__asyncHydrate`）在第 36 章（36.9 节）会讲。
 
 ::: pitfalls
 1. 不要期望 `KeepAlive` 里的 `onMounted` 每次显示都运行。原因：失活只是搬家，实例没有销毁。每次显示都要做的事放进 `onActivated`。

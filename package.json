@@ -8,7 +8,8 @@
     "build": "vitepress build course",
     "preview": "vitepress preview course",
     "test": "npm run test:site",
-    "test:site": "vitepress build course && node tests/site/exercises.test.js && node tests/site/progress.test.js && node tests/site/quiz.test.js"
+    "test:site": "vitepress build course && node tests/site/exercises.test.js && node tests/site/progress.test.js && node tests/site/quiz.test.js",
+    "test:unit": "vitest run"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "6.20.3",
@@ -25,6 +26,7 @@
     "markdown-it-deflist": "4.0.0",
     "playwright": "1.56.1",
     "vitepress": "1.6.4",
+    "vitest": "5.0.3",
     "vue": "3.5.43"
   }
 }

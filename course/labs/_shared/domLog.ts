@@ -1,4 +1,4 @@
-// 日志小工具（旧版 domLog / dLogBuf，第 5、6、8、11、17 章等实验台共用）。
+// 日志小工具（旧版 domLog / dLogBuf，第 5、6、8、11、18 章等实验台共用）。
 //
 // 为什么用原生 DOM 写日志而不用响应式数组：自定义指令的钩子、生命周期钩子在渲染过程中运行，
 // 钩子里改响应式数据会触发新的渲染，新的渲染又运行钩子，形成死循环。
@@ -15,7 +15,7 @@ export function domLog(el: HTMLElement | null | undefined, cls: string, msg: str
 }
 
 /**
- * 挂载前的日志先缓存，日志元素出现后再写入（第 8、11、17 章实验台共用）。
+ * 挂载前的日志先缓存，日志元素出现后再写入（第 8、11、18 章实验台共用）。
  *   const { L, attach } = dLogBuf()
  *   L('rn', '消息')            // 随时可以调用
  *   onMounted(() => attach(logRef.value))

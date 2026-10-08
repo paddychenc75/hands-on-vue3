@@ -13,6 +13,8 @@ import { completeIfMet, chapterOf, cpOf, ensureReady, mutate } from '../composab
 import { recordFailure, recordPass, resetExercise, restoreStash, saveDraft, stashCode, viewSolution } from '../../../engine/logic/exerciseState'
 import { fadedExample, hasFaded, isPastedSolution, ladderLevels, ladderStatus, unlockNote } from '../../../engine/logic/ladder'
 import type { CodePair } from '../../../engine/types'
+import { createLibScope, disposeLibs, installPinia, installRouter, isolateLinks, libCompletionNames, libHintText, loadLibs } from '../composables/exerciseLibs'
+import type { LibMods, LibRun } from '../composables/exerciseLibs'
 
 const props = defineProps<{ id: string }>()
 const ex = exercises[props.id]
@@ -41,6 +43,9 @@ const failNote = ref('')
 const passNote = ref('')
 
 const hints = ex ? ex.hints : []
+/** 声明了 libs（真实的 Pinia / Vue Router）时，界面上多一行说明和脚本提示里多几个名字 */
+const libs = ex?.libs ?? []
+const libHint = libHintText(libs)
 const { frontmatter } = useData()
 const chapterId = computed(() => frontmatter.value.id as string)
 // 注意：引擎的进度对象是原地修改的，不要把 cpOf 的结果缓存在 computed 里。每个 computed 里直接调用 epNow()，它会登记对进度版本号的依赖。
@@ -76,6 +81,10 @@ let RUN: Record<string, unknown> = {}
 let cmTpl: any = null
 let cmJs: any = null
 let app: any = null
+// 声明了 libs 的练习：已加载的库，以及当前这次运行的 pinia / router（每次运行新建，见 exerciseLibs.ts）
+let libMods: LibMods = {}
+let libRun: LibRun | null = null
+let stopLinks: (() => void) | null = null
 
 /** 保存草稿。每个按键都会调用，只写存储，不通知界面 */
 function save() {
@@ -101,6 +110,8 @@ const lineOf = (e: any) => {
   return m ? Math.max(1, +m[1] - 2) : 0
 }
 function showErr(msg: string, e?: unknown) {
+  // 只显示第一个错误：它是根因。脚本在 setup 里抛错后，Vue 还会继续渲染，模板里读不到数据又会报后续的错误，不能盖掉根因
+  if (err.value) return
   const ln = lineOf(e)
   err.value = '错误：' + msg + (ln ? '（脚本第 ' + ln + ' 行）' : '')
   markLine(ln)
@@ -109,8 +120,15 @@ function gotoErrLine() {
   if (errLine.value) cmJs?.goLine(errLine.value)
 }
 
-function run(): boolean {
+/** 卸载上一次运行的 app，并清理它的 pinia */
+function teardown() {
   if (app) { try { app.unmount() } catch { /* ignore */ } app = null }
+  disposeLibs(libRun)
+  libRun = null
+}
+
+function run(): boolean {
+  teardown()
   const out = outEl.value!
   out.innerHTML = ''
   err.value = ''
@@ -118,8 +136,12 @@ function run(): boolean {
   const mountEl = document.createElement('div')
   out.appendChild(mountEl)
   let fn: (...a: unknown[]) => unknown
+  // 声明了 libs：这次运行新造一份库状态和注入的名字
+  const lr: LibRun | null = libs.length ? { mods: libMods } : null
+  const scope: Record<string, unknown> = { ...RUN, ...(lr ? createLibScope(libMods, lr) : {}) }
+  libRun = lr
   try {
-    fn = new Function(...Object.keys(RUN), js.value) as any
+    fn = new Function(...Object.keys(scope), js.value) as any
   } catch (e: any) {
     showErr('脚本语法错误：' + e.message)
     return false
@@ -129,8 +151,9 @@ function run(): boolean {
     app = V.createApp({
       template: tpl.value,
       setup() {
-        const r: any = fn(...Object.values(RUN))
+        const r: any = fn(...Object.values(scope))
         if (!r || typeof r !== 'object') throw new Error('setup 必须返回一个对象，例如 return { count }')
+        if (lr) installRouter(app, lr, r, e => { errs.push((e as Error)?.message || String(e)); showErr((e as Error)?.message || String(e), e) })
         if (r.components) {
           Object.entries(r.components).forEach(([k, v]) => app.component(k, v))
           const { components, ...rest } = r
@@ -141,6 +164,7 @@ function run(): boolean {
     })
     app.config.errorHandler = (e: any) => { errs.push(e.message || String(e)); showErr(e.message || String(e), e) }
     app.config.warnHandler = () => {}
+    if (lr) installPinia(app, lr) // 要在挂载前装：脚本顶层就可能调用 useXxxStore()
     app.mount(mountEl)
   } catch (e: any) {
     showErr(e.message, e)
@@ -165,17 +189,47 @@ async function check() {
   const rs: [boolean, string][] = []
   if (okRun) {
     const out = outEl.value!
+    const router = libRun?.router
+    // 初始导航（路由装好后异步进行）做完再检查；出错时 onError 已经把错误显示出来
+    if (router) { try { await router.isReady() } catch { /* 已由 onError 显示 */ } await V.nextTick() }
     const T: ExerciseHelper = {
       $: s => out.querySelector(s),
       $$: s => [...out.querySelectorAll(s)],
       text: () => out.textContent || '',
       btn: t => [...out.querySelectorAll('button')].find(b => (b.textContent || '').includes(t)),
       async click(el) { (el as HTMLElement).click(); await V.nextTick() },
-      ok(c, msg) { rs.push([!!c, msg]) }
+      ok(c, msg) { rs.push([!!c, msg]) },
+      async waitFor(cond, ms = 1000) {
+        const end = Date.now() + ms
+        while (Date.now() < end) {
+          if (cond()) return true
+          await new Promise(r => setTimeout(r, 10))
+        }
+        return !!cond()
+      },
+      async settle() { await new Promise(r => setTimeout(r, 0)); await V.nextTick() },
+      pinia: libRun?.pinia,
+      store: id => (libRun?.pinia as any)?._s?.get(id), // _s 是 pinia 存放已创建 store 的 Map（devtools 也用它）；没有更公开的"按 id 取"接口
+      router,
+      async push(to) {
+        if (!router) { rs.push([false, '这道练习没有可用的 router：脚本里要 createRouter 并 return { router }']); return undefined }
+        try {
+          const f = await router.push(to)
+          await V.nextTick()
+          return f
+        } catch (e: any) {
+          showErr(e?.message || String(e), e) // 不往外抛：显示在错误区，下面会记一条失败
+          return undefined
+        }
+      }
     }
     try { await ex.check(T) } catch (e: any) { rs.push([false, '检查时出错：' + e.message]) }
     if (err.value) rs.push([false, '运行时发生错误。阅读上方的红色文字。'])
-    run() // 检查会改变状态，重新运行一次还原
+    // 检查会改变状态，重新运行一次还原。检查期间发生的运行时错误（点击后的导航被拦、异步 action 抛错）先存下来，
+    // 还原后接着显示，否则上面说"阅读上方的红色文字"时，文字已经被这次重新运行清掉了
+    const keepErr = err.value, keepLine = errLine.value
+    run()
+    if (keepErr && !err.value) { err.value = keepErr; markLine(keepLine) }
   } else rs.push([false, '代码没有运行。阅读上方的错误信息。'])
   const all = rs.length > 0 && rs.every(r => r[0])
   results.value = rs
@@ -267,6 +321,13 @@ function onReset() {
   run()
 }
 
+/** 声明了 libs 的练习：脚本里没人接住的 Promise 拒绝（异步 action、懒加载路由组件）显示在错误区，不变成未捕获的拒绝 */
+function onRejection(ev: PromiseRejectionEvent) {
+  ev.preventDefault()
+  const r: any = ev.reason
+  showErr('未处理的 Promise 拒绝：' + (r?.message || String(r)), r)
+}
+
 let timer = 0
 const tick = () => { now.value = Date.now() }
 
@@ -282,11 +343,16 @@ onMounted(async () => {
   await nextTick()
   // 带编译器的 Vue 构建。它和站点用的运行时构建共用 @vue/runtime-dom，
   // 同时注册了模板编译器，所以 createApp({ template }) 能工作。
+  // 声明了 libs 的练习才加载 pinia / vue-router（各自独立分块）。它们内部 import 'vue'，和这里共用同一份 @vue/runtime-dom。
   // @ts-ignore 这个构建没有类型声明
-  const [vm, cm] = await Promise.all([import('vue/dist/vue.esm-bundler.js'), import('../../../../editor/entry.js')])
+  const [vm, cm, lm] = await Promise.all([import('vue/dist/vue.esm-bundler.js'), import('../../../../editor/entry.js'), loadLibs(ex.libs)])
+  libMods = lm
   // 编辑器还在加载时用户已经换了页：组件已卸载，不再往下做（否则会报“Cannot set properties of null”）
   if (!root.value || !tplHost.value || !jsHost.value) return
   V = vm
+  if (libs.length) window.addEventListener('unhandledrejection', onRejection)
+  // 路由练习的输出区里有 <RouterLink> 生成的 <a href>：不让 VitePress 把它当成站内换页（见 isolateLinks）
+  if (libs.includes('vue-router') && outEl.value) stopLinks = isolateLinks(outEl.value)
   API = {
     ref: V.ref, reactive: V.reactive, computed: V.computed, watch: V.watch, watchEffect: V.watchEffect,
     toRefs: V.toRefs, toRef: V.toRef, shallowRef: V.shallowRef, nextTick: V.nextTick,
@@ -304,7 +370,7 @@ onMounted(async () => {
   RUN = { ...API, Vue: V }
   const mk = (host: HTMLElement, doc: string, lang: 'tpl' | 'js', onChange: (v: string) => void) =>
     cm.create({
-      parent: host, doc, lang, api: Object.keys(API), onRun: () => onCheck(),
+      parent: host, doc, lang, api: [...Object.keys(API), ...libCompletionNames(ex.libs)], onRun: () => onCheck(),
       label: lang === 'tpl' ? '模板代码' : '脚本代码', onChange
     })
   cmTpl = mk(tplHost.value!, tpl.value, 'tpl', v => { tpl.value = v; save() })
@@ -320,7 +386,9 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clearInterval(timer)
   document.removeEventListener('visibilitychange', tick)
-  if (app) { try { app.unmount() } catch { /* ignore */ } }
+  window.removeEventListener('unhandledrejection', onRejection)
+  stopLinks?.()
+  teardown()
   cmTpl?.view.destroy()
   cmJs?.view.destroy()
 })
@@ -340,13 +408,16 @@ onBeforeUnmount(() => {
     <div class="ex-body">
       <div class="ex-task" v-html="ex.task"></div>
       <div class="ex-rule cap">{{ ruleText }}</div>
+      <div v-if="libs.length" class="ex-libs cap">
+        本题运行在真实的 {{ libs.map(l => (l === 'pinia' ? 'Pinia' : 'Vue Router')).join(' 和 ') }} 上，写法和真实项目一样。<template v-if="libs.includes('pinia')">pinia 已经替你安装，每次运行都是全新的。</template><template v-if="libs.includes('vue-router')">路由用 createMemoryHistory 创建（不能改动页面真实的地址栏），并在 setup 的返回值里写 return { router }，运行器替你安装。</template>
+      </div>
       <div class="ex-edit">
         <div>
           <span class="ed-label">模板 template</span>
           <div class="ed cm-on"><div ref="tplHost"></div></div>
         </div>
         <div>
-          <span class="ed-label">脚本 setup 函数体 <span class="cap2">（可直接使用 ref、reactive、computed、watch、toRefs 等）</span></span>
+          <span class="ed-label">脚本 setup 函数体 <span class="cap2">（可直接使用 ref、reactive、computed、watch、toRefs 等<template v-if="libHint">，以及 {{ libHint }}</template>）</span></span>
           <div class="ed cm-on"><div ref="jsHost"></div></div>
         </div>
       </div>

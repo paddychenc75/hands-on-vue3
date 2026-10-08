@@ -11,7 +11,15 @@ import { RANGE_SEP, scanSectionRefs } from './section-refs.mjs';
 export const REDIRECT_PAGES = ['27-quiz'];
 /** 章里可以直接使用、不用 import 的页面级 / 全局组件之外的“已知全局”由 inp.files 里的 theme/components/*.vue 推出 */
 const PLACEHOLDER = '【待写】';
-const EXERCISE_KEYS = ['title', 'ch', 'task', 'tpl', 'js', 'solTpl', 'solJs', 'hints', 'check', 'wrong', 'lazy', 'faded'];
+const EXERCISE_KEYS = ['title', 'ch', 'task', 'tpl', 'js', 'solTpl', 'solJs', 'hints', 'check', 'wrong', 'lazy', 'faded', 'libs'];
+/**
+ * 练习可以声明的真实库，以及声明后注入脚本的名字（含命名空间对象）。
+ * 与 course/.vitepress/theme/composables/exerciseLibs.ts 的 LIB_NAMES / LIB_NAMESPACE 必须一致（tests/unit/exerciseLibs.test.ts 核对）。
+ */
+export const EXERCISE_LIB_NAMES = {
+  pinia: ['createPinia', 'defineStore', 'storeToRefs', 'setActivePinia', 'getActivePinia', 'disposePinia', 'mapState', 'mapGetters', 'mapActions', 'mapStores', 'mapWritableState', 'setMapStoreSuffix', 'skipHydrate', 'MutationType', 'Pinia'],
+  'vue-router': ['createRouter', 'createMemoryHistory', 'createWebHistory', 'createWebHashHistory', 'useRoute', 'useRouter', 'useLink', 'RouterView', 'RouterLink', 'onBeforeRouteLeave', 'onBeforeRouteUpdate', 'isNavigationFailure', 'NavigationFailureType', 'START_LOCATION', 'parseQuery', 'stringifyQuery', 'VueRouter'],
+};
 /** 半成品里每个挖空处的标记 */
 export const FADED_MARK = '✏️';
 const nonEmpty = v => typeof v === 'string' && v.trim() !== '';
@@ -258,6 +266,24 @@ export function validate(inp, opts = {}) {
       });
     }
     if (ex.lazy !== undefined && typeof ex.lazy !== 'boolean') fail(k('lazy'), where, 'lazy 必须是布尔值');
+    // libs：声明要用的真实库。取值必须是已知的库、不重复；脚本里不能再声明会被注入的同名变量（否则是「Identifier has already been declared」）
+    if (ex.libs !== undefined) {
+      const known = Object.keys(EXERCISE_LIB_NAMES);
+      if (!Array.isArray(ex.libs) || !ex.libs.length) fail(k('libs'), where, `libs 必须是非空数组，元素取自 ${known.join('、')}`, '不用真实库就删掉 libs 字段');
+      else {
+        ex.libs.forEach(l => known.includes(l) || fail(k('libs'), where, `libs 里有未知的库 ${JSON.stringify(l)}（只支持 ${known.join('、')}）`));
+        if (new Set(ex.libs).size !== ex.libs.length) fail(k('libs'), where, 'libs 里有重复项');
+        const names = ex.libs.flatMap(l => EXERCISE_LIB_NAMES[l] ?? []);
+        const scripts = [['js', ex.js], ['solJs', solJs], ['faded.js', ex.faded?.js], ...(ex.wrong || []).map((w, i) => [`wrong[${i}].js`, w?.js])];
+        for (const [label, code] of scripts) {
+          if (typeof code !== 'string') continue;
+          for (const n of names) {
+            if (new RegExp(`\\b(?:const|let|var|function|class)\\s+${n}\\b|[{,]\\s*${n}\\s*[,}]\\s*=`).test(code))
+              fail(k(`libs-name:${label}:${n}`), where, `${label} 里声明了 ${n}，但声明了 libs 的练习会把 ${n} 注入脚本，同名声明会报 "Identifier has already been declared"`, '删掉这个声明（用注入的真实库），或者不声明 libs');
+          }
+        }
+      }
+    }
     // faded（半成品）每道练习都必须有：格式对，且能静态检查的几条也要对。
     // “原样提交不能通过、补全后能通过”要跑代码才知道，由 tests/site/exercises.test.js 检查。
     if (ex.faded === undefined) fail(k('faded'), where, '缺少 faded（半成品）', '加 faded: { tpl?, js? }：只写有改动的那一段，挖 1 到 4 处，每处写 /* ✏️ 说明 */（模板里元素位置写 <!-- ✏️ 说明 -->）');

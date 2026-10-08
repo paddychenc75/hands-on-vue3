@@ -181,3 +181,88 @@ sharedStore.faded = {
   js: sub(sharedStore.solJs, '// 状态只创建一次。所有组件得到同一个对象\nconst cart = reactive({ count: 0 })\n\nfunction useCart() {\n  return cart\n}',
     '/* ✏️ 状态放在哪里，才只创建一次？ */\n\nfunction useCart() {\n  return /* ✏️ 返回所有组件共享的那份状态 */ undefined\n}')
 }
+
+// ===== 真实的 Pinia：声明 libs: ['pinia']，脚本里直接用 defineStore / storeToRefs（见 AUTHORING.md 4.10）=====
+const realPiniaSolJs = `// 假接口：50 毫秒后返回书名
+const fetchBooks = () => new Promise(resolve => setTimeout(() => resolve(['Vue 3 设计', '深入 Pinia', '路由之道']), 50))
+
+// setup 写法的 store：ref 是 state，computed 是 getter，函数是 action。所有要共享的东西都要 return
+const useBooks = defineStore('books', () => {
+  const titles = ref([])                                // state
+  const loading = ref(false)                            // state
+  const count = computed(() => titles.value.length)     // getter
+  async function load() {                               // 异步 action
+    loading.value = true
+    titles.value = await fetchBooks()
+    loading.value = false
+  }
+  return { titles, loading, count, load }
+})
+
+const store = useBooks()
+const { titles, count, loading } = storeToRefs(store)   // state 和 getter 用 storeToRefs 解构，保持响应式
+const { load } = store                                  // action 直接解构
+
+return { titles, count, loading, load }`
+
+export const realPiniaStore: Exercise = {
+  title: '用真实的 Pinia：setup store、storeToRefs 和异步 action', ch: 16,
+  libs: ['pinia'],
+  task: '<p>这道题运行在真实的 Pinia 上：<code>defineStore</code>、<code>storeToRefs</code> 都可以直接用，运行器已经替你 <code>app.use(createPinia())</code>，每次运行都是全新的 pinia。</p><p>脚本里已经给了假接口 <code>fetchBooks</code>。书架页面要做到：点“加载书单”后先显示“加载中…”，加载完成后列出书名，并显示“共 3 本”。</p><ol><li>TODO 1：用 setup 写法定义 store，id 是 <code>books</code>。state：<code>titles</code>（书名数组，初始为空）、<code>loading</code>；getter：<code>count</code>（书的数量）；异步 action：<code>load</code>（先把 loading 设为 true，等 fetchBooks，再写入 titles，最后把 loading 设回 false）。</li><li>TODO 2：调用 <code>useBooks()</code>，用 <code>storeToRefs</code> 解构出 titles、count、loading，action 直接解构。</li><li>点击按钮，确认页面随 store 更新。</li></ol>',
+  tpl: `<button @click="load" :disabled="loading">加载书单</button>
+<p class="state">{{ loading ? '加载中…' : '共 ' + count + ' 本' }}</p>
+<ul>
+  <li v-for="t in titles" :key="t">{{ t }}</li>
+</ul>`,
+  js: `// 假接口：50 毫秒后返回书名
+const fetchBooks = () => new Promise(resolve => setTimeout(() => resolve(['Vue 3 设计', '深入 Pinia', '路由之道']), 50))
+
+// TODO 1：用 defineStore 定义 useBooks（id 是 'books'，用 setup 写法）
+//   state：titles、loading；getter：count；异步 action：load
+
+// TODO 2：调用 useBooks()，用 storeToRefs 解构 titles、count、loading，再取出 load
+
+return {}`,
+  solJs: realPiniaSolJs,
+  hints: [
+    '定义 store 用 defineStore(id, setup 函数)。setup 函数里：ref 是 state，computed 是 getter，普通函数是 action，最后把它们都 return。第 16 章 16.1 讲了 setup 写法，16.2 讲了 storeToRefs。',
+    'action 是 async 函数：loading.value = true；titles.value = await fetchBooks()；loading.value = false。getter 是 computed(() => titles.value.length)。组件里：const store = useBooks()；const { titles, count, loading } = storeToRefs(store)；const { load } = store。',
+    realPiniaSolJs
+  ],
+  async check(T) {
+    const btn = T.btn('加载');
+    if (!btn) { T.ok(false, '找到“加载书单”按钮'); return; }
+    const s = T.store('books');
+    if (!s) { T.ok(false, '用 defineStore("books", …) 定义了 store，并在脚本里调用 useBooks()（真实 pinia 里还没有 id 是 books 的 store）'); return; }
+    if (!Array.isArray(s.titles) || typeof s.load !== 'function') { T.ok(false, 'setup store 必须把 state 和 action 都 return：store 里要有 titles（数组）和 load（函数）'); return; }
+    T.ok(s.titles.length === 0 && s.loading === false, '初始 titles 为空、loading 为 false');
+    T.ok(!T.text().includes('深入 Pinia'), '点击前页面上没有书名');
+    await T.click(btn);
+    T.ok(s.loading === true && T.text().includes('加载中'), '点击后 action 先把 loading 设为 true，页面显示“加载中…”（storeToRefs 解构的 ref 才随 store 更新）');
+    const done = await T.waitFor(() => T.text().includes('深入 Pinia'));
+    T.ok(done, '异步 action 完成后页面列出书名（用 storeToRefs 解构，页面才会随 store 的 state 更新）');
+    if (!done) return;
+    T.ok(s.titles.length === 3, 'action 把 3 本书写进了 store 的 titles（当前 ' + s.titles.length + ' 本）');
+    T.ok(s.loading === false && !T.text().includes('加载中'), '完成后 loading 设回 false，页面不再显示“加载中…”');
+    T.ok(s.count === 3, 'getter count 随 titles 变化，应是 3（当前 ' + s.count + '：getter 要用 computed，不能只算一次）');
+    T.ok(/共\s*3\s*本/.test(T.text()), '页面显示“共 3 本”');
+    T.ok(T.pinia.state.value.books && T.pinia.state.value.books.titles.length === 3, '状态保存在这次运行的真实 pinia 里（pinia.state.value.books）');
+  },
+  wrong: [
+    { js: sub(realPiniaSolJs, 'const { titles, count, loading } = storeToRefs(store)   // state 和 getter 用 storeToRefs 解构，保持响应式', 'const { titles, count, loading } = store   // 直接解构'),
+      why: '直接解构 store 只复制了当时的值（空数组、0、false）。之后 action 修改 store，页面拿着的还是旧值，不会更新。state 和 getter 要用 storeToRefs 解构。', expectFail: /storeToRefs/ },
+    { js: sub(realPiniaSolJs, 'const count = computed(() => titles.value.length)     // getter', 'const count = titles.value.length                    // 只算一次'),
+      why: '把 getter 写成了一个普通数字：创建 store 时 titles 是空的，count 永远是 0。getter 要用 computed，才会随 titles 重新计算。', expectFail: /computed/ },
+    { js: sub(realPiniaSolJs, '    loading.value = false\n', ''),
+      why: 'action 结束后没有把 loading 设回 false，页面一直显示“加载中…”，按钮也一直禁用。异步 action 不管成功失败，都要让 loading 复位。', expectFail: /loading/ },
+    { js: sub(realPiniaSolJs, 'return { titles, loading, count, load }', 'return { loading, count, load }'),
+      why: 'setup store 里只有 return 出去的东西才是 state / getter / action。titles 没有 return，它就不是 store 的一部分：组件拿不到它，也不会进入 pinia 的 state。', expectFail: /return/ }
+  ],
+  faded: {
+    js: sub(sub(sub(sub(realPiniaSolJs,
+      'const count = computed(() => titles.value.length)     // getter', 'const count = /* ✏️ getter：titles 的长度，要随 titles 变化 */ null'),
+      '    loading.value = true\n', '    /* ✏️ 开始加载：让 loading 变成 true */\n'),
+      '    loading.value = false\n', '    /* ✏️ 加载结束：让 loading 复位 */\n'),
+      'storeToRefs(store)   // state 和 getter 用 storeToRefs 解构，保持响应式', '/* ✏️ 解构 state 和 getter，同时保持响应式 */ store')
+  }
+}

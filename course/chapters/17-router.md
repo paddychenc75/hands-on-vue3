@@ -16,7 +16,7 @@ import MiniRouter from '../labs/17-router/MiniRouter.vue'
 
 ::: goals
 <Goal checks="sc:1,sc:2,sc:4,ex:routeTable">配置路由表。包括动态参数和 404 页面。</Goal>
-<Goal checks="sc:0,ex:authGuard,ex:fbRouter">用导航守卫检查登录。</Goal>
+<Goal checks="sc:0,ex:authGuard,ex:fbRouter,ex:realRouterGuard">用导航守卫检查登录。</Goal>
 <Goal checks="sc:3">说出导航守卫的运行顺序。</Goal>
 
 :::
@@ -386,6 +386,8 @@ async function navigate(to, from) {
 <Exercise id="fbRouter" />
 
 <Exercise id="authGuard" />
+
+<Exercise id="realRouterGuard" />
 
 ### 17.7 滚动行为和页面过渡
 

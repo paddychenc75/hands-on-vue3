@@ -16,7 +16,7 @@ import PiniaShared from '../labs/16-pinia/PiniaShared.vue'
 
 ::: goals
 <Goal checks="sc:2,ex:sharedStore,ex:fbPinia">用 setup 写法定义 store。</Goal>
-<Goal checks="sc:0">在组件中用 storeToRefs 解构 store。</Goal>
+<Goal checks="sc:0,ex:realPiniaStore">在组件中用 storeToRefs 解构 store。</Goal>
 <Goal checks="sc:1">决定哪些数据放入 Pinia。</Goal>
 
 :::
@@ -204,6 +204,8 @@ const { add, toggle } = store                // action 可以直接解构
 </Figure>
 
 注意：storeToRefs 跳过 action。所以 action 要从 store 直接解构。
+
+<Exercise id="realPiniaStore" />
 
 ### 16.3 修改 state：action 和 $patch
 

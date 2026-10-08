@@ -278,6 +278,61 @@ export const counter: Exercise = {
   - 三条硬要求：**原样提交不能通过**；补全后能通过（就是参考答案）；**不能与参考答案完全相同**。另外不能含 `WRONG_SUB_FAILED`，至少有 1 个 `✏️` 占位。`check:content` 查静态的几条，`tests/site/exercises.test.js` 真的把半成品原样提交一次，确认不通过。
   - 阶梯里“没有半成品时只有提示和参考答案两级”的规则仍在引擎里，测试用练习根元素上的 `__setFaded(undefined)` 临时去掉它来验证，`__setFaded({ tpl, js })` 临时换一份（见 `tests/site/mechanics.test.js`）。
 
+#### 练习里的真实库：`libs`（Pinia、Vue Router）
+
+默认情况下练习只有 Vue（上面那份名单）。讲库的**用法**（怎样定义 store、写路由表、守卫、读路由参数）的练习应当声明 `libs`，让学习者在真实的库上写和真实项目一样的代码；讲库的**内部原理**（迷你 `defineStore`、迷你路由怎样匹配）的练习继续在脚本里写迷你实现，不声明 `libs`。判断标准：学完这道题，学习者能不能直接把代码抄进自己的项目？能，就用真实的库。
+
+```ts
+export const myStore: Exercise = {
+  libs: ['pinia'],              // 或 ['vue-router']，或两个都写
+  // …其余字段照常
+}
+```
+
+声明后，运行器做这几件事（实现在 `theme/composables/exerciseLibs.ts`，没声明 `libs` 的练习完全不受影响，也不会加载这两个库）：
+
+- **按需加载**：进入页面时才 `import('pinia')` / `import('vue-router')`，各自是独立分块，不进首屏。两个库内部的 `import 'vue'` 和练习用的带编译器的 Vue 共用同一份 `@vue/runtime-dom`，所以 store 的状态、`useRoute()` 都能驱动练习模板重新渲染。
+- **注入名字**：和真实项目里 `import { … } from 'pinia'` 同名，脚本里直接用，不用 import，也不要自己再声明同名变量（`check:content` 会报错）。
+  - `pinia`：`createPinia defineStore storeToRefs setActivePinia getActivePinia disposePinia mapState mapGetters mapActions mapStores mapWritableState setMapStoreSuffix skipHydrate MutationType`，命名空间对象 `Pinia`。
+  - `vue-router`：`createRouter createMemoryHistory useRoute useRouter useLink RouterView RouterLink onBeforeRouteLeave onBeforeRouteUpdate isNavigationFailure NavigationFailureType START_LOCATION parseQuery stringifyQuery`，以及 `createWebHistory`、`createWebHashHistory`（调用就抛错，见下），命名空间对象 `VueRouter`。
+  - 编辑器的补全名单和脚本框上方"可直接使用 …"的提示会自动带上这些名字，题目下面也会多一行说明。
+- **每次运行都是全新的环境**：每次"运行""只运行""检查"（含检查后的还原运行）都新建 pinia 和 router，store 状态不跨次残留。上一次运行的 pinia 会被 `disposePinia` 清掉。
+
+**Pinia 的约定**：运行器在挂载前替学习者 `app.use(createPinia())`，所以脚本顶层就能调用 `useXxxStore()`，脚本里不用也不应该自己 `createPinia`（教"怎样安装 pinia"的讲解放正文，不放练习）。判题里用 `T.store(id)` 取这次运行里已经创建的 store（按 `defineStore` 的 id；学习者还没调用过 `useXxxStore()` 时是 `undefined`），或者用 `T.pinia.state.value[id]` 读 state。判题不要 import pinia（练习数据文件会进主包），也不要依赖学习者给 `useXxxStore` 起的名字。
+
+**Vue Router 的约定**：
+- 学习者在脚本里 `createRouter({ history: createMemoryHistory(), routes })`，并在脚本最后 **`return { router, … }`**，运行器在挂载前替他 `app.use(router)`（和 `components` 的约定同类）。创建了 router 却没有返回，会报错并说明原因。因为是在 setup 返回之后才安装，**根脚本里不能调用 `useRoute()`、`useRouter()`**（这时路由还没装）；放进子组件的 setup 里，或者在根模板里用 `$route`、`$router`。
+- **只能用 `createMemoryHistory`**：页面真实的地址由 VitePress 管理，用 web history 会破坏站点导航。`createWebHistory()`、`createWebHashHistory()` 一调用就抛错（"练习里不能用 createWebHistory：它会改动页面真实的地址栏……请改用 createMemoryHistory()"），`createRouter` 也只接受 `createMemoryHistory()` 造出来的 history，一次运行只能创建一个 router。
+- 守卫的无限重定向会被运行器截断（同一个宏任务里守卫运行超过 50 次就报错），不会卡死标签页。
+- 守卫抛错、懒加载路由组件失败、异步 action 里没人接住的 Promise 拒绝，都显示在练习的红色错误区，不会变成页面的未捕获错误。
+- 输出区里 `<RouterLink>` 的 `<a>` 会自动补 `target="_self"`：VitePress 在捕获阶段监听所有站内链接的点击，没有这个属性它会把练习里的链接当成换页。
+
+**判题 `T` 多出来的辅助**（`ExerciseHelper`，所有练习都有 `waitFor`、`settle`，其余按 `libs` 提供）：
+
+| 辅助 | 说明 |
+|---|---|
+| `await T.waitFor(() => 条件, ms = 1000)` | 每 10 毫秒查一次条件，最多等 ms 毫秒，返回条件最终是否成立。等异步 action、懒加载路由组件 |
+| `await T.settle()` | 等一个宏任务加一次 nextTick |
+| `T.pinia` | 这次运行的 pinia 实例 |
+| `T.store(id)` | 这次运行里 id 对应的 store（还没创建是 `undefined`） |
+| `T.router` | 脚本 `return` 的 router（已安装，检查开始前已等初始导航完成） |
+| `await T.push(to)` | `router.push(to)` 并等渲染完成；返回 `NavigationFailure` 或 `undefined`。导航抛错不会往外抛，而是显示在错误区，这次检查会多一条"运行时发生错误"失败 |
+
+判题里的模板：写法见 `exercises/16-pinia.ts` 的 `realPiniaStore` 和 `exercises/17-router.ts` 的 `realRouterGuard`。用 `T.click` 点 `RouterLink` 的 `<a>` 后，导航是异步的，要 `await T.waitFor(() => 路径变了)` 再断言；读当前路径用 `T.router.currentRoute.value`。判行为不判写法：不要要求学习者用 `meta` 还是用路径前缀、用 `beforeEach` 还是 `beforeEnter`，只断言跳转结果和页面内容。
+
+写 `libs` 练习的注意：
+1. 练习里的 Pinia 和 Vue Router 版本就是 `package.json` 里的版本（pinia 4、vue-router 5）；用不了的功能见下。
+2. `wrong` 里的 `js` 里同样不能声明注入的同名变量。
+3. 起始脚本里不要抛错的 `TODO`：可以写成返回 `{}` 或半成品，让页面能运行、检查按条目失败，比"代码没有运行"更有信息量。
+4. 每道题至少用 3 种不同的正确写法在浏览器里试一遍（选项式 store 和 setup store、`beforeEach` 和 `beforeEnter` 等），确认判题不误伤。
+
+**限制**：
+- Router 只有 memory history：不能演示地址栏变化、`createWebHistory` 的 base、hash 模式、`scrollBehavior`（需要真实滚动）和页面刷新后保持路由。要讲这些就写在正文里，练习里用 `router.currentRoute` 代替"看地址栏"。
+- 路由组件的懒加载只能写 `() => Promise.resolve(组件)` 或带 `setTimeout` 的 Promise，不能 `import('./X.vue')`（练习里没有文件）。
+- 没有 SFC：组件写成对象（`{ setup, template }`），和其他练习一样。
+- Pinia 没有 devtools，没有 SSR 水合（`skipHydrate` 在练习里没有意义）。
+- 不加载 `@pinia/colada`、`pinia-colada` 等其他库。
+
 ### 4.11 自测题
 
 ```md

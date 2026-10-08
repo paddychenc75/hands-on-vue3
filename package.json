@@ -40,10 +40,12 @@
     "esbuild": "0.28.2",
     "markdown-it-container": "4.0.0",
     "markdown-it-deflist": "4.0.0",
+    "pinia": "4.0.3",
     "playwright": "1.56.1",
     "typescript": "7.0.2",
     "vitepress": "1.6.4",
     "vitest": "5.0.3",
-    "vue": "3.5.43"
+    "vue": "3.5.43",
+    "vue-router": "5.3.1"
   }
 }

@@ -179,6 +179,23 @@ async function runLabs(browser, base, ch) {
           `${id}: 半成品原样提交${f.all ? '通过(错)' : '不通过'}，${marks} 个 ✏️ 占位` + (sameAsSolution ? '，和参考答案相同(错)' : '') + (broken ? '，构造失败(错)' : '') + (marks < 1 ? '，没有占位(错)' : ''))
       }
 
+      // ---- 声明了 libs: ['vue-router'] 的练习：把参考答案里的 createMemoryHistory 换成 createWebHistory，必须给出明确的错误，且页面地址不变 ----
+      for (const id of ids) {
+        const e = EX[id]
+        if (!e || !(e.libs || []).includes('vue-router')) continue
+        const url0 = p.url()
+        const js = (e.solJs || e.js).replace(/createMemoryHistory\(/, 'createWebHistory(')
+        const errText = await p.evaluate(async ([id, tpl, js]) => {
+          const r = document.querySelector('.ex[data-ex="' + id + '"]')
+          r.__setCode(tpl, js)
+          r.querySelector('[data-a="run"]').click()
+          await new Promise(s => setTimeout(s, 500))
+          return (r.querySelector('.ex-err') || {}).textContent || ''
+        }, [id, e.solTpl || e.tpl, js])
+        log(js !== (e.solJs || e.js) && /createWebHistory/.test(errText) && /createMemoryHistory/.test(errText) && p.url() === url0,
+          `${id}: 用 createWebHistory 时给出明确的错误并保持页面地址不变（${errText.slice(0, 60)}）`)
+      }
+
       // 编辑器真的可以输入（走真实键盘路径）
       if (ids.length) {
         const first = p.locator('.ex[data-ex="' + ids[0] + '"] .cm-content').first()

@@ -400,3 +400,145 @@ authGuard.faded = {
   js: sub(sub(authGuard.solJs, "  // 只保护需要登录的路由。/login 没有 requiresAuth，所以不重定向\n", ''),
     'to.meta.requiresAuth && !loggedIn.value', 'false /* ✏️ 只在目标路由要求登录、且当前未登录时才重定向 */')
 }
+
+// ===== 真实的 Vue Router：声明 libs: ['vue-router']，脚本里直接用 createRouter / useRoute（见 AUTHORING.md 4.10）=====
+const realRouterSolJs = `const auth = reactive({ loggedIn: false })
+
+const Home = { template: '<p class="page">首页</p>' }
+
+// 登录页：登录后回到 redirect 记下的地方（已给出，不用修改）
+const Login = {
+  setup() {
+    const router = useRouter()
+    const route = useRoute()
+    function login() {
+      auth.loggedIn = true
+      router.push(route.query.redirect || '/')
+    }
+    return { login }
+  },
+  template: '<div><p class="page">请先登录</p><button @click="login">登录</button></div>'
+}
+
+const User = {
+  setup() {
+    const route = useRoute()   // 响应式的当前路由：参数变了，页面跟着变
+    return { route }
+  },
+  template: '<p class="page">用户 {{ route.params.id }} 的资料</p>'
+}
+
+const router = createRouter({
+  history: createMemoryHistory(),   // 练习里只能用 memory history，不能改页面真实的地址栏
+  routes: [
+    { path: '/', component: Home },
+    { path: '/login', component: Login },
+    { path: '/user/:id', component: User, meta: { requiresAuth: true } }   // 需要登录
+  ]
+})
+
+router.beforeEach(to => {
+  if (to.meta.requiresAuth && !auth.loggedIn) {
+    return { path: '/login', query: { redirect: to.fullPath } }   // 重定向，并记下原来要去的地方
+  }
+})
+
+return { router, auth }`
+
+export const realRouterGuard: Exercise = {
+  title: '用真实的 Vue Router：动态路由、登录守卫和响应式参数', ch: 17,
+  libs: ['vue-router'],
+  task: '<p>这道题运行在真实的 Vue Router 上：<code>createRouter</code>、<code>createMemoryHistory</code>、<code>useRoute</code>、<code>RouterLink</code>、<code>RouterView</code> 都可以直接用。练习里的路由必须用 <code>createMemoryHistory()</code>（用 <code>createWebHistory</code> 会改动页面真实的地址栏），并在脚本最后 <code>return { router }</code>，运行器替你安装。</p><p>要做的是一个“用户资料”页：未登录访问它会被送到登录页，登录后回到原来要去的页面。</p><ol><li>TODO 1：在路由表里加 <code>/user/:id</code>，显示 User，用 <code>meta</code> 标记它需要登录。</li><li>TODO 2：写 <code>router.beforeEach</code>：目标路由需要登录、而用户还没登录时，重定向到 <code>/login</code>，并在 query 的 <code>redirect</code> 里记下原来的 <code>fullPath</code>。首页和登录页不能被拦。</li><li>TODO 3：补全 User 组件，用 <code>useRoute()</code> 显示 <code>params.id</code>。从用户 1 切换到用户 2 时，页面内容要更新。</li></ol>',
+  tpl: `<nav>
+  <RouterLink to="/">首页</RouterLink> |
+  <RouterLink to="/user/1">用户 1</RouterLink> |
+  <RouterLink to="/user/2">用户 2</RouterLink>
+</nav>
+<p class="who">{{ auth.loggedIn ? '已登录' : '未登录' }}</p>
+<RouterView />`,
+  js: `const auth = reactive({ loggedIn: false })
+
+const Home = { template: '<p class="page">首页</p>' }
+
+// 登录页：登录后回到 redirect 记下的地方（已给出，不用修改）
+const Login = {
+  setup() {
+    const router = useRouter()
+    const route = useRoute()
+    function login() {
+      auth.loggedIn = true
+      router.push(route.query.redirect || '/')
+    }
+    return { login }
+  },
+  template: '<div><p class="page">请先登录</p><button @click="login">登录</button></div>'
+}
+
+// TODO 3：用 useRoute() 显示 params.id，格式是“用户 1 的资料”
+const User = {
+  template: '<p class="page">用户（TODO）</p>'
+}
+
+const router = createRouter({
+  history: createMemoryHistory(),   // 练习里只能用 memory history，不能改页面真实的地址栏
+  routes: [
+    { path: '/', component: Home },
+    { path: '/login', component: Login }
+    // TODO 1：加上 /user/:id，显示 User，并标记需要登录
+  ]
+})
+
+// TODO 2：router.beforeEach 登录守卫
+
+return { router, auth }`,
+  solJs: realRouterSolJs,
+  hints: [
+    '路由表里，动态参数写成 /user/:id；自定义字段放在 meta 里，守卫通过 to.meta 读到它。守卫收到目标路由 to，返回一个地址就是重定向。第 17 章 17.1 讲了路由表，17.6 讲了守卫。',
+    '守卫：router.beforeEach(to => { if (to.meta.requiresAuth && !auth.loggedIn) return { path: \'/login\', query: { redirect: to.fullPath } } })。User 组件：const route = useRoute()，模板里读 route.params.id。',
+    realRouterSolJs
+  ],
+  async check(T) {
+    const r = T.router;
+    if (!r) { T.ok(false, '脚本里要 createRouter(…) 并 return { router }，运行器才会安装路由'); return; }
+    const path = () => r.currentRoute.value.path;
+    const page = () => ((T.$('.page') || {}).textContent || '');
+    const link = t => T.$$('a').find(a => (a.textContent || '').includes(t));
+    T.ok(path() === '/' && page() === '首页', '未登录也能访问首页（守卫只拦需要登录的路由；当前 ' + path() + '）');
+    const l1 = link('用户 1');
+    if (!l1) { T.ok(false, '模板里有“用户 1”的 RouterLink'); return; }
+    await T.click(l1);
+    await T.waitFor(() => path() !== '/');
+    await T.settle();
+    T.ok(path() === '/login' && page().includes('请先登录'), '未登录时点“用户 1”，被重定向到 /login（当前 ' + path() + '）');
+    T.ok(r.currentRoute.value.query.redirect === '/user/1', '重定向时用 query.redirect 记下原来要去的 /user/1（当前 redirect：' + r.currentRoute.value.query.redirect + '）');
+    T.ok(!page().includes('的资料'), '未登录时看不到用户资料');
+    const lb = T.btn('登录');
+    if (!lb) { T.ok(false, '登录页上有“登录”按钮'); return; }
+    await T.click(lb);
+    await T.waitFor(() => path() === '/user/1');
+    await T.settle();
+    T.ok(path() === '/user/1' && page() === '用户 1 的资料', '登录后回到 /user/1，显示“用户 1 的资料”（当前 ' + path() + '）');
+    await T.push('/user/2');
+    T.ok(path() === '/user/2' && page() === '用户 2 的资料', '参数从 1 变成 2，页面更新为“用户 2 的资料”（useRoute() 是响应式的：不要把 params.id 取一次就存起来）');
+    await T.push('/user/3');
+    T.ok(page() === '用户 3 的资料', '参数变成 3，页面更新为“用户 3 的资料”');
+    await T.push('/');
+    T.ok(path() === '/' && page() === '首页', '登录后回到首页');
+  },
+  wrong: [
+    { js: sub(sub(realRouterSolJs, 'return { route }', 'return { id: route.params.id }   // 只取了一次'), '{{ route.params.id }} 的资料', '{{ id }} 的资料'),
+      why: '在 setup 里把 route.params.id 取出来存成普通值，只取了一次。从用户 1 切到用户 2，路由复用同一个 User 组件，setup 不会重新运行，页面还是“用户 1”。要在模板里读 route.params.id，或者用 computed / watch 追踪它。', expectFail: /响应式/ },
+    { js: sub(realRouterSolJs, "return { path: '/login', query: { redirect: to.fullPath } }   // 重定向，并记下原来要去的地方", "return '/login'   // 没有记下原目标"),
+      why: '重定向到了登录页，但没有用 query.redirect 记下原来要去的地方。登录后只能回首页，用户要重新找一遍。', expectFail: /redirect/ },
+    { js: sub(realRouterSolJs, "return { path: '/login', query: { redirect: to.fullPath } }   // 重定向，并记下原来要去的地方", "return false   // 取消导航"),
+      why: '守卫返回 false 是“取消导航”，不是重定向。未登录点链接，用户停在原地，没有到达登录页。', expectFail: /重定向/ },
+    { js: sub(realRouterSolJs, 'to.meta.requiresAuth && !auth.loggedIn', '!auth.loggedIn'),
+      why: '没有看 to.meta.requiresAuth，未登录时所有页面都被拦，包括首页和登录页本身：/login 又被重定向到 /login，陷入无限重定向。守卫只该拦标记了需要登录的路由。', expectFail: /首页/ }
+  ],
+  faded: {
+    js: sub(sub(sub(realRouterSolJs,
+      "    { path: '/user/:id', component: User, meta: { requiresAuth: true } }   // 需要登录", "    { path: /* ✏️ 带动态参数 id 的路径 */ '', component: User /* ✏️ 用 meta 标记需要登录 */ }"),
+      "return { path: '/login', query: { redirect: to.fullPath } }   // 重定向，并记下原来要去的地方", "/* ✏️ 返回什么地址，才会重定向到 /login 并记下原目标？ */"),
+      "    const route = useRoute()   // 响应式的当前路由：参数变了，页面跟着变\n    return { route }", "    /* ✏️ 拿到响应式的当前路由，并交给模板 */\n    return {}")
+  }
+}

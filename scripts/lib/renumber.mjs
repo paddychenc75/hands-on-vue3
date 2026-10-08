@@ -1,4 +1,5 @@
-// 在中间插入一章时，后面的章号都要 +1。这里放“改引用”的纯函数，new-chapter.mjs 用，单元测试覆盖。
+// 章号变了（在中间插入一章、移动一章）时，要改的引用和章号。这里放“改写文字”的纯函数，
+// renumber-plan.mjs（new-chapter / move-chapter 共用）调用，单元测试覆盖。remap* 是通用的（旧号 -> 新号），shift* 是“章号 >= from 就 +1”的特例。
 //
 // 章号出现在这些地方：
 //   文件名 NN-id.md / exercises/NN-id.ts / labs/NN-id/ / figures/NN-id/ / tests/site/labs/NN-id.js（以及所有写到这些名字的地方）
@@ -6,40 +7,65 @@
 // 章 id（frontmatter 的 id）是存储键，不变；复习卡片键快照按 id 记，所以不受影响。
 import { maskFences } from '../../course/content-parse.mjs';
 
-/** 把一行里指向章号 >= from 的引用 +1（第 N 章、N.M 节、“N.M 标题”）。规则与 validate.mjs 的引用检查一致 */
-export function shiftRefsInLine(line, from) {
-  const up = n => (Number(n) >= from ? String(Number(n) + 1) : n);
+/** 章号映射：对象 { 旧号: 新号 }（没列出的章号不变）或函数 旧号 -> 新号 */
+export const toNoFn = map => (typeof map === 'function' ? map : n => (map[n] ?? n));
+
+/** 第 N 章 / 第 N、M 章 / 第 N–M 章 / 第 N 到 M 章：括号里每个数字都映射。区间两端分别映射（区间跨过被移动的章时含义会变，调用方要人工核对） */
+const CH_REF = /(第\s*)(\d+(?:\s*(?:[、,，和与]|[–—\-~到至])\s*\d+)*)(\s*章)/g;
+
+/**
+ * 把一行里指向章 X 的引用改成指向 map(X)：第 N 章、N.M 节、“N.M 标题”。
+ * 规则与 validate.mjs 的引用检查一致。map 见 toNoFn。章内 id 不变，所以只改数字。
+ */
+export function remapRefsInLine(line, map) {
+  const f = toNoFn(map);
+  const up = n => String(f(Number(n)));
   return line
-    .replace(/(第\s*)(\d+)(\s*章)/g, (_m, a, n, b) => a + up(n) + b)
+    .replace(CH_REF, (_m, a, nums, b) => a + nums.replace(/\d+/g, up) + b)
     .replace(/(?<![\d.])(\d{1,2})(\.\d{1,2}\s*节(?![点流省约奏日制]))/g, (_m, n, rest) => up(n) + rest)
     .replace(/([“"])(\d{1,2})(\.\d{1,2}\s+[^”"]+[”"])/g, (_m, q, n, rest) => q + up(n) + rest);
 }
 
-/** 对整段文字做 shiftRefsInLine。markdown 为真时跳过围栏代码块 */
-export function shiftRefs(text, from, { markdown = false } = {}) {
+/** 对整段文字做 remapRefsInLine。markdown 为真时跳过围栏代码块 */
+export function remapRefs(text, map, { markdown = false } = {}) {
   const lines = text.split('\n');
   const fenced = markdown ? maskFences(text).fenced : [];
-  return lines.map((l, i) => (fenced[i] ? l : shiftRefsInLine(l, from))).join('\n');
+  return lines.map((l, i) => (fenced[i] ? l : remapRefsInLine(l, map))).join('\n');
 }
 
-/** 小节标题 ### N.M → ### (N+1).M，只改章号 === oldNo 的 */
-export function shiftHeadings(text, oldNo) {
+/** 章号 >= from 的引用 +1（在中间插入一章时用） */
+export const shiftRefsInLine = (line, from) => remapRefsInLine(line, n => (n >= from ? n + 1 : n));
+export const shiftRefs = (text, from, opts) => remapRefs(text, n => (n >= from ? n + 1 : n), opts);
+
+/** 小节标题 ### N.M → ### newNo.M，只改章号 === oldNo 的 */
+export function remapHeadings(text, oldNo, newNo) {
   const { fenced } = maskFences(text);
   return text
     .split('\n')
-    .map((l, i) => (fenced[i] ? l : l.replace(/^(###\s+)(\d+)(\.\d+\s)/, (m, a, n, b) => (Number(n) === oldNo ? a + (oldNo + 1) + b : m))))
+    .map((l, i) => (fenced[i] ? l : l.replace(/^(###\s+)(\d+)(\.\d+\s)/, (m, a, n, b) => (Number(n) === oldNo ? a + newNo + b : m))))
     .join('\n');
 }
+export const shiftHeadings = (text, oldNo) => remapHeadings(text, oldNo, oldNo + 1);
 
-/** frontmatter 的 chapter: N → N+1 */
-export function shiftFrontmatterChapter(text, oldNo) {
-  return text.replace(/^(chapter:\s*)(\d+)\s*$/m, (m, a, n) => (Number(n) === oldNo ? a + (oldNo + 1) : m));
+/** frontmatter 的 chapter: oldNo → newNo */
+export function remapFrontmatterChapter(text, oldNo, newNo) {
+  return text.replace(/^(chapter:\s*)(\d+)\s*$/m, (m, a, n) => (Number(n) === oldNo ? a + newNo : m));
+}
+export const shiftFrontmatterChapter = (text, oldNo) => remapFrontmatterChapter(text, oldNo, oldNo + 1);
+
+/** frontmatter 的 stage: N → stage（只改文件开头 --- 之间的那一行，正文里的同名文字不动） */
+export function setFrontmatterStage(text, stage) {
+  const m = /^---\n([\s\S]*?)\n---(?=\n|$)/.exec(text);
+  if (!m) return text;
+  const fm = m[1].replace(/^(stage:\s*)\d+\s*$/m, (_x, a) => a + stage);
+  return text.slice(0, 4) + fm + text.slice(4 + m[1].length);
 }
 
-/** 练习里的 ch: N → N+1（只改等于 oldNo 的） */
-export function shiftExerciseCh(text, oldNo) {
-  return text.replace(/\bch:\s*(\d+)\b/g, (m, n) => (Number(n) === oldNo ? m.replace(n, String(oldNo + 1)) : m));
+/** 练习里的 ch: oldNo → newNo（只改等于 oldNo 的） */
+export function remapExerciseCh(text, oldNo, newNo) {
+  return text.replace(/\bch:\s*(\d+)\b/g, (m, n) => (Number(n) === oldNo ? m.replace(n, String(newNo)) : m));
 }
+export const shiftExerciseCh = (text, oldNo) => remapExerciseCh(text, oldNo, oldNo + 1);
 
 /** 两位章号 */
 export const pad2 = n => String(n).padStart(2, '0');

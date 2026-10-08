@@ -15,7 +15,8 @@ import { parseArgs } from 'node:util';
 import { ROOT } from './lib/collect.mjs';
 import { readFrontmatter } from '../course/content-parse.mjs';
 import { loadTs } from './lib/load-ts.mjs';
-import { mapPath, pad2, renameTokens, shiftExerciseCh, shiftFrontmatterChapter, shiftHeadings, shiftRefs } from './lib/renumber.mjs';
+import { pad2 } from './lib/renumber.mjs';
+import { applyWrites, planRenumber } from './lib/renumber-plan.mjs';
 
 const usage = '用法：npm run new-chapter -- <章id> --stage <1-6> --after <已有章id> --title "标题" [--dry-run] [--allow-dirty]';
 const { values, positionals } = parseArgs({
@@ -66,7 +67,6 @@ if (fs.existsSync(path.join(chDir, newBase + '.md'))) die(`文件 course/chapter
 
 // ---------- 要改名的章 ----------
 const moved = chapters.filter(c => c.no >= newNo);
-const nameMap = Object.fromEntries(moved.map(c => [c.base, `${pad2(c.no + 1)}-${c.base.replace(/^\d+-/, '')}`]));
 if (moved.some(c => c.base.startsWith(pad2(c.no) + '-') === false)) die('有章的文件名和章号对不上，先修好（npm run check:content）');
 if (moved.length && !DRY && !values['allow-dirty'] && fs.existsSync(abs('.git'))) {
   const st = spawnSync('git', ['status', '--porcelain', '--', 'course', 'tests'], { cwd: ROOT, encoding: 'utf8' });
@@ -79,48 +79,8 @@ if (!DRY) {
   if (pre.status !== 0) die('npm run check:content 现在就不通过，先修好再加章：\n' + pre.stderr);
 }
 
-// ---------- 遍历要处理的文件 ----------
-const TEXT = /\.(md|ts|mts|vue|js|mjs|json|css)$/;
-const SKIP = new Set(['node_modules', 'dist', 'cache', '.git']);
-const files = [];
-const walk = dir => {
-  for (const e of fs.readdirSync(abs(dir), { withFileTypes: true })) {
-    if (SKIP.has(e.name)) continue;
-    const rel = `${dir}/${e.name}`;
-    if (e.isDirectory()) walk(rel);
-    else files.push(rel);
-  }
-};
-walk('course');
-walk('tests');
-const movedBases = new Set(moved.map(c => c.base));
-const noOf = Object.fromEntries(moved.map(c => [c.base, c.no]));
-const baseOf = p => path.basename(p).replace(/\.[^.]+$/, '');
-const SHIFT_FILES = p => p.startsWith('course/chapters/') || p.startsWith('course/exercises/') || p === 'course/checks/questions.ts' || /^course\/glossary/.test(p);
-const NO_RENAME_TEXT = new Set(['course/AUTHORING.md', 'course/card-keys.snapshot.json']);
-
-const writes = []; // { from, to, text|null }
-let textChanged = 0;
-for (const p of files) {
-  const to = moved.length ? mapPath(p, nameMap) : p;
-  if (!TEXT.test(p) || NO_RENAME_TEXT.has(p)) {
-    if (to !== p) writes.push({ from: p, to, text: null });
-    continue;
-  }
-  const src = fs.readFileSync(abs(p), 'utf8');
-  let text = src;
-  if (moved.length) {
-    text = renameTokens(text, nameMap);
-    if (p.startsWith('course/chapters/') && movedBases.has(baseOf(p))) {
-      text = shiftFrontmatterChapter(text, noOf[baseOf(p)]);
-      text = shiftHeadings(text, noOf[baseOf(p)]);
-    }
-    if (p.startsWith('course/exercises/') && movedBases.has(baseOf(p))) text = shiftExerciseCh(text, noOf[baseOf(p)]);
-    if (SHIFT_FILES(p)) text = shiftRefs(text, newNo, { markdown: p.endsWith('.md') });
-  }
-  if (text !== src) textChanged++;
-  if (to !== p || text !== src) writes.push({ from: p, to, text });
-}
+// ---------- 要改的文件（计算在 lib/renumber-plan.mjs，和 move-chapter 共用） ----------
+const { writes, textChanged } = planRenumber(chapters, Object.fromEntries(moved.map(c => [c.base, c.no + 1])));
 
 // ---------- 新文件 ----------
 const camel = s => s.replace(/-([a-z0-9])/g, (_m, c) => c.toUpperCase());
@@ -232,22 +192,13 @@ const created = [
 
 // ---------- 计划 / 执行 ----------
 const renames = writes.filter(w => w.from !== w.to);
-const dirs = [...new Set(renames.filter(w => /\/(labs|figures)\//.test(w.from)).map(w => path.dirname(w.from)))];
 console.log(`${DRY ? '[dry-run] ' : ''}新章：第 ${newNo} 章 ${id}（阶段 ${stage}），文件前缀 ${newBase}`);
 if (moved.length) {
   console.log(`后面 ${moved.length} 章的章号都 +1（第 ${newNo} 章到第 ${chapters.at(-1).no} 章 -> 第 ${newNo + 1} 章到第 ${chapters.at(-1).no + 1} 章）：重命名 ${renames.length} 个文件（含 labs/、figures/ 目录里的），改写 ${textChanged} 个文件的内容。`);
   if (DRY) for (const w of renames.filter(w => !/\/(labs|figures)\//.test(w.from))) console.log(`  ${w.from} -> ${w.to}`);
 }
 if (!DRY) {
-  for (const w of writes) {
-    const target = abs(w.to);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    if (w.text === null) fs.copyFileSync(abs(w.from), target);
-    else fs.writeFileSync(target, w.text);
-  }
-  const newPaths = new Set(writes.map(w => w.to));
-  for (const w of renames) if (!newPaths.has(w.from)) fs.rmSync(abs(w.from), { force: true });
-  for (const d of dirs) if (fs.existsSync(abs(d)) && !fs.readdirSync(abs(d)).length) fs.rmdirSync(abs(d));
+  applyWrites(writes);
   for (const [rel, text] of created) {
     fs.mkdirSync(path.dirname(abs(rel)), { recursive: true });
     fs.writeFileSync(abs(rel), text);
@@ -281,7 +232,7 @@ if (moved.length) {
       });
   };
   for (const f of ['README.md', 'AGENTS.md', 'course/index.md', 'course/review.md']) scan(f);
-  for (const f of files.filter(p => p.startsWith('course/.vitepress/theme/') && TEXT.test(p))) scan(f);
+  for (const f of fs.readdirSync(abs('course/.vitepress/theme'), { recursive: true }).filter(p => /\.(vue|ts|css)$/.test(p))) scan('course/.vitepress/theme/' + f);
   todoList.push(...hits.slice(0, 30), hits.length > 30 ? `  …还有 ${hits.length - 30} 处` : '');
 }
 todoList.push(

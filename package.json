@@ -17,6 +17,7 @@
     "test": "npm run check && npm run build && npm run test:e2e",
     "new-chapter": "node scripts/new-chapter.mjs",
     "move-chapter": "node scripts/move-chapter.mjs",
+    "reorder-chapters": "node scripts/reorder-chapters.mjs",
     "screenshots": "node scripts/shot.mjs",
     "prepare": "node scripts/setup-hooks.mjs"
   },

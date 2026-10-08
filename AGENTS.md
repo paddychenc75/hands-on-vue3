@@ -6,6 +6,18 @@
 
 姊妹课程是 [hands-on-react](https://github.com/paddychenc75/hands-on-react)（本机在 `../hands-on-react`）：两门课共用同一套学习机制、命令名和检查思路。差别只在内容形态：React 课用 MDX 加每课一个数据文件，Vue 课用 Markdown 加章内自测。
 
+## 发布前重构进行中（主控完成重构后删除本节）
+
+课程从未发布，没有真实学习者的记录，所以**这一轮结构重构（含后面写新章、改旧章的阶段）暂时豁免下面几条冻结规则**：
+
+- 复习卡片键（`章id#N`、`章id#cN`）和已有自测题**不冻结**：允许拆章、合并、改章 id、调整和改写已有自测题、重排小节、调整专用题的所属章。需要时用 `npm run check:content -- --update --force` 重写快照；不必逐条保护旧指纹。
+- 「先记住这几条」第 3 条、「改已有的章」第一条、「卡片键快照」一节、AUTHORING.md 里「已有题不能动」的规则**原文保留**，重构全部完成、由主控重新定一次基线（重写 `course/card-keys.snapshot.json`）之后恢复生效。
+- 章 id、实验台 id、练习 id 仍是存储键，非必要不改；拆章或合并时改了，就在提交信息里写明。
+- 学习进度（`__stage`、按章 id 存的记录）不写迁移：读到对不上的旧记录时页面忽略它，不报错（有单元测试）。
+- **不豁免**的：引用必须正确（`check:content` 照常查）、章号和文件名一致、`npm run check` 通过、提交前钩子不绕过。
+
+本轮新增的 6 个章只有骨架（文字是「【待写】」占位，`npm run check:content -- --strict` 会因此报错，这是预期的），等待写内容：`05-project-todo`、`13-project-board`、`18-data-fetching`、`20-testing`、`37-nuxt`、`42-capstone`。
+
 ## 先记住这几条
 
 1. **加章用脚手架**：`npm run new-chapter -- …`（见「怎样加一章」），不要手工拼多处。
@@ -41,6 +53,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `npm run test:site` | build + test:e2e（旧名字，保留） | 约 9 分钟 |
 | `npm run new-chapter -- <章id> --stage <1-6> --after <已有章id> --title "标题"` | 加一章 | 即时 |
 | `npm run move-chapter -- <章id> --after <已有章id> [--stage <1-6>]` | 把一章移到另一个位置（可同时改阶段），自动改名和改引用 | 即时 |
+| `npm run reorder-chapters -- <计划.json>` | 一次重排所有章的顺序和阶段（计划文件写新顺序），只扫一遍，所有章号同时映射 | 即时 |
 | `npm run screenshots -- 03-refs` | 给一章截浅色和深色整页图（只构建这一章），改版面后人工看一眼 | 十几秒 |
 
 - `npm run test:e2e` 的用法：`-- <套件> [章名 …]`，套件是 `exercises`（逐章：练习、半成品、自测、实验台）、`progress`（跨章功能）、`mechanics`（学习机制）、`glossary`（术语表和术语标注）；写了章名就只跑 exercises；什么都不写就依次跑四个。
@@ -112,6 +125,8 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 1. 生成 `course/chapters/NN-id.md`（frontmatter、目标、阅读时间、类比、术语、为什么需要它、一个小节、一道示例练习、一道自测、小结，文字是“【待写】”占位）、`course/exercises/NN-id.ts`（一道能通过的小练习，带 `hints`、`wrong`、`faded`）、`tests/site/labs/NN-id.js`（空数组）。
 2. 追加新卡片键到 `course/card-keys.snapshot.json`。
 3. **插在中间时**，后面的章全部顺延：文件改名（章、练习、`labs/`、`figures/`、测试数据）、frontmatter 的 `chapter`、练习的 `ch`、小节标题 `### N.M`、所有写到旧文件名的地方，以及章节、练习、题库、术语表、首页、阶段测验页、实验台和示意图注释、浏览器测试里的“第 N 章”（含“第 N、M 章”“第 N–M 章”写法）、小节引用（“N.M 节”、并列和区间、不带“节”的“见 N.M”、“第 X 章 N.M”、表格引用列，认法见 `scripts/lib/section-refs.mjs`，校验和改号共用）和“N.M 标题”引用，全部 +1。另外，没有“节”字的裸 N.M（“（15.6）”“15.2 的 PatchFlag”“（29.1 和 29.2）”）只要真是某个小节的编号，改号时也会一起改（版本号 Vue 2.6 和数值 15.2 秒不改；校验不查这类写法）。区间“第 N 到 M 章”跨过新插入的章时含义会变宽，要人工核对。题干里带章号引用的自测题，指纹会随之改写，脚本会列出是哪几道（卡片键不变）。动手之前它要求 `check:content` 已通过、工作区干净（`--allow-dirty` 可跳过后一条），做完用 `check:content` 复核。`--dry-run` 只列计划不改文件。
+
+**一次重排很多章**用 `npm run reorder-chapters -- plan.json`（`{ "order": [新顺序的章 id…], "stages": { "章id": 阶段号 } }`，规则同上，`scripts/lib/reorder.mjs` 算映射，有单元测试）；**拆章、挪小节**时，小节号的改写用 `scripts/lib/renumber.mjs` 的 `remapSections(text, (n, m) => [新章号, 新小节号])`。
 
 **移动一章**（换位置、换阶段）用 `npm run move-chapter -- <章id> --after <章id> [--stage N]`：夹在中间的章顺延或前移，改名和改引用的规则与插入相同（两个脚本共用 `scripts/lib/renumber-plan.mjs`）；快照里已有键的顺序和值不动，只有题干里写着章号的自测题指纹会改写。做完同样要人工核对 `tests/expected.cjs`、`course/stages.ts` 和文档里写着章顺序的文字。
 4. 脚本不改、但会列出来的地方：`tests/expected.cjs`（锁定的章数和“每个阶段的可用题数”表，章数变了测试会在这里失败）、`course/stages.ts` 里提到章范围的说明、文档里的章数（`README.md`、本文件；`npm run check:docs` 会查出过期的数字）。首页的章数、章头的总章数、侧边栏、进度统计都是从章元数据算的，不用改。

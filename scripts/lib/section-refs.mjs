@@ -108,16 +108,18 @@ export function scanSectionRefs(lines, fenced = [], known = null) {
   return out;
 }
 
-/** 把一份文字里的小节引用的章号用 f（旧号 -> 新号）改写。markdown 模式由调用方传 fenced。只改链里的数字，位置由 scanSectionRefs 给出 */
-export function remapSectionRefs(lines, f, fenced = [], known = null) {
+/**
+ * 把小节引用按 g(n, m) -> [新章号, 新小节号] 改写（拆章时用：第 20 章的 20.9 变成另一章的 21.1）。
+ * 链里的每个 N.M 单独映射；markdown 模式由调用方传 fenced。位置由 scanSectionRefs 给出。
+ */
+export function remapSectionRefsBy(lines, g, fenced = [], known = null) {
   const edits = new Map(); // 行下标 -> [{start,end,text}]
   for (const ch of scanSectionRefs(lines, fenced, known)) {
     for (const t of ch.tokens) {
-      const nn = f(t.n);
-      if (nn === t.n) continue;
-      const s = lines[ch.line].slice(t.start, t.end);
+      const [nn, mm] = g(t.n, t.m);
+      if (nn === t.n && mm === t.m) continue;
       if (!edits.has(ch.line)) edits.set(ch.line, []);
-      edits.get(ch.line).push({ start: t.start, end: t.end, text: s.replace(/^\d{1,2}/, String(nn)) });
+      edits.get(ch.line).push({ start: t.start, end: t.end, text: `${nn}.${mm}` });
     }
   }
   return lines.map((l, i) => {
@@ -127,4 +129,9 @@ export function remapSectionRefs(lines, f, fenced = [], known = null) {
     for (const e of es.sort((a, b) => b.start - a.start)) r = r.slice(0, e.start) + e.text + r.slice(e.end);
     return r;
   });
+}
+
+/** 把小节引用的章号用 f（旧号 -> 新号）改写，小节号不变。markdown 模式由调用方传 fenced。只改链里的数字 */
+export function remapSectionRefs(lines, f, fenced = [], known = null) {
+  return remapSectionRefsBy(lines, (n, m) => [f(n), m], fenced, known);
 }

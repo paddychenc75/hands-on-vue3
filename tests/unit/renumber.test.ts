@@ -1,6 +1,7 @@
 // 章号变化时改引用的纯函数（scripts/lib/renumber.mjs）。完整流程在 new-chapter / move-chapter 里（共用 lib/renumber-plan.mjs），用临时仓库副本实测过。
 import { describe, expect, it } from 'vitest'
-import { mapPath, remapExerciseCh, remapFrontmatterChapter, remapHeadings, remapRefs, renameTokens, setFrontmatterStage, shiftExerciseCh, shiftFrontmatterChapter, shiftHeadings, shiftRefs } from '../../scripts/lib/renumber.mjs'
+import { mapPath, remapExerciseCh, remapFrontmatterChapter, remapHeadings, remapRefs, remapSections, renameTokens, setFrontmatterStage, shiftExerciseCh, shiftFrontmatterChapter, shiftHeadings, shiftRefs } from '../../scripts/lib/renumber.mjs'
+import { planReorder } from '../../scripts/lib/reorder.mjs'
 
 describe('shiftRefs：章号 >= from 的引用 +1', () => {
   it('第 N 章', () => {
@@ -119,5 +120,46 @@ describe('remapRefs 的 known 选项：没有“节”字的裸 N.M 只要真是
   })
   it('“N.M 标题”只改一次（引号写法由原有规则处理，裸引用规则不重复改）', () => {
     expect(remapRefs('第 15 章“15.2 标题”和 15.4', up, { known })).toBe('第 17 章“17.2 标题”和 17.4')
+  })
+})
+
+describe('remapSections：小节级别的改号（拆章）', () => {
+  // 20.9 到 20.13 拆到第 21 章，成为 21.1 到 21.5；20.1 到 20.8 不动
+  const g = (n: number, m: number): [number, number] => (n === 20 && m >= 9 ? [21, m - 8] : [n, m])
+  it('N.M 节、并列、区间、见 N.M、第 X 章 N.M', () => {
+    expect(remapSections('见 20.5 节和 20.13 节；20.9、20.10 节；20.9 至 20.12 节', g)).toBe('见 20.5 节和 21.5 节；21.1、21.2 节；21.1 至 21.4 节')
+    expect(remapSections('第 20 章 20.8、20.11', g)).toBe('第 20 章 20.8、21.3')
+  })
+  it('“N.M 标题”写法', () => {
+    expect(remapSections('“20.10 受控与非受控”讲了判断规则，“20.6 递归组件”不动', g)).toBe('“21.2 受控与非受控”讲了判断规则，“20.6 递归组件”不动')
+  })
+  it('不改“第 N 章”，不改围栏代码块和别的章', () => {
+    expect(remapSections('第 20 章 20.9 节\n```\n// 20.9 节\n```\n19.9 节', g, { markdown: true })).toBe('第 20 章 21.1 节\n```\n// 20.9 节\n```\n19.9 节')
+  })
+  it('known：没有“节”字的裸 N.M 只要真是小节编号也改', () => {
+    const known = new Set(['20.9', '20.11'])
+    expect(remapSections('（20.11）说过；Vue 20.9 版', g, { known })).toBe('（21.3）说过；Vue 20.9 版')
+  })
+})
+
+describe('planReorder：一次重排所有章', () => {
+  const chs = [
+    { base: '01-a', id: 'a', no: 1, stage: 1 },
+    { base: '02-b', id: 'b', no: 2, stage: 2 },
+    { base: '03-c', id: 'c', no: 3, stage: 2 },
+    { base: '04-d', id: 'd', no: 4, stage: 3 },
+  ]
+  it('算出新章号和阶段变化', () => {
+    const r = planReorder(chs, { order: ['a', 'c', 'b', 'd'], stages: { d: 2 } })
+    expect(r.errors).toEqual([])
+    expect(r.renumber).toEqual({ '01-a': 1, '02-b': 3, '03-c': 2, '04-d': 4 })
+    expect(r.stages).toEqual({ '04-d': 2 })
+  })
+  it('漏章、重复、未知 id、阶段倒退都报错', () => {
+    expect(planReorder(chs, { order: ['a', 'b', 'c'] }).errors.join()).toMatch(/漏了章 "d"/)
+    expect(planReorder(chs, { order: ['a', 'b', 'b', 'c', 'd'] }).errors.join()).toMatch(/出现了两次/)
+    expect(planReorder(chs, { order: ['a', 'b', 'c', 'd', 'x'] }).errors.join()).toMatch(/"x" 不是已有的章/)
+    expect(planReorder(chs, { order: ['d', 'a', 'b', 'c'] }).errors.join()).toMatch(/同一阶段的章要连续/)
+    expect(planReorder(chs, { order: ['a', 'b', 'c', 'd'], stages: { a: 99 } }).errors.join()).toMatch(/阶段号必须是 1 到/)
   })
 })

@@ -6,7 +6,7 @@
 //   frontmatter 的 chapter；练习里的 ch；小节标题 ### N.M；正文、练习提示、题库里的“第 N 章”“N.M 节”“N.M 标题”
 // 章 id（frontmatter 的 id）是存储键，不变；复习卡片键快照按 id 记，所以不受影响。
 import { maskFences } from '../../course/content-parse.mjs';
-import { remapSectionRefs } from './section-refs.mjs';
+import { remapSectionRefs, remapSectionRefsBy } from './section-refs.mjs';
 
 /** 章号映射：对象 { 旧号: 新号 }（没列出的章号不变）或函数 旧号 -> 新号 */
 export const toNoFn = map => (typeof map === 'function' ? map : n => (map[n] ?? n));
@@ -39,6 +39,24 @@ function remapLines(lines, map, fenced = [], known = null) {
 export function remapRefs(text, map, { markdown = false, known = null } = {}) {
   const fenced = markdown ? maskFences(text).fenced : [];
   return remapLines(text.split('\n'), map, fenced, known).join('\n');
+}
+
+/**
+ * 小节级别的改号（拆章、挪小节时用）：g(n, m) -> [新章号, 新小节号]。改小节引用（N.M 节、见 N.M、并列和区间、表格引用列，认法见 section-refs.mjs）
+ * 和“N.M 标题”两种写法；“第 N 章”不动，由调用方另行处理。markdown 为真时跳过围栏代码块。known 同 remapRefs。
+ */
+export function remapSections(text, g, { markdown = false, known = null } = {}) {
+  const fenced = markdown ? maskFences(text).fenced : [];
+  return remapSectionRefsBy(text.split('\n'), g, fenced, known)
+    .map((line, i) =>
+      fenced[i]
+        ? line
+        : line.replace(/([“"])(\d{1,2})\.(\d{1,2})(\s+[^”"]+[”"])/g, (_m, q, n, m, rest) => {
+            const [nn, mm] = g(Number(n), Number(m));
+            return q + nn + '.' + mm + rest;
+          }),
+    )
+    .join('\n');
 }
 
 /** 章号 >= from 的引用 +1（在中间插入一章时用） */

@@ -352,7 +352,7 @@ const chainOf = inst => { const a = []; for (let c = inst; c; c = c.$parent) a.p
 // 例：['UserCard', 'Panel', 'App']
 ```
 
-两个事实：组件名在生产构建压缩后仍然可用，因为 `name` 和 SFC 编译器写入的 `__name` 是字符串属性，不会被压缩改名。函数式组件没有实例，`$parent` 链会跳过它们。开发版有更完整的“组件追踪”：警告里的 `at <Child> at <App>`，可以通过 `app.config.warnHandler(msg, instance, trace)` 拿到。**`warnHandler` 只在开发版调用**，生产版的警告函数是空的，不能依赖它。
+两个事实：组件名在生产构建压缩后仍然可用，因为 `name` 和 SFC 编译器写入的 `__name` 是字符串属性，不会被压缩改名。函数式组件没有实例，`$parent` 链会跳过它们。开发版有更完整的“组件追踪”：警告里的 `at <Child> at <App>`，可以通过 `app.config.warnHandler(msg, instance, trace)` 拿到。<b>`warnHandler` 只在开发版调用</b>，生产版的警告函数是空的，不能依赖它。
 
 **去重、采样、限流。**一个渲染错误出现在 1000 行的列表里，会产生 1000 次上报。一个出错的侦听器在循环里触发，一秒钟几千次。没有保护，监控服务的配额被一个 bug 用光，用户的网络也被占满。
 

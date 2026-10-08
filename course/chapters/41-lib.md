@@ -326,7 +326,7 @@ type Inst = ComponentInstance<typeof MiniButton>                         // vue 
 - **`app.use` 全量注册：**`install` 里引用了所有组件，所以 `app.use(MiniUI)` 等于导入全部。这不是错误，是提供“全量安装”这个选择的代价。
 - **默认导出一个大对象：**`export default { MiniButton, MiniList }` 让使用者拿到的是一个整体，打包器通常不能拆开其中的属性。用具名导出。
 
-所以库要同时提供两个入口：具名导出的组件给按需用，一个单独的 `plugin.ts` 给全量用，并且**组件文件不能导入 `plugin.ts`**：
+所以库要同时提供两个入口：具名导出的组件给按需用，一个单独的 `plugin.ts` 给全量用，并且<b>组件文件不能导入 `plugin.ts`</b>：
 
 ```ts
 // src/plugin.ts：只被 index.ts 当作一个具名导出重新导出

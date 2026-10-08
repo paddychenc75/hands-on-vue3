@@ -266,7 +266,7 @@ async function toggleLike(post) {
 
 ### 18.5 错误与请求层
 
-先看一个常被忽略的事实：**`fetch` 遇到 404 或 500 不会抛错。**只有网络中断、域名解析失败这类“根本没拿到响应”的情况，它才会抛出 `TypeError`。HTTP 错误要自己检查 `res.ok`。
+先看一个常被忽略的事实：<b>`fetch` 遇到 404 或 500 不会抛错。</b>只有网络中断、域名解析失败这类“根本没拿到响应”的情况，它才会抛出 `TypeError`。HTTP 错误要自己检查 `res.ok`。
 
 ```js
 const res = await fetch('/api/users/9')   // 服务器返回 404：这一行不抛错

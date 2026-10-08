@@ -353,7 +353,7 @@ function getCurrentScope() { return activeScope }
 - **收集靠“当前作用域”这个全局变量。**`run(fn)` 临时设置它，`fn` 里同步创建的 effect、watch、子作用域都登记到这个作用域。`finally` 里恢复成进入前的值，所以嵌套 `run` 能回到外层。`fn` 里 `await` 之后创建的不会被收集，原因和 26.6 一样。
 - **游离的作用域。**`effectScope(true)` 不挂在父作用域下。父作用域 `stop` 时，它仍然活着。`instance.scope` 本身就是游离的：组件的作用域不挂在父组件的作用域下，子组件靠 `unmountComponent` 递归卸载。
 - **`onScopeDispose(fn)`** 把 `fn` 放进当前作用域的 `cleanups`，作用域停止时运行。组件卸载时 `scope.stop()` 会调用它，`effectScope().run()` 里创建的同样有效，所以组合式函数用它清理（第 8 章 8.5 节讲过这个选择）。没有活动作用域时，真实版警告而不报错。
-- **`scope.stop()` 之后 `scope.run()`**：返回 `undefined`，不运行 `fn`，真实版在开发环境警告 `cannot run an inactive effect scope`。
+- <b>`scope.stop()` 之后 `scope.run()`</b>：返回 `undefined`，不运行 `fn`，真实版在开发环境警告 `cannot run an inactive effect scope`。
 - **computed 不在 `effects` 里。**真实的 3.5 里，只有 `ReactiveEffect` 的实例会登记，computed 不是，所以 `scope.stop()` 不会“停止”它。实测：`scope.stop()` 之后修改依赖，读 `double.value` 仍然得到新的结果。它不泄漏，因为没有 effect 订阅它之后，它也不被任何依赖列表引用，可以被回收（所以第 8 章 8.5 节和第 35 章 35.1 节只说 `watch` 和 `watchEffect` 随作用域停止，`computed` 不用停止）。迷你版的 computed 内部用 `effect` 实现，会登记进作用域，这是和真实版的差别。
 
 下面的练习实现迷你 effectScope，支持嵌套、游离和 stop。

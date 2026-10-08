@@ -158,7 +158,7 @@ function reactive(target) {
 - **get**：先 `track`，再读值。值是对象就返回它的代理，嵌套对象在被访问时才包装。
 - **set**：新旧值相同（`Object.is`）就不触发。**deleteProperty**：删除确实存在的属性也要触发。
 - **proxyMap**：同一个对象只有一个代理，`reactive(o) === reactive(o)`。
-- **`__v_raw`**：特殊的键，读它得到原始对象。24.7 的 `toRaw` 用它。
+- <b>`__v_raw`</b>：特殊的键，读它得到原始对象。24.7 的 `toRaw` 用它。
 
 ::: think get 为什么使用 Reflect.get(t, k, r)？
 第三个参数 r 让 getter 中的 `this` 指向代理对象。示例：`get full() { return this.first + this.last }`。如果使用 `t[k]`，this 指向原始对象。这时读取 first 和 last 不经过代理，Vue 不能收集依赖。

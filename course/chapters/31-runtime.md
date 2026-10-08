@@ -187,7 +187,7 @@ const mountComponent = (initialVNode, container, anchor, parentComponent) => {
 
 运行 `setup` 时，Vue 先调用 `pauseTracking()`，并把 `currentInstance` 设为这个实例（第 7 章的深入块）。后果是：**setup 里读取的响应式数据不会成为任何东西的依赖。**原因在于子组件的 `setup` 运行在父组件的渲染副作用函数里，不暂停的话，子组件 `setup` 里读到的数据会被收集到父组件头上。第 28 章说“不要在 setup 顶层保存 `props.level`”，原因也在这里：`setup` 里读到的值只是当时的快照。
 
-这也回答了一个常见问题：**`setup` 为什么只运行一次，渲染函数却运行很多次？**`setup` 在第 ② 步被调用，它不在任何副作用函数里。第 ③ 步创建的副作用函数只包着“渲染函数加 patch”。数据变化时，重新运行的只是这个副作用函数。
+这也回答了一个常见问题：<b>`setup` 为什么只运行一次，渲染函数却运行很多次？</b>`setup` 在第 ② 步被调用，它不在任何副作用函数里。第 ③ 步创建的副作用函数只包着“渲染函数加 patch”。数据变化时，重新运行的只是这个副作用函数。
 
 ### 31.4 setupRenderEffect：把响应式和更新队列接起来
 

@@ -1,6 +1,6 @@
 # AGENTS.md：维护“动手学 Vue 3”课程
 
-这是一套中文交互式 Vue 3 课程：42 章，6 个阶段（入门、进阶、高级、原理与架构、生态与实战、深入），外加一页速查表。站点用 **VitePress** 构建，静态发布到 GitHub Pages。每章是一个 Markdown 文件，自测题内联在 Markdown 里；练习的判题数据在 `course/exercises/`，实验台是 Vue 组件，引擎逻辑在 `course/engine/`。进度只存在浏览器里。
+这是一套中文交互式 Vue 3 课程：42 章，6 个阶段（入门、进阶、生态与实战、响应式原理、渲染原理、架构与工程），其中六章是选读，四章是动手做的项目章，外加一页速查表。站点用 **VitePress** 构建，静态发布到 GitHub Pages。每章是一个 Markdown 文件，自测题内联在 Markdown 里；练习的判题数据在 `course/exercises/`，实验台是 Vue 组件，引擎逻辑在 `course/engine/`。进度只存在浏览器里。
 
 用户用中文交流。回复、提交信息和课程文字都用中文。本文件是唯一的规则源：`CLAUDE.md` 只导入它，Codex 等其他 agent 直接读它。
 
@@ -68,11 +68,12 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 
 | 位置 | 放什么 | 不放什么 |
 |---|---|---|
-| `course/chapters/NN-id.md` | 一章一个文件，`NN` 是两位章号，`id` 是章的稳定编号。`cheat.md` 是速查表（没有章号）。`27-quiz.md` 只是旧地址的跳转页（它的文件名带 27，和第 27 章 `27-migrate.md` 并存、互不冲突：它没有 `id`，不是章，`REDIRECT_PAGES` 把它排除在所有校验和侧边栏之外；URL 要保持 `/chapters/27-quiz`，所以不改名） | 练习判题、实验台代码 |
+| `course/chapters/NN-id.md` | 一章一个文件，`NN` 是两位章号，`id` 是章的稳定编号。`cheat.md` 是速查表（没有章号）。`27-quiz.md` 只是旧地址的跳转页（它的文件名带 27，和第 27 章 `27-reactivity-pitfalls.md` 并存、互不冲突（文件名不同，输出的页面地址也不同）：它没有 `id`，不是章，`REDIRECT_PAGES` 把它排除在所有校验和侧边栏之外；URL 要保持 `/chapters/27-quiz`，所以不改名） | 练习判题、实验台代码 |
 | `course/site.mjs` | 站点部署路径 `BASE_PATH`，**唯一的定义处**：`config.mts`、测试、脚本都从它取 | — |
 | `course/content-parse.mjs` | 章节 Markdown 的纯文本解析（frontmatter、自测题、小结、术语块、阅读时间、术语汇总）。站点构建和 Node 脚本共用这一份 | 读文件、DOM |
 | `course/writing-terms.mjs` | 首页「写作规则」表的数据（带“不使用的同义词”），术语表页的“不这样说”一栏也用它 | — |
 | `course/stages.ts` | 6 个阶段的唯一定义（编号、名称、英文副标题、说明）。一章属于哪个阶段，由它 frontmatter 的 `stage` 决定 | 章的内容 |
+| `course/learning-paths.mjs` | 首页「学习路线」的三条路线（想尽快能做项目、想系统掌握、已有 Vue 经验想补原理）。只写章 id，章号由首页从元数据取；`check:content` 校验 id、阶段号、章按章号排列 | 写死的章号 |
 | `course/exercises/NN-id.ts` | 该章的练习数据（判题函数、错误解法、提示、半成品）。自动汇总，不用登记；`types.ts` 是类型 | 共用辅助模块（会被当成一章的练习收集） |
 | `course/labs/NN-id/*.vue` | 实验台组件；`_shared/` 是各章共用的辅助函数 | — |
 | `course/figures/NN-id/*.vue` | 示意图（按内容命名，只含 `<template>`） | — |
@@ -84,10 +85,10 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `course/.vitepress/` | `config.mts`（站点配置、base、自定义容器、章头和热身的自动注入、并行构建变量）、`sidebar.mts`、`course-data.mts`（构建时从各章抽数据，生成虚拟模块）、`markdown-cjk.mts`、`theme/`（`components/*.vue` 全局注册，`composables/learn.ts` 是界面读写进度的唯一入口，`composables/terms.ts` + `term-match.ts` 是术语标注，`style.css` 全部样式） | 学习机制的逻辑 |
 | `course/AUTHORING.md` | 内容写作细则：每种 Markdown 写法、练习字段、实验台、示意图、测试数据、踩过的坑 | — |
 | `editor/entry.js` | 练习编辑器（CodeMirror 6），被 `Exercise` 组件直接导入 | — |
-| `scripts/` | `check-content.mjs`（内容校验）、`check-docs.mjs`（文档数字核对）、`new-chapter.mjs`（加章脚手架）、`e2e.mjs`（浏览器测试入口）、`setup-hooks.mjs`（启用提交前钩子）、`shot.mjs`（截图）；`lib/` 是它们共用的（`validate.mjs` 是全部校验规则，`section-refs.mjs` 是小节引用的统一扫描（校验和改号共用），`known-issues.mjs` 是临时豁免，目前是空的） | — |
+| `scripts/` | `check-content.mjs`（内容校验）、`check-docs.mjs`（文档数字核对）、`new-chapter.mjs`（加章脚手架）、`e2e.mjs`（浏览器测试入口）、`setup-hooks.mjs`（启用提交前钩子）、`shot.mjs`（截图）；`lib/` 是它们共用的（`validate.mjs` 是全部校验规则，`section-refs.mjs` 是小节引用的统一扫描（校验和改号共用），`known-issues.mjs` 是临时豁免，目前是空的；`ref-tense.mjs` 查引用的措辞和对象章的位置是否一致；`reorder.mjs` 和 `reorder-chapters.mjs` 一次重排所有章） | — |
 | `tests/unit/` | Vitest 单元测试（`*.test.ts`）；规则对照表见 `tests/unit/README.md` | 需要浏览器的测试 |
 | `tests/site/` | Playwright 测试：`exercises.test.js`、`progress.test.js`、`mechanics.test.js`、`glossary.test.js`，`helpers.js` 是共用的；`labs/NN-id.js` 是各章实验台的测试数据 | — |
-| `tests/expected.cjs` | 测试里**锁定**的章数和每阶段题数，集中在这一个文件；其余数字都从元数据算 | 别处再写死数字 |
+| `tests/expected.cjs` | 测试里**锁定**的章数、选读章 id 和每阶段题数，集中在这一个文件；其余数字都从元数据算 | 别处再写死数字 |
 | `docs/` | 三份旧审查报告和教学设计调研。**它们针对的是第 14 版单文件课程**（`vue3-course.html`，已删除，取回见提交 `a2fe105`），只作背景参考，不检查 | — |
 | `.github/` | `workflows/ci.yml`（check + e2e）、`deploy.yml`（CI 通过后部署）、`dependabot.yml` | — |
 | `.githooks/` | 提交前钩子（`check:content` + `check:docs`） | — |
@@ -222,7 +223,7 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 
 - **进度**只存在浏览器 `localStorage['hands-on-vue3-v1']`（单个键，结构见 `course/engine/types.ts` 的 `Progress`，细则见 `course/AUTHORING.md` 第 6 节）；服务端渲染时为空。界面读写只经过 `theme/composables/learn.ts`，它封装 `course/engine/`。旧版零散的进度键由引擎第一次读取时一次性迁移，之后不再读写。依赖进度的组件挂载后才显示真实数字（`ensureReady()`），避免水合不一致；引擎的进度对象是原地修改的，**不要把 `cpOf()` 的结果缓存在 `computed` 里**（引用不变，下游不会重算），要在每个 `computed` 里直接调用。存进去的页面路径（`__last.path`）不带 base。
 - **章数据在构建时抽取**：`course/.vitepress/course-data.mts` 是一个 Vite 插件，用 `content-parse.mjs` 从各章 Markdown 抽出元数据、自测题、小结、术语，生成虚拟模块（`virtual:course-meta`、`-selfchecks`、`-summaries`、`-glossary`，说明见 `course/AUTHORING.md` 第 7 节）。复习页、阶段测验、热身用动态 import 载入大的那一个。术语表页和术语标注（章里术语的虚线下划线）也由它供数据。
-- **实验台直接用的 Vue 编译器和开发构建**：第 17 章的实验台动态载入 `@vue/compiler-dom` 和 `@vue/compiler-sfc` 的浏览器构建；第 16、33、34 章的实验台动态载入 `vue/dist/vue.esm-browser.js`（开发构建，因为 `onRenderTracked`、`onRenderTriggered` 等钩子只有开发构建才有；第 34 章还把它当作“库自带的第二份 Vue”）。它们都是按需加载的独立分块（第 16、33、34 章共用同一个 `vue.esm-browser.js` 分块），只在用到它们的章页面预加载，不在站点入口里；页面上因此有两份 Vue（站点自己的生产构建和实验台里的开发构建，各有各的响应式和调度队列，实验台的应用挂在自己新建的 div 里）。两份 Vue 之间断开的是响应式（“当前正在运行的副作用”各记各的），**当前组件实例不会断开**：runtime-core 把设置当前实例的函数登记在 `globalThis.__VUE_INSTANCE_SETTERS__`，每份 Vue 设置当前实例时通知所有副本，所以 `provide/inject` 和生命周期钩子跨副本仍然能用。后果是响应式悄悄失效而没有任何报错（第 34 章实测）。`@vue/compiler-dom`、`@vue/compiler-sfc` 在 `devDependencies` 里固定为和 `vue` 相同的版本，升级 `vue` 时三个一起升（Dependabot 已把 `@vue/*` 和 `vue` 分在同一组）。
+- **实验台直接用的 Vue 编译器和开发构建**：第 29 章的实验台动态载入 `@vue/compiler-dom` 和 `@vue/compiler-sfc` 的浏览器构建；第 27、40、41 章的实验台动态载入 `vue/dist/vue.esm-browser.js`（开发构建，因为 `onRenderTracked`、`onRenderTriggered` 等钩子只有开发构建才有；第 41 章还把它当作“库自带的第二份 Vue”）。它们都是按需加载的独立分块（第 27、40、41 章共用同一个 `vue.esm-browser.js` 分块），只在用到它们的章页面预加载，不在站点入口里；页面上因此有两份 Vue（站点自己的生产构建和实验台里的开发构建，各有各的响应式和调度队列，实验台的应用挂在自己新建的 div 里）。两份 Vue 之间断开的是响应式（“当前正在运行的副作用”各记各的），**当前组件实例不会断开**：runtime-core 把设置当前实例的函数登记在 `globalThis.__VUE_INSTANCE_SETTERS__`，每份 Vue 设置当前实例时通知所有副本，所以 `provide/inject` 和生命周期钩子跨副本仍然能用。后果是响应式悄悄失效而没有任何报错（第 41 章实测）。`@vue/compiler-dom`、`@vue/compiler-sfc` 在 `devDependencies` 里固定为和 `vue` 相同的版本，升级 `vue` 时三个一起升（Dependabot 已把 `@vue/*` 和 `vue` 分在同一组）。
 - **练习和实验台只在浏览器里渲染**，服务端渲染出来的只有占位。练习需要运行时编译模板，`Exercise` 组件挂载后动态 `import('vue/dist/vue.esm-bundler.js')`，所以**不要给站点的 `vue` 做 alias**。
 - **侧边栏**由 `sidebar.mts` 从各章 frontmatter（`chapter`、`stage`、`title`）自动生成，不用手写；顶部固定入口是今日复习、术语表、速查表；动态标记由 `AppEffects` 写成属性（`data-badge`、`data-count`、`data-check`）。
 - **选读章**：frontmatter 写 `optional: true`。侧边栏（`sidebar.mts` 在章名后加 `.opt-tag` 标签）、章头、首页阶段卡片显示“选读”；顶栏和首页的“已完成 N/M”、各阶段完成数只数必读章，选读章学了照常记录和显示已完成，另外统计（`engine/logic/completion.ts` 的 `tallyProgress`，界面经 `learn.ts` 的 `stageCount`、`totalCount` 取）。

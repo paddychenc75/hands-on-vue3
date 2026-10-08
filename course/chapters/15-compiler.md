@@ -3,7 +3,7 @@ title: 模板编译
 id: compiler
 stage: 4
 chapter: 15
-desc: 渲染函数、PatchFlags、Block Tree
+desc: 编译三步、PatchFlags、Block Tree、SFC 编译
 ---
 
 <script setup>
@@ -11,6 +11,8 @@ import PatchFlagsPipeline from '../figures/15-compiler/PatchFlagsPipeline.vue'
 import BlockDynamicChildren from '../figures/15-compiler/BlockDynamicChildren.vue'
 import OnlineCompile from '../labs/15-compiler/OnlineCompile.vue'
 import BlockTree from '../labs/15-compiler/BlockTree.vue'
+import CompileSteps from '../labs/15-compiler/CompileSteps.vue'
+import SfcSplit from '../labs/15-compiler/SfcSplit.vue'
 </script>
 
 # 模板编译
@@ -19,11 +21,13 @@ import BlockTree from '../labs/15-compiler/BlockTree.vue'
 <Goal checks="sc:3">说明模板变成 DOM 的步骤。</Goal>
 <Goal checks="sc:0,ex:patchFlagFix,ex:flagBitFill">读懂编译结果中的 PatchFlag。</Goal>
 <Goal checks="sc:1,sc:2">说明 Vue3 更新比 Vue2 快的编译原因。</Goal>
+<Goal checks="sc:5,sc:6,ex:miniTransform,ex:miniGenerate">说明 parse、transform、generate 各做什么，并写出一个节点转换和一个迷你代码生成。</Goal>
+<Goal checks="sc:7,sc:8">说明一个 .vue 文件被拆成哪几块，各由 compiler-sfc 的哪个函数编译。</Goal>
 
 :::
 
 ::: rt
-阅读主线约 11 分钟，深入内容约 2 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 18 分钟，深入内容约 4 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -42,6 +46,12 @@ Block
 
 静态缓存
 : 不会变的节点只创建一次，以后每次更新都复用。
+
+模板 AST
+: 编译器把模板字符串解析成的树。每个标签、属性、指令、文字是一个节点对象。
+
+节点转换
+: 编译器遍历模板 AST 时，对每个节点运行的函数。它给节点添加优化信息，例如 PatchFlag。
 :::
 
 ::: why
@@ -82,7 +92,7 @@ export default defineConfig({
 
 只在确实需要在浏览器中编译模板时这样做。SFC 中的 `<template>` 不需要它。
 
-transform 这一步加入三类优化信息：PatchFlags、Block Tree 和缓存。下面三节分别说明。
+transform 这一步加入三类优化信息：PatchFlags、Block Tree 和缓存。下面三节分别说明。15.5 节打开 parse、transform 和 generate 三步，15.6 节说明 `.vue` 文件怎样被拆开编译。
 
 ### 15.2 PatchFlags：标记节点的动态部分
 
@@ -179,8 +189,10 @@ function patchElement(n1, n2) {
 所以 `dynamicChildren` 里有三类节点：
 
 - 带 PatchFlag 的元素。
-- 所有组件。组件 vnode 没有 PatchFlag，也一定被收集。父组件更新时，Vue 对每个子组件都会比较一次新旧 props，再决定要不要更新它（第 23 章）。
+- 所有组件。组件 vnode 可以带 PatchFlag：有动态 props 时是 PROPS（8），例如 `<Comp :a="x" />` 编译出 `8 /* PROPS */` 和 dynamicProps `["a"]`。props 全是静态时没有 PatchFlag。不管有没有，组件都被收集。原因：父组件更新时，Vue 要把旧组件实例交给新的组件 vnode，以后才能正确卸载它。Vue 也要比较新旧 props，再决定要不要更新子组件（第 23 章）。
 - 嵌套的子 Block，例如 `v-if` 的分支和 `v-for` 的 Fragment。子 Block 内部的节点在它自己的 `dynamicChildren` 里，不平铺到外层。
+
+有一个例外：PatchFlag 恰好是 32（NEED_HYDRATION）的元素不收集。例如带事件监听的 `<input @input="f">`。这个标记只在服务端渲染的水合阶段（第 26 章）有用，更新时没有东西要比较。`@click` 不加这个标记。
 
 更新时，Vue 只比较 `dynamicChildren`，不遍历整棵树。下图显示一个 Block 怎样收集动态节点。
 
@@ -256,9 +268,254 @@ return (_openBlock(), _createElementBlock("div", null, [
 PatchFlags 和 Block Tree 由编译器分析模板后生成。手写渲染函数时，Vue 不知道哪些部分是静态的。所以 Vue 比较所有节点。因此 Vue 推荐使用模板。
 :::
 
+### 15.5 编译器的三步：parse、transform、generate
+
+15.1 把编译分成三步。这一节打开每一步，看它的输入和输出。三步的代码在 `@vue/compiler-dom`（核心逻辑在 `@vue/compiler-core`）。`compile()` 只是把它们依次调用一遍。
+
+| 步骤 | 输入 | 输出 | 做什么 |
+|---|---|---|---|
+| parse | 模板字符串 | 模板 AST | 把标签、属性、指令、文字变成节点。不判断动态还是静态 |
+| transform | 模板 AST | 带 `codegenNode` 的 AST | 遍历每个节点，运行节点转换。打 PatchFlag，处理 `v-if` 和 `v-for`，标出静态节点 |
+| generate | 转换后的 AST | 渲染函数的代码字符串 | 把 `codegenNode` 打印成 JavaScript |
+
+**第一步：parse。**下面的脚本在 Node 中分开调用三步（`@vue/compiler-dom` 3.5.43）。先看 parse：
+
+```js
+import { parse, NodeTypes } from '@vue/compiler-dom'
+
+const ast = parse('<div><h1>标题</h1><p :class="c" id="x">{{ msg }}</p></div>')
+const p = ast.children[0].children[1]   // 根节点 → div → 第二个子节点 p
+
+p.type === NodeTypes.ELEMENT            // true。NodeTypes.ELEMENT 的值是 1
+p.props[0]    // 指令节点：type 7（DIRECTIVE），name 'bind'，arg.content 'class'，exp.content 'c'
+p.props[1]    // 属性节点：type 6（ATTRIBUTE），name 'id'，value.content 'x'
+p.children[0] // 插值节点：type 5（INTERPOLATION），content.content 'msg'
+p.codegenNode // undefined：parse 之后还没有任何优化信息
+```
+
+AST 节点是普通对象，用 `type` 区分种类。`:class="c"` 在这里只是一个名叫 `bind` 的指令节点。parse 不知道 class 有专门的 PatchFlag，也不知道 `c` 会变。它只记录模板怎么写。
+
+**第二步：transform。**接着对同一棵树调用 transform：
+
+```js
+import { transform, getBaseTransformPreset, DOMNodeTransforms, DOMDirectiveTransforms } from '@vue/compiler-dom'
+
+const [nodeTransforms, directiveTransforms] = getBaseTransformPreset(true)  // true：给变量加 _ctx. 前缀
+transform(ast, {
+  prefixIdentifiers: true,
+  hoistStatic: true,                   // 开启静态缓存
+  nodeTransforms: [...nodeTransforms, ...DOMNodeTransforms],
+  directiveTransforms: { ...directiveTransforms, ...DOMDirectiveTransforms }
+})
+
+const [h1, p2] = ast.children[0].children
+p2.codegenNode.patchFlag      // 3，即 TEXT | CLASS
+h1.codegenNode.value.patchFlag // -1。h1 是静态的，被包进一个缓存表达式（JS_CACHE_EXPRESSION）
+ast.codegenNode.isBlock       // true：单个根元素变成 Block
+[...ast.helpers].map(s => s.description)
+// ['createElementVNode', 'toDisplayString', 'normalizeClass', 'openBlock', 'createElementBlock']
+```
+
+transform 之后，每个元素多了 `codegenNode`：它描述"怎样创建这个节点的 vnode"，包含 tag、props、children、patchFlag 和 dynamicProps。`ast.helpers` 登记了生成的代码要从 `vue` 导入哪些函数。
+
+transform 由一组**节点转换**组成。每个节点转换是一个函数，`traverseNode` 对每个节点按数组顺序调用它们。常用的有：
+
+- `transformExpression`：给表达式里的变量加前缀。`c` 变成 `_ctx.c`。在 SFC 中它按变量的来源改成 `$setup.c` 或 `$props.c`（15.6）。
+- `transformElement`：为元素和组件生成 `codegenNode`。它读取属性和子节点，算出 15.2 的 PatchFlag 和 dynamicProps。
+- `transformText`：把相邻的文字和插值合并成一个表达式，例如 `"a" + _toDisplayString(_ctx.b)`。
+- `vIf` 和 `vFor`：处理结构化指令。节点被换成 IF 或 FOR 节点，每个分支、每次循环生成一个 Block。`v-if` 的分支得到不同的 key（15.3）。
+
+所有节点转换运行完后，transform 还做两件事。如果 `hoistStatic` 为 true，`cacheStatic` 再遍历一次：静态子树的 PatchFlag 设为 -1，并放进 `_cache`（15.4）。然后 `createRootCodegen` 生成根节点：单个根元素变成 Block，多个根节点变成 Fragment（标记 64，STABLE_FRAGMENT）。
+
+静态的判断在 `getConstantType` 里。一个元素是静态的，需要同时满足三条：没有动态绑定，没有 `ref` 和运行时指令（`v-show`、自定义指令），所有子节点也是静态的。写了 `ref` 的元素得到 512（NEED_PATCH），不会被缓存。
+
+**第三步：generate。**
+
+```js
+import { generate } from '@vue/compiler-dom'
+
+generate(ast, { mode: 'module', prefixIdentifiers: true }).code
+```
+
+输出：
+
+```js
+import { createElementVNode as _createElementVNode, toDisplayString as _toDisplayString, normalizeClass as _normalizeClass, openBlock as _openBlock, createElementBlock as _createElementBlock } from "vue"
+
+export function render(_ctx, _cache) {
+  return (_openBlock(), _createElementBlock("div", null, [
+    _cache[0] || (_cache[0] = _createElementVNode("h1", null, "标题", -1 /* CACHED */)),
+    _createElementVNode("p", {
+      class: _normalizeClass(_ctx.c),
+      id: "x"
+    }, _toDisplayString(_ctx.msg), 3 /* TEXT, CLASS */))
+  ]))
+}
+```
+
+generate 不做任何判断。它先根据 `ast.helpers` 写 import 行，再写 `render` 函数，然后递归地把每个 `codegenNode` 打印成一个函数调用。`3` 和 `-1` 就是 transform 写在 `codegenNode` 上的数字。
+
+所以 15.2 到 15.4 的优化信息都在 transform 里产生。parse 和 generate 只是在它前后搬运。
+
+<Lab id="demo-steps" title="实验台：编译的三步" note="分别调用 parse、transform、generate。浏览器构建没有 Babel，不能加 _ctx. 前缀，所以用 with 模式；步骤和 SFC 编译用的是同一套代码。">
+<template #predict>
+<Sc predict :a="1">
+
+先猜：编译这个模板。transform 之后，两个 p 分支各是什么？
+
+```html
+<div>
+  <p v-if="ok" :title="t">是</p>
+  <p v-else>否</p>
+</div>
+```
+
+<Opt>只有 v-if 的分支是 Block，v-else 的分支是普通节点</Opt>
+<Opt>两个分支都是 Block，key 不同</Opt>
+<Opt>两个分支都不是 Block，直接放进 div 的 dynamicChildren</Opt>
+
+<template #explain>
+
+解析：每个 v-if 分支都是一个 Block。分支结构可能改变，所以编译器给它们不同的 key（0 和 1）。切换时，isSameVNodeType 返回 false，Vue 卸载旧分支，挂载新分支。v-else 分支没有动态内容，也仍然是 Block，因为它的结构可能被换掉。第一项只看到了 v-if 有表达式。第三项忘了 15.3 的规则：v-if 的分支是 Block，Block 才有自己的 dynamicChildren。打开实验台，选择“v-if / v-else”，在第二页看两个 BRANCH，在第三页看 `key: 0` 和 `key: 1`。
+
+</template>
+</Sc>
+</template>
+
+<CompileSteps />
+</Lab>
+
+::: deep 节点转换的执行顺序
+`traverseNode` 对一个节点先依次运行所有节点转换，再处理子节点。节点转换可以返回一个**退出函数**。退出函数在子节点处理完之后运行，顺序和进入相反：后注册的先退出。
+
+`transformElement` 返回的是退出函数，因为它要等子节点转换完才能生成 `codegenNode`。这个顺序有一个后果：给 `compile()` 传入自己的 `nodeTransforms` 时，它们排在内置转换之后，所以你的退出函数比 `transformElement` 的先运行，这时元素还没有 `codegenNode`。
+
+```js
+const spy = node => {
+  if (node.type !== NodeTypes.ELEMENT) return
+  return () => console.log('退出', node.tag, node.codegenNode ? '有' : '没有', 'codegenNode')
+}
+
+// 排在内置转换后面（compile 的 nodeTransforms 选项就是这样）：
+compile(tpl, { nodeTransforms: [spy] })
+// 退出 p 没有 codegenNode
+// 退出 div 没有 codegenNode
+
+// 自己调用 transform，把 spy 放在最前面：它最后一个退出
+transform(ast, { nodeTransforms: [spy, ...nodeTransforms, ...DOMNodeTransforms], /* 其余选项同上 */ })
+// 退出 p 有 codegenNode
+// 退出 div 有 codegenNode
+```
+
+写自己的转换插件时，要读取 PatchFlag，就把它放在数组前面。
+:::
+
+下面两道练习实现一个迷你编译器。`parse` 和 `traverse`（对应 `traverseNode`）已经写好。第一道写节点转换，第二道写代码生成。
+
+<Exercise id="miniTransform" />
+
+写节点转换时，你做的事和 `transformElement` 里算 PatchFlag 的部分相同。真实版本多处理了很多情况：组件、`v-bind="obj"`、`ref`、指令、动态 key。
+
+<Exercise id="miniGenerate" />
+
+把两道练习连起来，你就得到了一个只支持元素和插值的编译器。对这些简单的模板，它生成的 vnode 参数和真实编译器一致（真实版本的 `class` 要多经过一次 `normalizeClass`，字符串值不变）。真实编译器多出来的部分是 Block 和静态缓存、`v-if` 和 `v-for`、插槽，以及用 Babel 解析表达式来加前缀。
+
+### 15.6 单文件组件怎样编译
+
+`.vue` 文件不是模板。它有 template、script、style 三块，每块的语言不同。编译它的是 `@vue/compiler-sfc`。Vite 通过 `@vitejs/plugin-vue` 调用它。调用顺序如下：
+
+1. `parse(源码)`：把文件拆成块，返回 descriptor。它只拆块，不编译。
+2. `compileScript(descriptor, { id })`：编译 script 块，处理 `<script setup>`。返回组件的 JavaScript 代码和 `bindings`，也就是每个顶层变量属于哪一类（ref、常量、props……）。
+3. `compileTemplate({ source, id, scoped, compilerOptions: { bindingMetadata: bindings } })`：调用 15.5 的三步，返回 render 函数。
+4. `compileStyle({ source, id, scoped })`：处理样式。`scoped` 为 true 时改写选择器。
+5. 插件把前几步的结果拼成一个模块。
+
+下面是一个最小的单文件组件，用开发模式的做法编译：
+
+```vue
+<script setup>
+import { ref } from 'vue'
+const count = ref(0)
+</script>
+
+<template>
+  <button class="b" @click="count++">{{ count }}</button>
+</template>
+
+<style scoped>
+.b { color: red }
+</style>
+```
+
+`compileScript` 把 `<script setup>` 变成一个 `setup()`（省略 `__name` 和 `__expose`）：
+
+```js
+export default {
+  setup(__props) {
+    const count = ref(0)
+
+    const __returned__ = { count, ref }   // 所有顶层声明和导入
+    return __returned__
+  }
+}
+```
+
+**`<script setup>` 的顶层变量全部放进 `__returned__`。**所以模板能读到它们，包括导入的组件。你不需要在 `components` 里注册。`defineProps` 和 `defineEmits` 这些宏在这一步被替换成 `props` 和 `emits` 选项，22.1 节已经讲过。
+
+`compileTemplate` 拿到 `bindings`，知道 `count` 是 `setup-ref`，就把它编译成 `$setup.count`：
+
+```js
+export function render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (_openBlock(), _createElementBlock("button", {
+    class: "b",
+    onClick: _cache[0] || (_cache[0] = $event => ($setup.count++))
+  }, _toDisplayString($setup.count), 1 /* TEXT */))
+}
+```
+
+注意 `onClick` 被缓存在 `_cache[0]`。这是 15.4 的事件缓存，SFC 编译默认开启。导入的组件 `Child` 被编译成 `$setup["Child"]`，直接引用变量，不走 `resolveComponent`。
+
+最后插件把它们拼成一个模块（简化）：
+
+```js
+const _sfc_main = { /* compileScript 的结果 */ }
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) { /* compileTemplate 的结果 */ }
+import 'Demo.vue?vue&type=style&index=0&scoped=282e7235&lang.css'   // 样式是单独的模块
+export default _export_sfc(_sfc_main, [['render', _sfc_render], ['__scopeId', 'data-v-282e7235']])
+```
+
+`_export_sfc` 把这些键值对复制到组件对象上，所以组件对象有了 `render` 和 `__scopeId`。开发模式下插件还会加上 `__file` 和热更新代码。`282e7235` 是插件根据文件路径算出的 8 位哈希（生产构建还加上源码）。
+
+**scoped 样式分两处完成。**构建时，`compileStyle` 把选择器改写成 `.b[data-v-282e7235]`。运行时，渲染器读取组件的 `__scopeId`，给元素加上这个属性。`compileTemplate` 的结果里没有这个属性。选择器改写的规则见 24.4 节。
+
+**生产构建用内联模板。**开发时模板单独编译成 `_sfc_render`，方便热更新。生产构建时（默认没有开发服务器，且组件使用 `<script setup>`），插件给 `compileScript` 传 `inlineTemplate: true`。渲染函数直接写在 `setup()` 里返回，变量按来源直接读取：已知的 ref 读 `count.value`，props 读 `__props.title`。这样省掉通过 `$setup` 代理查找的一层，也不需要返回 `__returned__`。
+
+<Lab id="demo-sfc" title="实验台：拆开编译一个 .vue 文件" note="调用 compiler-sfc 的 parse、compileScript、compileTemplate 和 compileStyle。你可以修改源码，也可以切换内联模板。">
+<template #predict>
+<Sc predict :a="0">
+
+先猜：示例里 `<script setup>` 导入了 `Child`，模板里写了 `<Child :n="count" />`，没有在 components 中注册。③ compileTemplate 的输出里，`Child` 变成什么？
+
+<Opt>$setup["Child"]，直接引用 setup 返回的变量</Opt>
+<Opt>_resolveComponent("Child")，运行时按名字查找</Opt>
+<Opt>_ctx.Child，从组件实例上读取</Opt>
+
+<template #explain>
+
+解析：compileScript 返回的 bindings 记录了 `Child` 是导入的常量。compileTemplate 看到 `Child` 在 bindings 中，就直接引用 `$setup["Child"]`，不生成 `resolveComponent` 调用。没有在 bindings 中的组件名才走 `resolveComponent`，在 `components` 选项和全局注册里按名字查找。第二项是选项式 API 的做法。第三项忘了 `Child` 被放进了 `__returned__`。打开实验台，点击“③ compileTemplate”，找 `_createVNode` 那一行。
+
+</template>
+</Sc>
+</template>
+
+<SfcSplit />
+</Lab>
+
 ::: pitfalls
 1. 不要用浏览器中 `Vue.compile` 的结果判断 SFC 的输出。原因：它使用 with 模式，也不缓存事件。
 2. `v-bind="obj"` 和逐个绑定的更新代价不同。原因：键名不确定，节点得到 FULL_PROPS，Vue 比较所有属性。属性固定时，逐个绑定。
+3. 自己写编译转换插件时，不要以为在你的转换里能读到 `codegenNode`。原因：内置的 `transformElement` 在退出函数里才生成它，而你的退出函数排在它前面运行（15.5 节的深入块）。
+4. 不要把 `compileScript` 的输出当成运行时的样子。原因：生产构建会内联模板，开发时才有 `__returned__` 和 `$setup.xxx`（15.6 节）。
 :::
 
 ::: selfcheck
@@ -347,6 +604,76 @@ PatchFlags 和 Block Tree 由编译器分析模板后生成。手写渲染函数
 </template>
 </Sc>
 
+<Sc :a="1">
+
+模板 `<p :class="c">{{ msg }}</p>` 的 `p` 元素得到 PatchFlag 3。这个数字是哪一步算出来的？
+
+<Opt>parse：解析模板时，看到 `:class` 就知道 class 是动态的</Opt>
+<Opt>transform：`transformElement` 读取属性和子节点，把结果写进 `codegenNode`</Opt>
+<Opt>generate：打印代码时才检查每个属性是否动态</Opt>
+
+<template #explain>
+
+解析：parse 只把 `:class="c"` 记成一个 `bind` 指令节点，节点上没有 `codegenNode`，也没有任何优化信息。`transformElement` 在 transform 这一步读取属性和子节点，算出 TEXT | CLASS，写进 `codegenNode.patchFlag`。generate 不做判断，只把这个数字打印在 `createElementVNode` 的第 4 个参数的位置。第一项最迷惑：`:class` 的写法确实在 parse 里就能看到，但“看到写法”和“算出 PatchFlag”是两件事，后者需要 transform 里的规则。
+
+</template>
+</Sc>
+
+<Sc :a="2">
+
+下面的代码用 `createVNode` 手写了 Block 的内容。`vnode.dynamicChildren` 有几个节点？
+
+```js
+const vnode = (openBlock(), createElementBlock('div', null, [
+  createVNode(Comp, { a: '1' }),
+  createVNode(Comp, { a: x }, null, 8, ['a']),
+  createElementVNode('b', null, 'static'),
+  createElementVNode('p', null, text, 1)
+]))
+```
+
+<Opt>1 个：只有 p 带 PatchFlag</Opt>
+<Opt>2 个：带 PatchFlag 的第二个 Comp 和 p</Opt>
+<Opt>3 个：两个 Comp 和 p</Opt>
+<Opt>4 个：所有子节点</Opt>
+
+<template #explain>
+
+解析：条件是 PatchFlag 大于 0，或者节点是组件。第一个 Comp 没有 PatchFlag，但它是组件，所以也被收集：父组件更新时，Vue 要把它的实例交给新的 vnode，才能以后卸载它。第二个 Comp 有 PatchFlag 8，p 有 PatchFlag 1，都被收集。b 是静态元素，没有 PatchFlag，不收集。所以一共 3 个。第二项最迷惑：它以为组件只有带 PatchFlag 时才被收集。
+
+</template>
+</Sc>
+
+<Sc :a="0">
+
+`<script setup>` 导入了 `Child`，没有注册，模板里写 `<Child />`。开发模式下，模板编译结果怎样引用它？
+
+<Opt>`$setup["Child"]`：compileScript 把 Child 放进 `__returned__`，并告诉 compileTemplate 它是 setup 里的变量</Opt>
+<Opt>`_resolveComponent("Child")`：运行时按名字在 `components` 中查找</Opt>
+<Opt>`_ctx.Child`：运行时从组件实例上读取</Opt>
+
+<template #explain>
+
+解析：compileScript 返回的 `bindings` 记录了 `Child` 是 setup 里的常量，compileTemplate 据此直接引用 `$setup["Child"]`。只有 bindings 里没有的组件名才走 `resolveComponent`，在 `components` 选项和全局注册里查找。第二项是选项式 API 的做法，也是没有传 bindings 时的做法。
+
+</template>
+</Sc>
+
+<Sc :a="1">
+
+scoped 样式里的 `.b { color: red }` 变成了 `.b[data-v-xxx]`，元素上也有 `data-v-xxx` 属性。这两件事分别发生在哪里？
+
+<Opt>都在构建时：compileTemplate 把属性写进模板的编译结果</Opt>
+<Opt>选择器由 compileStyle 在构建时改写；属性由渲染器在运行时根据组件的 `__scopeId` 添加</Opt>
+<Opt>都在运行时：浏览器在解析样式时处理</Opt>
+
+<template #explain>
+
+解析：`compileStyle` 在构建时把选择器改写成 `.b[data-v-xxx]`。插件把 `data-v-xxx` 保存为组件的 `__scopeId`。渲染器创建元素时读取它并添加属性。`compileTemplate` 的输出里没有 `data-v-xxx`。第一项最迷惑：两头都和“构建”有关，但属性是运行时才加的。浏览器只负责匹配选择器，不改写样式。
+
+</template>
+</Sc>
+
 :::
 
 ::: summary
@@ -354,4 +681,7 @@ PatchFlags 和 Block Tree 由编译器分析模板后生成。手写渲染函数
 - PatchFlags 标记动态部分。多个标记按位或组合，运行时用按位与检查。
 - Block Tree 把动态后代收集到 dynamicChildren。v-if 分支和 v-for 各自是新的 Block。
 - Vue 缓存静态节点。SFC 还缓存事件处理函数。
+- 编译分三步：parse 把模板变成 AST，transform 用节点转换添加 PatchFlag、Block 和缓存，generate 把 `codegenNode` 打印成渲染函数。优化信息都在 transform 里产生。
+- 组件 vnode 可以有 PatchFlag（动态 props 时是 PROPS），不管有没有都被收集进 `dynamicChildren`。
+- `.vue` 文件由 compiler-sfc 拆开编译：parse 拆块，compileScript 把 `<script setup>` 变成 `setup()` 和 `__returned__`，compileTemplate 按 bindings 引用变量，compileStyle 改写 scoped 选择器。
 :::

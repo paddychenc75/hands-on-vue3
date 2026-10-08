@@ -221,3 +221,265 @@ patchFlagFix.faded = {
     '// 按位与：检查 CLASS 这一位', '// 只在标记含 CLASS 时更新'),
     '// 按位与：检查 TEXT 这一位', '// 只在标记含 TEXT 时更新')
 }
+
+// =====================================================================
+// 迷你编译器：parse 和 traverse 已给出，学习者写节点转换和代码生成
+// =====================================================================
+
+// 迷你 parse 和 traverse 的源码（两道练习共用；这里不能出现反引号和 ${，因为它被拼进练习脚本）。
+const MINI_FRONT = String.raw`// ===== 已给出：迷你 parse（不用修改） =====
+// 元素   { type: 'element', tag, props: [{ name, value, dynamic }], children, patchFlag: 0, dynamicProps: [] }
+// 文字   { type: 'text', content }       插值   { type: 'interp', content }
+// :class="c" 解析成 { name: 'class', value: 'c', dynamic: true }，class="k" 的 dynamic 是 false
+function parse(src) {
+  const root = { type: 'root', children: [] }
+  const stack = [root]
+  const re = /<\/(\w+)>|<(\w+)((?:\s+[:\w-]+="[^"]*")*)\s*>|\{\{\s*(.+?)\s*\}\}|([^<{]+)/g
+  let m
+  while ((m = re.exec(src))) {
+    const top = stack[stack.length - 1]
+    if (m[1]) stack.pop()
+    else if (m[2]) {
+      const props = [...m[3].matchAll(/([:\w-]+)="([^"]*)"/g)].map(a => ({
+        name: a[1].replace(':', ''), value: a[2], dynamic: a[1][0] === ':'
+      }))
+      const el = { type: 'element', tag: m[2], props, children: [], patchFlag: 0, dynamicProps: [] }
+      top.children.push(el)
+      stack.push(el)
+    } else if (m[4]) top.children.push({ type: 'interp', content: m[4] })
+    else top.children.push({ type: 'text', content: m[5] })
+  }
+  return root
+}
+
+// ===== 已给出：迷你 traverse（不用修改） =====
+// 对每个节点运行所有 nodeTransforms，再处理它的子节点。Vue 的 traverseNode 也是这个顺序
+function traverse(node, nodeTransforms) {
+  for (const t of nodeTransforms) t(node)
+  for (const child of node.children || []) traverse(child, nodeTransforms)
+}
+
+const PatchFlags = { TEXT: 1, CLASS: 2, STYLE: 4, PROPS: 8 }
+`
+
+/** 参考实现的转换（给第二道练习当已给出的部分，也给判题用） */
+const MINI_TRANSFORM_SOL = String.raw`function transformElement(node) {
+  if (node.type !== 'element') return
+  let flag = 0
+  const dynamicProps = []
+  if (node.children.some(c => c.type === 'interp')) flag |= PatchFlags.TEXT
+  for (const p of node.props) {
+    if (!p.dynamic) continue
+    if (p.name === 'class') flag |= PatchFlags.CLASS
+    else if (p.name === 'style') flag |= PatchFlags.STYLE
+    else { flag |= PatchFlags.PROPS; dynamicProps.push(p.name) }
+  }
+  node.patchFlag = flag
+  node.dynamicProps = dynamicProps
+}
+`
+
+const MINI_GEN_SOL = String.raw`function genNode(node) {
+  if (node.type === 'text') return JSON.stringify(node.content)
+  if (node.type === 'interp') return '_toDisplayString(_ctx.' + node.content + ')'
+  const props = node.props.length
+    ? '{ ' + node.props.map(p => JSON.stringify(p.name) + ': ' + (p.dynamic ? '_ctx.' + p.value : JSON.stringify(p.value))).join(', ') + ' }'
+    : 'null'
+  const kids = node.children.map(genNode)
+  const onlyText = node.children.every(c => c.type !== 'element')
+  const children = kids.length === 0 ? 'null' : onlyText ? kids.join(' + ') : '[' + kids.join(', ') + ']'
+  const args = [JSON.stringify(node.tag), props, children]
+  if (node.patchFlag) {
+    args.push(node.patchFlag)
+    if (node.dynamicProps.length) args.push(JSON.stringify(node.dynamicProps))
+  }
+  return '_createElementVNode(' + args.join(', ') + ')'
+}
+`
+
+/** 判题用：从练习脚本的 setupState 里取函数 */
+function miniState(T: any): any {
+  const host: any = T.$(':scope > div')
+  return host && host._vnode && host._vnode.component && host._vnode.component.setupState
+}
+function miniRef(extra: string): any {
+  // eslint-disable-next-line no-new-func
+  return new Function(MINI_FRONT + MINI_TRANSFORM_SOL + extra)()
+}
+
+const TRANSFORM_CASES: [string, [string, number, string[]][]][] = [
+  ['<div id="a"><p :class="c">{{ msg }}</p></div>', [['div', 0, []], ['p', 3, []]]],
+  ['<div :title="t" :id="i" class="k">hi</div>', [['div', 8, ['title', 'id']]]],
+  ['<p :style="s" :class="c" :data-x="d">a{{ b }}</p>', [['p', 15, ['data-x']]]],
+  ['<ul><li>1</li><li :class="c">2</li></ul>', [['ul', 0, []], ['li', 0, []], ['li', 2, []]]],
+  ['<a href="x" class="y">go</a>', [['a', 0, []]]],
+  ['<p>a{{ b }}c</p>', [['p', 1, []]]],
+  ['<div><section><span :id="x">{{ a }}</span></section></div>', [['div', 0, []], ['section', 0, []], ['span', 9, ['id']]]]
+]
+
+export const miniTransform: Exercise = {
+  title: '实现：给动态节点打 PatchFlag 的节点转换', ch: 15,
+  task: '<p>下面是一个迷你编译器的前两步。<code>parse</code> 把模板变成 AST，<code>traverse</code> 对每个节点运行节点转换，两者已经写好。你来写节点转换 <code>transformElement</code>：给每个元素设置 <code>node.patchFlag</code> 和 <code>node.dynamicProps</code>。规则和第 15 章 15.2 节相同：</p><ol><li>子节点里有插值：TEXT。</li><li>动态的 <code>class</code>：CLASS。动态的 <code>style</code>：STYLE。</li><li>其他动态属性：PROPS，并把属性名按出现的顺序放进 <code>dynamicProps</code>。</li><li>静态属性（没有冒号的）不算。多个标记用按位或组合，没有任何标记时是 0。</li></ol><p>只改 <code>transformElement</code>。页面下方显示每个元素的结果。</p>',
+  tpl: '<textarea v-model="src" rows="3" style="width: 100%" aria-label="模板"></textarea>\n<pre class="out">{{ result }}</pre>',
+  js: MINI_FRONT + String.raw`
+// ===== TODO：节点转换。给元素设置 node.patchFlag 和 node.dynamicProps =====
+function transformElement(node) {
+  if (node.type !== 'element') return
+  // 现在什么都没做：patchFlag 保持 0
+}
+
+// ===== 已给出：运行转换，列出每个元素的结果 =====
+function analyze(source) {
+  const ast = parse(source)
+  traverse(ast, [transformElement])
+  const list = []
+  ;(function walk(n) {
+    if (n.type === 'element') list.push({ tag: n.tag, patchFlag: n.patchFlag, dynamicProps: n.dynamicProps })
+    ;(n.children || []).forEach(walk)
+  })(ast)
+  return list
+}
+const src = ref('<div id="a"><p :class="c">{{ msg }}</p></div>')
+const result = computed(() => analyze(src.value)
+  .map(x => '<' + x.tag + '>  patchFlag=' + x.patchFlag + '  dynamicProps=' + JSON.stringify(x.dynamicProps)).join('\n'))
+
+return { src, result, analyze }`,
+  hints: [
+    '这就是真实编译器里 transformElement 做的事（简化版）：看一个元素的属性和子节点，决定它的 PatchFlag。用一个变量 flag 从 0 开始，每发现一种动态内容就用按位或加一位：flag |= PatchFlags.TEXT。第 15 章 15.2 节讲了每个标记的含义。',
+    '写三步。1. 子节点里有 interp：加 TEXT。2. 遍历 node.props，跳过 dynamic 为 false 的。3. 动态属性按名字分三类：class 加 CLASS，style 加 STYLE，其余加 PROPS 并且 push 到 dynamicProps。最后把 flag 和 dynamicProps 赋给 node。',
+    'function transformElement(node) {\n  if (node.type !== \'element\') return\n  let flag = 0\n  const dynamicProps = []\n  if (node.children.some(c => c.type === \'interp\')) flag |= PatchFlags.TEXT\n  for (const p of node.props) {\n    if (!p.dynamic) continue\n    if (p.name === \'class\') flag |= PatchFlags.CLASS\n    else if (p.name === \'style\') flag |= PatchFlags.STYLE\n    else { flag |= PatchFlags.PROPS; dynamicProps.push(p.name) }\n  }\n  node.patchFlag = flag\n  node.dynamicProps = dynamicProps\n}'
+  ],
+  async check(T) {
+    const S = miniState(T)
+    if (!S || typeof S.analyze !== 'function') { T.ok(false, '脚本需要 return 的对象里有 analyze 函数（不要删掉已给出的部分）'); return }
+    const fmt = (l: any[]) => l.map(x => '<' + x.tag + '> ' + x.patchFlag + ' ' + JSON.stringify(x.dynamicProps)).join('；')
+    for (const [src, expected] of TRANSFORM_CASES) {
+      let got: any[] = []
+      try { got = S.analyze(src) } catch (e: any) { T.ok(false, src + ' 运行出错：' + e.message); continue }
+      const want = expected.map(([tag, patchFlag, dynamicProps]) => ({ tag, patchFlag, dynamicProps }))
+      const same = got.length === want.length && got.every((g, i) => g.tag === want[i].tag && g.patchFlag === want[i].patchFlag && JSON.stringify(g.dynamicProps) === JSON.stringify(want[i].dynamicProps))
+      T.ok(same, src + '：期望 ' + fmt(want) + '；实际 ' + fmt(got))
+    }
+  },
+  wrong: []
+}
+
+miniTransform.solJs = sub(miniTransform.js, `function transformElement(node) {
+  if (node.type !== 'element') return
+  // 现在什么都没做：patchFlag 保持 0
+}`, MINI_TRANSFORM_SOL.trim())
+
+miniTransform.wrong = [
+  { js: sub(sub(sub(miniTransform.solJs, 'flag |= PatchFlags.TEXT', 'flag = PatchFlags.TEXT'), 'flag |= PatchFlags.CLASS', 'flag = PatchFlags.CLASS'), 'flag |= PatchFlags.STYLE', 'flag = PatchFlags.STYLE'),
+    why: '用赋值代替按位或。一个元素同时有文字和 class 时，后写的标记把前面的覆盖了，PatchFlag 只剩一位。多个标记要用按位或组合。', expectFail: /:class="c"/ },
+  { js: sub(miniTransform.solJs, "    if (!p.dynamic) continue\n", ''),
+    why: '没有区分静态属性和动态属性。class="k" 这样的静态属性不会变，不需要标记。每多标一个，更新时就多比较一次。', expectFail: /class="k"/ },
+  { js: sub(miniTransform.solJs, "if (p.name === 'class') flag |= PatchFlags.CLASS", "if (p.name === 'class') { flag |= PatchFlags.CLASS; dynamicProps.push(p.name) }"),
+    why: 'class 有自己的标记 CLASS，不属于 PROPS，也不进 dynamicProps。dynamicProps 只列出 PROPS 要比较的属性。', expectFail: /:class="c"/ },
+  { js: sub(miniTransform.solJs, "node.children.some(c => c.type === 'interp')", "node.children[0] && node.children[0].type === 'interp'"),
+    why: '只看了第一个子节点。a{{ b }}c 的第一个子节点是文字，但这个元素的文字仍然是动态的。要检查所有子节点。', expectFail: /a\{\{ b \}\}c/ }
+]
+
+miniTransform.faded = {
+  js: sub(sub(sub(miniTransform.solJs,
+    "if (node.children.some(c => c.type === 'interp')) flag |= PatchFlags.TEXT", "if (/* ✏️ 子节点里有没有插值 */ false) flag |= PatchFlags.TEXT"),
+    "    if (!p.dynamic) continue\n", "    /* ✏️ 静态属性不会变，跳过它 */\n"),
+    "    else { flag |= PatchFlags.PROPS; dynamicProps.push(p.name) }", "    else { /* ✏️ 其他动态属性：加 PROPS 标记，并把属性名放进 dynamicProps */ }")
+}
+
+const GEN_CTX = { c: 'on', msg: 'hello', t: 'T', i: 'I', s: 'color:red', d: 'D', n: 42 }
+const GEN_CASES = [
+  '<div id="a"><p :class="c">{{ msg }}</p></div>',
+  '<div :title="t" :id="i" class="k">hi</div>',
+  '<p :style="s" :class="c" :data-x="d">a{{ msg }}</p>',
+  '<ul><li>1</li><li :class="c">2</li></ul>',
+  '<a href="x">say "hi"</a>',
+  '<p></p>',
+  '<b>{{ n }}</b>'
+]
+
+export const miniGenerate: Exercise = {
+  title: '实现：只支持元素和插值的迷你代码生成', ch: 15,
+  task: '<p>迷你编译器的最后一步。<code>parse</code>、<code>traverse</code> 和上一道练习的 <code>transformElement</code> 都已给出，每个元素已经有 <code>patchFlag</code> 和 <code>dynamicProps</code>。你来写 <code>genNode(node)</code>：返回这个节点的 JavaScript 代码（字符串）。</p><ol><li>文字：字符串字面量。</li><li>插值：<code>_toDisplayString(_ctx.表达式)</code>。</li><li>元素：<code>_createElementVNode(标签, props, children[, patchFlag[, dynamicProps]])</code>。props 没有时写 <code>null</code>，有时写对象；动态属性的值是 <code>_ctx.表达式</code>，静态属性的值是字符串。</li><li>children 没有时写 <code>null</code>；全是文字和插值时用 <code>+</code> 连成一个表达式；有子元素时写数组。</li><li>patchFlag 为 0 时不写第 4 个参数；否则写它，并在 dynamicProps 非空时写第 5 个参数（字符串数组）。</li></ol><p>只改 <code>genNode</code>。页面下方显示生成的代码和运行它得到的虚拟节点。</p>',
+  tpl: '<textarea v-model="src" rows="3" style="width: 100%" aria-label="模板"></textarea>\n<pre class="out">{{ code }}</pre>\n<pre class="out">{{ vnodeText }}</pre>',
+  js: MINI_FRONT + '\n// ===== 已给出：上一道练习的节点转换 =====\n' + MINI_TRANSFORM_SOL + String.raw`
+// ===== TODO：代码生成。返回一个节点的 JavaScript 代码（字符串）=====
+function genNode(node) {
+  // 文字：JSON.stringify(node.content)
+  // 插值：'_toDisplayString(_ctx.' + node.content + ')'
+  // 元素：'_createElementVNode(' + 参数列表 + ')'，规则见题目
+  return 'null'
+}
+
+// ===== 已给出：生成代码，并用假的 createElementVNode 运行它 =====
+function generate(source) {
+  const ast = parse(source)
+  traverse(ast, [transformElement])
+  return 'return ' + genNode(ast.children[0])
+}
+const fakeCreate = (tag, props, children, patchFlag, dynamicProps) => ({ tag, props, children, patchFlag: patchFlag || 0, dynamicProps: dynamicProps || null })
+const toStr = v => (v == null ? '' : String(v))
+function render(source, ctx) {
+  return new Function('_ctx', '_createElementVNode', '_toDisplayString', generate(source))(ctx, fakeCreate, toStr)
+}
+
+const ctx = { c: 'on', msg: 'hello', t: 'T', i: 'I', s: 'color:red', d: 'D', n: 42 }
+const src = ref('<div id="a"><p :class="c">{{ msg }}</p></div>')
+const code = computed(() => generate(src.value))
+const vnodeText = computed(() => {
+  try { return JSON.stringify(render(src.value, ctx), null, 1) } catch (e) { return '运行出错：' + e.message }
+})
+
+return { src, code, vnodeText, render }`,
+  hints: [
+    '真实的 generate 也是递归地打印节点。每个节点返回一小段字符串，父节点把子节点的字符串拼进自己的参数里。先写文字和插值（各一行），再写元素。',
+    '元素分四步拼参数。1. props：没有属性是 null；有属性时把每个属性写成 键: 值，动态的值前面加 _ctx.。2. children：先 node.children.map(genNode)，再按「没有 / 全是文字 / 有子元素」三种情况连接。3. 放进 args 数组：标签、props、children。4. patchFlag 不为 0 再追加它，dynamicProps 非空再追加 JSON.stringify(...)。最后用 join(\', \') 拼成调用。注意用 JSON.stringify 写字符串，文字里的引号才会被转义。',
+    MINI_GEN_SOL.trim()
+  ],
+  async check(T) {
+    const S = miniState(T)
+    if (!S || typeof S.render !== 'function') { T.ok(false, '脚本需要 return 的对象里有 render 函数（不要删掉已给出的部分）'); return }
+    // 参考实现：同样的 parse 和 traverse、参考转换、参考 genNode
+    const ref: any = miniRef(MINI_GEN_SOL + String.raw`
+const fake = (tag, props, children, patchFlag, dynamicProps) => ({ tag, props, children, patchFlag: patchFlag || 0, dynamicProps: dynamicProps || null })
+return function (source, ctx) {
+  const ast = parse(source)
+  traverse(ast, [transformElement])
+  return new Function('_ctx', '_createElementVNode', '_toDisplayString', 'return ' + genNode(ast.children[0]))(ctx, fake, v => (v == null ? '' : String(v)))
+}`)
+    for (const src of GEN_CASES) {
+      const want = ref(src, GEN_CTX)
+      let got: any
+      try { got = S.render(src, { ...GEN_CTX }) } catch (e: any) { T.ok(false, src + '：运行生成的代码出错：' + e.message); continue }
+      T.ok(JSON.stringify(got) === JSON.stringify(want), src + '：期望 ' + JSON.stringify(want) + '；实际 ' + JSON.stringify(got))
+    }
+  },
+  wrong: []
+}
+
+miniGenerate.solJs = sub(miniGenerate.js, `function genNode(node) {
+  // 文字：JSON.stringify(node.content)
+  // 插值：'_toDisplayString(_ctx.' + node.content + ')'
+  // 元素：'_createElementVNode(' + 参数列表 + ')'，规则见题目
+  return 'null'
+}`, MINI_GEN_SOL.trim())
+
+miniGenerate.wrong = [
+  { js: sub(miniGenerate.solJs, "return JSON.stringify(node.content)", "return '\"' + node.content + '\"'"),
+    why: '自己拼引号，没有转义。文字里有引号（say "hi"）时，生成的代码语法错误。用 JSON.stringify 生成字符串字面量。', expectFail: /say/ },
+  { js: sub(miniGenerate.solJs, "(p.dynamic ? '_ctx.' + p.value : JSON.stringify(p.value))", "(p.dynamic ? p.value : JSON.stringify(p.value))"),
+    why: '动态属性的值少了 _ctx. 前缀。生成的代码里 c 是一个未定义的变量。真实编译器的 transformExpression 做的就是这件事。', expectFail: /运行生成的代码出错/ },
+  { js: sub(miniGenerate.solJs, "onlyText ? kids.join(' + ') : '[' + kids.join(', ') + ']'", "'[' + kids.join(', ') + ']'"),
+    why: '子节点总是写成数组。只有文字和插值时，children 应该是一个字符串表达式；数组会让 children 变成数组，更新时就按列表比较。', expectFail: /期望/ },
+  { js: sub(miniGenerate.solJs, "const kids = node.children.map(genNode)", "const kids = node.children.map(c => JSON.stringify(c.content))"),
+    why: '没有递归。子元素没有 content，生成的是 undefined。每个节点都要交给 genNode，它才能处理嵌套。', expectFail: /期望/ },
+  { js: sub(miniGenerate.solJs, "args.push(JSON.stringify(node.dynamicProps))", "args.push(node.dynamicProps)"),
+    why: '数组直接拼进字符串，得到 title,id 这样的标识符，而不是 ["title","id"]。生成代码时，字符串和数组都要用 JSON.stringify。', expectFail: /运行生成的代码出错/ }
+]
+
+miniGenerate.faded = {
+  js: sub(sub(sub(miniGenerate.solJs,
+    "(p.dynamic ? '_ctx.' + p.value : JSON.stringify(p.value))", "/* ✏️ 动态属性的值取自 _ctx，静态属性的值是字符串字面量 */ JSON.stringify(p.value)"),
+    "onlyText ? kids.join(' + ') : '[' + kids.join(', ') + ']'", "/* ✏️ 只有文字和插值时用 + 连接，有子元素时写成数组 */ '[' + kids.join(', ') + ']'"),
+    "    if (node.dynamicProps.length) args.push(JSON.stringify(node.dynamicProps))\n", "    /* ✏️ dynamicProps 非空时，把它作为第 5 个参数加进去 */\n")
+}

@@ -16,7 +16,7 @@ course/
   figures/NN-id/*.vue     示意图，每张一个 SFC，只含 template
   labs/NN-id/*.vue        实验台，每个一个 SFC（多标签页的每页再拆一个小 SFC）
   labs/_shared/           各章实验台共用的辅助函数（domLog、dLogBuf、useMouse、useDebounced）
-  checks/questions.ts     阶段测验专用题库（60 道题，不存阶段号，由所属章决定阶段）
+  checks/questions.ts     阶段测验专用题库（91 道题，不存阶段号，由所属章决定阶段）
   stages.ts               阶段的唯一定义（编号、名称、英文副标题、说明）
   site.mjs                站点的部署路径 BASE_PATH，只在这里定义一处（见 4.14）
   writing-terms.mjs       首页“写作规则”表的数据（带“不使用的同义词”），也是术语表页“不这样说”一栏的数据（见第 7 节）
@@ -552,7 +552,7 @@ module.exports = [
 | 阶段测验：12 题（8 新 + 4 常规）、交卷后才显示解析、80% 通过 | `logic/stageCheck.ts` 的 `pickStageQuestions`、`isPass`；`StageCheck.vue`、`Question.vue`（defer） | `stageCheck.test.ts > 抽题`、`及格判定`；`cards.test.ts > 阶段题池`；mechanics：阶段测验 12 题、各阶段测验页 |
 | 中途离开算未通过；未通过冷却 30 分钟；以最近一次为准；通过后清掉 `weak`；35 天后提示复测 | `logic/stageCheck.ts` 的 `settlePending`、`cooldownLeft`、`settleResult`、`needsRetest`、`stageStatus` | `stageCheck.test.ts`（中途离开、冷却、交卷后的记录、35 天、状态）；mechanics：中途离开、答对 10 题通过、答对 9 题不通过 |
 | 章完成 = 自测全部答对 + 练习全部通过，自动标记 | `logic/completion.ts`，`learn.ts` 的 `completeIfMet`；`ChapterFoot.vue` | `completion.test.ts`；`progress.test.js`（掌握标准条和自动完成） |
-| 卡片键 `章id#N` / `章id#cN` 不能变 | `cards.ts`（`scKey`、`checkKey`、`buildCatalog`） | `cards.test.ts > 卡片键规则`、`60 道阶段测验专用题…` |
+| 卡片键 `章id#N` / `章id#cN` 不能变 | `cards.ts`（`scKey`、`checkKey`、`buildCatalog`） | `cards.test.ts > 卡片键规则`、`91 道阶段测验专用题…` |
 | `logic/` 不碰 DOM、localStorage、`Date.now()`；不允许循环依赖 | `course/engine/logic/` | `purity.test.ts`、`cycles.test.ts` |
 | 手机宽度无横向滚动 | `style.css` | mechanics：390px 宽下没有横向滚动 |
 

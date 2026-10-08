@@ -184,3 +184,171 @@ ssrMismatch.faded = {
     'theme.value = browserSettings.theme // 水合完成后，在浏览器中读取',
     '/* ✏️ 水合完成后，再读取浏览器里的设置 */')
 }
+
+// ===== 迷你 hydrate：把 vnode 和已有的 DOM 对上 =====
+// 下面三段（头、中间、尾）拼成脚本；中间是学习者要写的部分。不导出，所以不会被当成练习
+const MH_HEAD = `// ===== 已给出：vnode、报告函数和完整挂载 =====
+// 字符串是文本节点；{ tag, props, children } 是元素。props 里以 on 开头的是事件
+const vn = (tag, props, children) => ({ tag, props: props || {}, children: children || [] })
+const mismatches = []                        // 每发现一处不匹配，记一条
+const report = msg => mismatches.push(msg)
+const clicks = ref(0)
+
+// 客户端想要的页面
+const cardVNode = vn('div', { class: 'card' }, [
+  vn('h3', {}, ['新标题']),
+  vn('button', { onClick: () => clicks.value++ }, ['点击']),
+  vn('p', {}, ['补上的段落']),
+  vn('small', {}, ['补上的小字'])
+])
+const listVNode = vn('ul', {}, [vn('li', {}, ['1']), vn('li', {}, ['2'])])
+
+// 服务器发来的 HTML（和客户端有 4 处不同）
+const CARD_HTML = '<div class="card"><h3>旧标题</h3><button>点击</button><span>别的标签</span></div>'
+const LIST_HTML = '<ul><li>1</li><li>2</li><li>3</li></ul>'
+
+// 从零创建一棵 DOM。没有现成节点可用时（包括不匹配时）走这里
+function mount(v) {
+  if (typeof v === 'string') return document.createTextNode(v)
+  const el = document.createElement(v.tag)
+  for (const k in v.props) {
+    if (k.startsWith('on')) el.addEventListener(k.slice(2).toLowerCase(), v.props[k])
+    else el.setAttribute(k, v.props[k])
+  }
+  for (const c of v.children) el.appendChild(mount(c))
+  return el
+}
+
+// ===== 你来写：水合 =====
+`
+const MH_TAIL = `
+// ===== 已给出：放入服务器 HTML，水合，统计 =====
+const cardHost = ref(null), listHost = ref(null)
+const stat = ref('')
+onMounted(() => {
+  cardHost.value.innerHTML = CARD_HTML
+  listHost.value.innerHTML = LIST_HTML
+  const before = [...cardHost.value.querySelectorAll('*'), ...listHost.value.querySelectorAll('*')]
+  hydrateNode(cardVNode, cardHost.value.firstChild)
+  hydrateNode(listVNode, listHost.value.firstChild)
+  const reused = before.filter(n => n.isConnected).length
+  stat.value = '服务器的 ' + before.length + ' 个元素中，复用 ' + reused + ' 个；不匹配 ' + mismatches.length + ' 处'
+})
+
+return { cardHost, listHost, stat, clicks }`
+const MH_START = `// 让 vnode 接管已有的 DOM 节点 node。返回下一个要处理的兄弟节点
+function hydrateNode(v, node) {
+  if (typeof v === 'string') {
+    // TODO 1：文字不同 → report('文字')，并把 node.data 改成 v
+    return node.nextSibling
+  }
+  if (node.nodeType !== 1 || node.tagName.toLowerCase() !== v.tag) {
+    // TODO 2：标签对不上 → report('标签')，用 mount(v) 替换 node，返回原来的下一个兄弟
+  }
+  // TODO 3：标签对上了，复用 node。给 on 开头的 props 加事件监听，再水合子节点
+  hydrateChildren(v.children, node)
+  return node.nextSibling
+}
+
+function hydrateChildren(children, el) {
+  let node = el.firstChild
+  for (const c of children) {
+    // TODO 4：node 还在 → node = hydrateNode(c, node)
+    //         node 没了（服务器缺子节点）→ report('缺子节点')，mount(c) 追加到 el
+  }
+  // TODO 5：node 后面还有（服务器多出子节点）→ 每个都 report('多子节点') 并删掉
+}
+`
+const MH_SOL = `// 让 vnode 接管已有的 DOM 节点 node。返回下一个要处理的兄弟节点
+function hydrateNode(v, node) {
+  if (typeof v === 'string') {
+    if (node.data !== v) {
+      report('文字')
+      node.data = v
+    }
+    return node.nextSibling
+  }
+  if (node.nodeType !== 1 || node.tagName.toLowerCase() !== v.tag) {
+    report('标签')
+    const next = node.nextSibling
+    node.parentNode.replaceChild(mount(v), node)
+    return next
+  }
+  for (const k in v.props) {
+    if (k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v.props[k])
+  }
+  hydrateChildren(v.children, node)
+  return node.nextSibling
+}
+
+function hydrateChildren(children, el) {
+  let node = el.firstChild
+  for (const c of children) {
+    if (node) {
+      node = hydrateNode(c, node)
+    } else {
+      report('缺子节点')
+      el.appendChild(mount(c))
+    }
+  }
+  while (node) {
+    const next = node.nextSibling
+    report('多子节点')
+    el.removeChild(node)
+    node = next
+  }
+}
+`
+
+export const miniHydrate: Exercise = {
+  title: '实现：迷你 hydrate', ch: 26,
+  lazy: true,
+  task: '<p>说明：练习台没有服务器。脚本直接给出服务器发来的两段 HTML，和客户端想要的 vnode。你要写一个迷你的水合：让 vnode 接管已有的 DOM，而不是重新创建。</p><p>vnode 的格式：字符串是文本节点，<code>{ tag, props, children }</code> 是元素。<code>props</code> 里以 <code>on</code> 开头的是事件。已给出 <code>mount(v)</code>，它从零创建一棵 DOM。</p><ol><li>文字节点：内容不同时，调用 <code>report(\'文字\')</code>，并把 <code>node.data</code> 改成 vnode 的文字。</li><li>元素节点：标签对不上时，调用 <code>report(\'标签\')</code>，用 <code>mount</code> 创建新节点替换它，返回原来的下一个兄弟。</li><li>元素节点：标签对上时复用它，给 <code>on</code> 开头的 props 加事件监听，再水合子节点。</li><li>子节点：服务器缺子节点时，调用 <code>report(\'缺子节点\')</code> 并 mount 追加；服务器多出子节点时，调用 <code>report(\'多子节点\')</code> 并删掉它们。</li></ol><p>确认：服务器的 8 个元素里复用 6 个，不匹配 4 处，点按钮能计数。</p>',
+  tpl: '<div ref="cardHost" class="card-host"></div>\n<div ref="listHost" class="list-host"></div>\n<p class="stat">{{ stat }}</p>\n<p class="clicks">按钮被点击 {{ clicks }} 次</p>',
+  js: MH_HEAD + MH_START + MH_TAIL,
+  solJs: MH_HEAD + MH_SOL + MH_TAIL,
+  hints: [
+    '水合是同时走两棵树：一棵是 vnode，一棵是已有的 DOM。每处理完一个节点，返回它的下一个兄弟，调用方才知道接下来该和哪个 DOM 节点配对。第 26 章“26.7 水合怎样把 vnode 和 DOM 对上”讲了真实的 hydrateNode。',
+    '先写 hydrateNode：文本节点比较 node.data 和 v；元素先比标签，对不上就 replaceChild(mount(v), node)，注意要在替换前先记下 node.nextSibling；对上了就给 on 开头的 props 用 addEventListener（事件名是去掉 on 的小写），然后调用 hydrateChildren。再写 hydrateChildren：用 node 当游标，循环 children；游标用完了就 mount 追加；循环结束后游标上剩下的都是多余的，逐个删掉。',
+    MH_SOL
+  ],
+  async check(T) {
+    await new Promise(r => setTimeout(r, 60));
+    const card = T.$('.card-host'), list = T.$('.list-host');
+    if (!card || !list) { T.ok(false, '找到两个容器 .card-host 和 .list-host'); return; }
+    const stat = (T.$('.stat') || {}).textContent || '';
+    const h3 = card.querySelector('h3');
+    T.ok(!!h3 && h3.textContent === '新标题', '文字不同时，h3 的文字被改成“新标题”（当前：' + (h3 ? h3.textContent : '没有 h3') + '）');
+    const root = card.firstElementChild;
+    const tags = Array.from(root ? root.children : []).map(e => e.tagName.toLowerCase()).join(',');
+    T.ok(tags === 'h3,button,p,small', '卡片里的子元素依次是 h3,button,p,small（当前：' + tags + '）：标签不同的替换，缺的补上');
+    const p = card.querySelector('p');
+    T.ok(!!p && p.textContent === '补上的段落', '替换出来的 p 里有“补上的段落”');
+    T.ok(list.querySelectorAll('li').length === 2, '服务器多出的 li 被删掉，列表有 2 个 li（当前：' + list.querySelectorAll('li').length + '）');
+    T.ok(/复用 6 个/.test(stat), '8 个服务器元素中复用 6 个，不要整棵重建（当前：' + stat + '）');
+    T.ok(/不匹配 4 处/.test(stat), '共报告 4 处不匹配：文字、标签、缺子节点、多子节点各一处（当前：' + stat + '）');
+    const btn = card.querySelector('button');
+    if (btn) {
+      await T.click(btn);
+      const c = () => ((T.$('.clicks') || {}).textContent || '').replace(/\D+/g, '');
+      T.ok(c() === '1', '点一次按钮，计数增加 1（当前：' + c() + '）：水合要给复用的按钮加上事件，且只加一次');
+    } else T.ok(false, '卡片里有按钮');
+  }
+}
+
+miniHydrate.wrong = [
+  { js: sub(miniHydrate.solJs, "    if (node.data !== v) {\n      report('文字')\n      node.data = v\n    }\n", ""), why: '文字不同时没有修正。水合只复用节点，不会自己更新内容：不检查 node.data，页面会留着服务器的旧文字。', expectFail: /h3 的文字被改成/ },
+  { js: sub(miniHydrate.solJs, "  hydrateChildren(v.children, node)\n  return node.nextSibling\n}", "  node.parentNode.replaceChild(mount(v), node)\n  return null\n}"), why: '匹配的元素也整个重新创建，等于放弃水合。复用 DOM 才是水合的意义：节点、焦点、滚动位置、图片和视频的加载状态都保留。', expectFail: /复用 6 个/ },
+  { js: sub(miniHydrate.solJs, "  while (node) {\n    const next = node.nextSibling\n    report('多子节点')\n    el.removeChild(node)\n    node = next\n  }\n", ""), why: '没有处理服务器多出的子节点。页面上留着客户端 vnode 里没有的 DOM，之后 Vue 的更新不认识它们。', expectFail: /多出的 li 被删掉/ },
+  { js: sub(miniHydrate.solJs, "  for (const k in v.props) {\n    if (k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v.props[k])\n  }\n", ""), why: '复用了节点却没有加事件监听。HTML 里没有事件，水合的核心任务就是把事件接上，否则按钮看得见但点不动。', expectFail: /计数增加 1/ }
+]
+
+miniHydrate.faded = {
+  js: MH_HEAD + sub(sub(sub(MH_SOL,
+    "    if (node.data !== v) {\n      report('文字')\n      node.data = v\n    }\n",
+    "    /* ✏️ 文字不同时：report('文字')，并把 node.data 改成 v */\n"),
+    "    report('标签')\n    const next = node.nextSibling\n    node.parentNode.replaceChild(mount(v), node)\n    return next\n",
+    "    report('标签')\n    /* ✏️ 记下原来的下一个兄弟，用 mount(v) 替换 node，返回那个兄弟 */\n"),
+    "  while (node) {\n    const next = node.nextSibling\n    report('多子节点')\n    el.removeChild(node)\n    node = next\n  }\n",
+    "  /* ✏️ 游标上剩下的都是服务器多出来的：每个都 report('多子节点') 并删掉 */\n") + MH_TAIL
+}

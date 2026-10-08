@@ -16,9 +16,9 @@ import DiffSimulator from '../labs/16-diff/DiffSimulator.vue'
 # 虚拟 DOM 与 diff：有 key 的列表
 
 ::: goals
-<Goal checks="sc:0">说出 Vue3 列表 diff 的五个步骤。</Goal>
-<Goal checks="sc:1">说明最长递增子序列（LIS）的作用。</Goal>
-<Goal checks="sc:2,ex:diffKey,ex:fbDiff,ex:phenoSort">说明不能用 index 作为 key 的原因。</Goal>
+<Goal checks="sc:0,ex:syncEnds">说出 Vue3 列表 diff 的五个步骤，并实现前四步。</Goal>
+<Goal checks="sc:1,ex:lisPlan">说明最长递增子序列（LIS）的作用，并用它算出要移动的节点。</Goal>
+<Goal checks="sc:2,ex:patchUnkeyed,ex:diffKey">说明不能用 index 作为 key 的原因。</Goal>
 
 :::
 
@@ -93,6 +93,10 @@ key 用错时，行的状态会错位。16.4 说明原因。下面先看 Vue 怎
    3. 计算这个数组的最长递增子序列。
    4. 不移动 LIS 中的节点，因为它们的相对顺序已经正确。移动或创建其他节点。
 
+前四步只有两个循环和两个判断。先自己写一遍：
+
+<Exercise id="syncEnds" />
+
 下图用一个例子说明第 5 步。
 
 <Figure caption="头尾同步：第 1 步从头比较，a、b 的 key 相同，Vue 直接 patch。第 2 步从尾比较，g、f 也直接 patch。剩下中间部分：旧 c d e，新 e c d h。">
@@ -138,6 +142,10 @@ LIS 中的节点相对顺序没有改变。所以 DOM 移动次数最少。
 
 <DiffSimulator />
 </Lab>
+
+实验台里第 5 步的决策，就是下面这道练习要你写的部分。`getSequence` 已经给出，你来填 `newIndexToOldIndex`、检测乱序，再从后往前决定每个节点是新建、移动还是不动。
+
+<Exercise id="lisPlan" />
 
 ::: deep getSequence 源码和复杂度
 ```js
@@ -238,13 +246,11 @@ const resetKey = ref(0)
 <IndexKeyVsIdKey />
 </Figure>
 
-<Exercise id="fbDiff" />
+下面第一道练习实现 `patchUnkeyedChildren`，你会看到“按下标比较”为什么在头部插入时每一行都要更新。第二道修复一个用 index 作 key 的列表。
+
+<Exercise id="patchUnkeyed" />
 
 <Exercise id="diffKey" />
-
-<Exercise id="phenoHeight" />
-
-<Exercise id="phenoSort" />
 
 ::: pitfalls 注意：不要用 index 作为 key
 1. 列表会插入、删除或排序时，用数据的 id 作为 key。原因：头部插入一项后，每一项的 index 都改变。Vue 按 index 复用旧节点，只修改内容，并在末尾挂载一个新节点。输入框的状态因此留在错误的行（见上图）。静态的、不重新排序的列表可以使用 index。

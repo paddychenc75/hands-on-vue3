@@ -628,3 +628,256 @@ kanbanRoute.faded = {
   js: sub(sub(kanbanRoute.solJs!, '// 路由参数是字符串，t.id 是数字。先转为数字，再比较。\n', ''),
     't.id === Number(route.params.id)', 't.id === route.params.id /* ✏️ 路由参数和 t.id 的类型一样吗？ */')
 }
+
+// ===================== 项目检验 1：为 store 写测试，并用“故意改坏的实现”确认测试能抓到 =====================
+const testJs = (bodies: [string, string, string, string]) => `// ===== 已给出：迷你的 expect（模仿 Vitest，不用修改） =====
+function expect(actual) {
+  const show = v => JSON.stringify(v)
+  const fail = m => { throw new Error(m) }
+  return {
+    toBe(e) { if (actual !== e) fail('期望 ' + show(e) + '，实际 ' + show(actual)) },
+    toEqual(e) { if (show(actual) !== show(e)) fail('期望 ' + show(e) + '，实际 ' + show(actual)) },
+    toHaveLength(n) { if (actual.length !== n) fail('期望长度 ' + n + '，实际 ' + actual.length) }
+  }
+}
+
+// ===== 已给出：被测试的 store（不用修改） =====
+// createTaskStore() 每次返回一个全新的 store，相当于测试里的 setActivePinia(createPinia())。
+// 传入 bug 会得到一个故意改坏的版本：你的测试必须能发现它。
+function createTaskStore(bug) {
+  const tasks = []
+  let nextId = 1
+  return {
+    tasks,
+    add(title) {
+      const text = bug === 'blank' ? title : title.trim()
+      if (bug !== 'blank' && !text) return null
+      const task = { id: nextId++, title: text, status: 'todo' }
+      tasks.push(task)
+      return task
+    },
+    move(id, status) {
+      if (bug === 'moveAll') tasks.forEach(t => { t.status = status })
+      else { const t = tasks.find(x => x.id === id); if (t) t.status = status }
+    },
+    remove(id) {
+      if (bug === 'removeIndex') tasks.splice(id, 1)
+      else { const i = tasks.findIndex(x => x.id === id); if (i >= 0) tasks.splice(i, 1) }
+    },
+    get remaining() {
+      return bug === 'remaining' ? tasks.length : tasks.filter(t => t.status !== 'done').length
+    }
+  }
+}
+
+// ===== TODO：写四个测试。每个测试拿到 create，用 create() 得到全新的 store =====
+const tests = [
+  ['add：去掉首尾空格，空标题不添加', create => {
+${bodies[0]}
+  }],
+  ['move：只改变目标任务', create => {
+${bodies[1]}
+  }],
+  ['remaining：只数没完成的任务', create => {
+${bodies[2]}
+  }],
+  ['remove：删掉指定 id 的任务', create => {
+${bodies[3]}
+  }]
+]
+
+// ===== 已给出：把四个测试分别用在正确的实现和四个改坏的实现上 =====
+const bugs = [['ok', '正确的实现'], ['blank', '缺陷 blank'], ['moveAll', '缺陷 moveAll'], ['remaining', '缺陷 remaining'], ['removeIndex', '缺陷 removeIndex']]
+const rows = bugs.map(([bug, label]) => ({
+  bug, label,
+  results: tests.map(([, run]) => {
+    try { run(() => createTaskStore(bug === 'ok' ? undefined : bug)); return '通过' } catch (e) { return '失败：' + e.message }
+  })
+}))
+const names = tests.map(t => t[0])
+return { rows, names }`
+
+const testTpl = `<table>
+  <thead><tr><th>实现</th><th v-for="(n, i) in names" :key="i">{{ n }}</th></tr></thead>
+  <tbody>
+    <tr v-for="r in rows" :key="r.bug" :data-bug="r.bug">
+      <td>{{ r.label }}</td>
+      <td v-for="(res, i) in r.results" :key="i" :data-t="i" :data-res="res === '通过' ? 'pass' : 'fail'">{{ res === '通过' ? '通过' : '失败' }}</td>
+    </tr>
+  </tbody>
+</table>
+<p class="cap">正确的实现应全部通过；每个改坏的实现应让对应的那个测试失败。</p>`
+
+const NOASSERT = ['      const s = create()\n      s.add(\'  写周报  \')\n      s.add(\'   \')', '      const s = create()\n      s.add(\'a\')\n      s.add(\'b\')\n      s.move(1, \'done\')', '      const s = create()\n      s.add(\'a\')\n      s.add(\'b\')\n      s.move(1, \'done\')', '      const s = create()\n      s.add(\'a\')\n      s.add(\'b\')\n      s.remove(1)'] as [string, string, string, string]
+
+const SOL_BODIES: [string, string, string, string] = [
+  "      const s = create()\n      s.add('  写周报  ')\n      s.add('   ')\n      expect(s.tasks).toHaveLength(1)\n      expect(s.tasks[0].title).toBe('写周报')",
+  "      const s = create()\n      s.add('a')\n      s.add('b')\n      s.move(1, 'done')\n      expect(s.tasks[0].status).toBe('done')\n      expect(s.tasks[1].status).toBe('todo')",
+  "      const s = create()\n      s.add('a')\n      s.add('b')\n      s.move(1, 'done')\n      expect(s.remaining).toBe(1)",
+  "      const s = create()\n      s.add('a')\n      s.add('b')\n      s.remove(1)\n      expect(s.tasks).toHaveLength(1)\n      expect(s.tasks[0].title).toBe('b')"
+]
+const START_BODIES: [string, string, string, string] = [
+  '      // TODO：添加 "  写周报  "，再添加 "   "。断言只有 1 个任务，标题是 "写周报"',
+  '      // TODO：添加两个任务，把第 1 个移到 done。断言第 1 个是 done，第 2 个仍是 todo',
+  '      // TODO：添加两个任务，把第 1 个移到 done。断言 remaining 是 1',
+  '      // TODO：添加两个任务，删掉 id 为 1 的。断言只剩 1 个，并且是第二个'
+]
+const FADED_BODIES: [string, string, string, string] = [
+  "      const s = create()\n      s.add('  写周报  ')\n      s.add('   ')\n      expect(s.tasks)./* ✏️ 断言只有 1 个任务 */\n      expect(s.tasks[0].title)./* ✏️ 断言标题去掉了空格 */",
+  "      const s = create()\n      s.add('a')\n      s.add('b')\n      s.move(1, 'done')\n      expect(s.tasks[0].status).toBe('done')\n      expect(/* ✏️ 第 2 个任务的状态 */).toBe('todo')",
+  "      const s = create()\n      s.add('a')\n      s.add('b')\n      s.move(1, 'done')\n      expect(/* ✏️ 还没完成的数量 */).toBe(1)",
+  "      const s = create()\n      s.add('a')\n      s.add('b')\n      s.remove(1)\n      expect(s.tasks).toHaveLength(1)\n      expect(s.tasks[0].title)./* ✏️ 剩下的应该是第二个任务 */"
+]
+
+export const projStoreTest: Exercise = {
+  title: '项目检验 1：为 store 写测试，并让它抓住四个缺陷',
+  ch: 29,
+  task: '<p>说明：练习台不能运行 Vitest。脚本里有一个迷你的 expect，和一个任务 store 的工厂函数 <code>createTaskStore</code>。工厂每次返回一个全新的 store，相当于测试里的 <code>setActivePinia(createPinia())</code>。</p><p>工厂还能返回四个<b>故意改坏</b>的版本（blank、moveAll、remaining、removeIndex）。下面的表格把你的四个测试，分别用在正确的实现和四个改坏的实现上。</p><ol><li>补全四个测试的函数体，每个测试都要有断言。</li><li>让<b>正确的实现</b>通过全部四个测试。</li><li>让第 N 个改坏的实现，使第 N 个测试失败。也就是每个测试都要能“抓住”它对应的缺陷。</li></ol><p>不要修改 store 和 expect。没有断言的测试永远通过，抓不住任何缺陷。</p>',
+  tpl: testTpl,
+  js: testJs(START_BODIES),
+  solJs: testJs(SOL_BODIES),
+  faded: { js: testJs(FADED_BODIES) },
+  hints: [
+    '好测试要能抓住缺陷。对每个缺陷问自己：它会让哪个可观察的结果，和正确的实现不一样？例如 blank 缺陷不去空格，也会接受空标题。',
+    '测试 2 和测试 3 需要两个任务：只有一个任务时，“把所有任务都改成 done”和“只改目标”看不出区别。测试 4 也需要两个任务，并且要删的是第一个：缺陷把 id 当成下标。',
+    "每个测试先 `const s = create()`，再操作，再用 expect 断言。例如测试 1：add 两次，`expect(s.tasks).toHaveLength(1)`，`expect(s.tasks[0].title).toBe('写周报')`。"
+  ],
+  async check(T) {
+    const cell = (bug: string, i: number) => T.$(`tr[data-bug="${bug}"] td[data-t="${i}"]`)
+    const res = (bug: string, i: number) => (cell(bug, i)?.getAttribute('data-res') || 'missing')
+    T.ok(T.$$('tr[data-bug]').length === 5, '表格里有正确的实现和四个缺陷共 5 行。表格代码不要改')
+    const bad: string[] = []
+    for (let i = 0; i < 4; i++) if (res('ok', i) !== 'pass') bad.push(String(i + 1))
+    T.ok(bad.length === 0, '正确的实现应通过全部四个测试' + (bad.length ? '，现在测试 ' + bad.join('、') + ' 失败了：期望值写错，或者还没有补全' : ''))
+    const pairs: [string, number, string][] = [['blank', 0, 'add'], ['moveAll', 1, 'move'], ['remaining', 2, 'remaining'], ['removeIndex', 3, 'remove']]
+    for (const [bug, i, name] of pairs) {
+      T.ok(res(bug, i) === 'fail', '测试 ' + (i + 1) + '（' + name + '）应该抓住缺陷 ' + bug + '：它让这个测试失败。现在这个测试对缺陷也通过了，说明它没有断言，或者断言太弱')
+    }
+  },
+  wrong: [
+    {
+      js: testJs(NOASSERT),
+      why: '测试只做了操作，没有断言。没有断言的测试永远通过，所以它对正确的实现和四个缺陷的结果完全一样，什么也抓不住。',
+      expectFail: /应该抓住缺陷/
+    },
+    {
+      js: testJs([SOL_BODIES[0].replace("toBe('写周报')", "toBe('  写周报  ')"), SOL_BODIES[1], SOL_BODIES[2], SOL_BODIES[3]]),
+      why: '期望值写错了：add 应该去掉首尾空格，测试却要求保留。正确的实现反而通不过这个测试。测试要描述正确的行为，不是迎合某个实现。',
+      expectFail: /正确的实现应通过/
+    },
+    {
+      js: testJs([SOL_BODIES[0], "      const s = create()\n      s.add('a')\n      s.move(1, 'done')\n      expect(s.tasks[0].status).toBe('done')", SOL_BODIES[2], SOL_BODIES[3]]),
+      why: '测试 2 只添加了一个任务。“所有任务都改成 done”和“只改目标任务”在只有一个任务时结果相同，所以抓不住缺陷 moveAll。要有第二个任务，并断言它没有变。',
+      expectFail: /moveAll/
+    }
+  ]
+}
+
+// ===================== 项目检验 2：无障碍的最低要求 =====================
+const a11yJs = `// ---------- 数据和方法。不要修改。 ----------
+const tasks = ref([
+  { id: 1, title: '买菜', done: false },
+  { id: 2, title: '写周报', done: true },
+  { id: 3, title: '健身', done: false }
+])
+const left = computed(() => tasks.value.filter(t => !t.done).length)
+function toggle(t) { t.done = !t.done }
+function remove(id) { tasks.value = tasks.value.filter(t => t.id !== id) }
+
+return { tasks, left, toggle, remove }`
+
+const a11yTpl = `<ul>
+  <li v-for="t in tasks" :key="t.id">
+    <span class="box" @click="toggle(t)">{{ t.done ? '☑' : '☐' }}</span>
+    <span :class="{ done: t.done }">{{ t.title }}</span>
+    <span class="x" @click="remove(t.id)">✕</span>
+  </li>
+</ul>
+<div class="count">还剩 {{ left }} 项</div>`
+
+const a11ySolTpl = `<ul>
+  <li v-for="t in tasks" :key="t.id">
+    <label><input type="checkbox" :checked="t.done" @change="toggle(t)"> {{ t.title }}</label>
+    <button type="button" :aria-label="'删除 ' + t.title" @click="remove(t.id)">✕</button>
+  </li>
+</ul>
+<p role="status">还剩 {{ left }} 项</p>`
+
+export const projA11y: Exercise = {
+  title: '项目检验 2：让任务列表只用键盘和读屏软件也能用',
+  ch: 29,
+  task: '<p>下面的列表用鼠标能用，但键盘和读屏软件用不了：勾选和删除都是不能获得焦点的 <code>&lt;span&gt;</code>，剩余数量变化时读屏软件不会读出来。按验收清单的“无障碍的最低要求”修复它。</p><ol><li>每个任务的完成状态是一个<b>原生复选框</b>，它的名称（用 label 关联）包含任务标题。</li><li>删除是一个<b>原生 button</b>，名称是“删除”加任务标题，例如“删除 买菜”。</li><li>“还剩 N 项”所在的元素是一个状态区域（<code>role="status"</code> 或 <code>aria-live</code>），数量变化时读屏软件会读出来。</li></ol><p>不能改变行为：勾选后剩余数量减少；删除后任务消失。数据和方法不要改。</p>',
+  tpl: a11yTpl,
+  js: a11yJs,
+  solTpl: a11ySolTpl,
+  faded: {
+    tpl: `<ul>
+  <li v-for="t in tasks" :key="t.id">
+    <label><input type="checkbox" :checked="t.done" @change="/* ✏️ 切换这个任务 */ null"> {{ t.title }}</label>
+    <button type="button" :aria-label="/* ✏️ “删除 ”加任务标题 */ ''" @click="remove(t.id)">✕</button>
+  </li>
+</ul>
+<!-- ✏️ 给这个段落加上状态区域的 role -->
+<p>还剩 {{ left }} 项</p>`
+  },
+  hints: [
+    '先用键盘试：按 Tab，焦点会停在哪里？`<span>` 和 `<div>` 不能获得焦点，也没有角色。原生元素自带这些：`<input type="checkbox">` 是复选框，`<button>` 是按钮。',
+    '复选框要有名称：把 `<input>` 和标题放进同一个 `<label>`。只有符号的按钮没有名称：给 `<button>` 加 `aria-label`。数量变化要被读出来：给它所在的元素加 `role="status"`。',
+    a11ySolTpl
+  ],
+  async check(T) {
+    const tick = () => new Promise<void>(r => setTimeout(r, 30))
+    const nameOf = (el: Element): string => {
+      const aria = el.getAttribute('aria-label')
+      if (aria) return aria.trim()
+      const labels = (el as HTMLInputElement).labels
+      if (labels && labels.length) return Array.from(labels).map(l => l.textContent || '').join(' ').trim()
+      const by = el.getAttribute('aria-labelledby')
+      if (by) return by.split(/\s+/).map(id => (document.getElementById(id) || { textContent: '' }).textContent).join(' ').trim()
+      return (el.textContent || '').trim()
+    }
+    const boxes = T.$$('input[type=checkbox]') as HTMLInputElement[]
+    T.ok(boxes.length === 3, '每个任务有一个原生复选框（input type=checkbox），现在有 ' + boxes.length + ' 个')
+    const titles = ['买菜', '写周报', '健身']
+    boxes.forEach((b, i) => T.ok(nameOf(b).includes(titles[i]), '第 ' + (i + 1) + ' 个复选框的名称应包含“' + titles[i] + '”（用 label 关联），现在名称是“' + nameOf(b) + '”'))
+    const btns = T.$$('li button') as HTMLButtonElement[]
+    T.ok(btns.length === 3, '每个任务有一个原生 button 作为删除按钮，现在有 ' + btns.length + ' 个')
+    btns.forEach((b, i) => T.ok(/删除/.test(nameOf(b)) && nameOf(b).includes(titles[i]), '第 ' + (i + 1) + ' 个按钮的名称应是“删除 ' + titles[i] + '”，现在是“' + nameOf(b) + '”'))
+    const live = T.$$('[role=status],[aria-live]').find(e => /还剩/.test(e.textContent || ''))
+    T.ok(!!live, '“还剩 N 项”所在的元素应是状态区域（role="status" 或 aria-live），数量变化才会被读出来')
+    if (boxes[0]) {
+      boxes[0].focus()
+      T.ok(document.activeElement === boxes[0], '复选框可以用键盘获得焦点')
+      await T.click(boxes[0])
+      await tick()
+      T.ok(/还剩 1 项/.test(T.text()), '勾选“买菜”后剩余数量变为 1')
+    }
+    if (btns[1]) {
+      await T.click(btns[1])
+      await tick()
+      T.ok(T.$$('li').length === 2 && !/写周报/.test(T.text()), '删除“写周报”后，它从列表中消失')
+    }
+  },
+  wrong: [
+    {
+      tpl: a11ySolTpl.replace('<label><input type="checkbox" :checked="t.done" @change="toggle(t)"> {{ t.title }}</label>', '<input type="checkbox" :checked="t.done" @change="toggle(t)"> <span>{{ t.title }}</span>'),
+      why: '复选框旁边有文字，但文字和复选框没有关联。读屏软件读到的是“复选框”，不知道它对应哪个任务。要用 label 把它们关联起来（包住它，或 for 指向它的 id）。',
+      expectFail: /复选框的名称/
+    },
+    {
+      tpl: a11ySolTpl.replace(`:aria-label="'删除 ' + t.title" `, ''),
+      why: '按钮里只有“✕”，读屏软件读出的名称是“✕”或者什么也不读。图标按钮要用 aria-label 给出名称，并且说明删的是哪一项。',
+      expectFail: /按钮的名称/
+    },
+    {
+      tpl: a11ySolTpl.replace(/<button type="button" (:aria-label="[^"]*") @click="remove\(t.id\)">✕<\/button>/, '<span role="button" tabindex="0" $1 @click="remove(t.id)">✕</span>'),
+      why: 'role 和 tabindex 能让 span 获得焦点和角色，但键盘按 Enter 或空格不会触发 click，你还得自己写按键处理。原生 button 全部自带。优先用原生元素。',
+      expectFail: /原生 button/
+    },
+    {
+      tpl: a11ySolTpl.replace('<p role="status">', '<p>'),
+      why: '剩余数量变化时，读屏软件不会主动读出普通的段落。要给它 role="status"（或 aria-live="polite"）。',
+      expectFail: /状态区域/
+    }
+  ]
+}

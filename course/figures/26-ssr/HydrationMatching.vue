@@ -1,5 +1,5 @@
 <template>
-  <svg viewBox="0 0 400 292" style="max-width:480px" role="img" aria-label="水合时，Vue 逐个比较虚拟节点和已有的 DOM 节点。匹配时复用节点。不匹配时按类型处理。"><defs><marker id="ssr2-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker><marker id="ssr2-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--warn)"/></marker></defs>
+  <svg viewBox="0 0 400 292" style="max-width:480px" role="img" aria-label="水合时，Vue 逐个比较虚拟节点和已有的 DOM 节点。匹配时复用节点。文字不同时修改文字。元素类型不同时重建节点。class 不同时不修改。"><defs><marker id="ssr2-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker><marker id="ssr2-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--warn)"/></marker></defs>
     <text x="70" y="22" font-size="16" text-anchor="middle" fill="var(--ink)" font-weight="700">虚拟节点</text>
     <text x="330" y="22" font-size="16" text-anchor="middle" fill="var(--ink)" font-weight="700">已有 DOM</text>
     <text x="70" y="40" font-size="15.5" text-anchor="middle" fill="var(--muted)">浏览器</text>
@@ -30,7 +30,7 @@
     <text x="70" y="253" font-size="16" text-anchor="middle" fill="var(--ink)">class="b"</text>
     <text x="330" y="253" font-size="16" text-anchor="middle" fill="var(--ink)">class="a"</text>
     <path d="M138 248 H262" fill="none" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#ssr2-w)" marker-start="url(#ssr2-w)"/>
-    <text x="200" y="241" font-size="15.5" text-anchor="middle" fill="var(--warn)" font-weight="700">属性不同</text>
-    <text x="200" y="267" font-size="15.5" text-anchor="middle" fill="var(--ink)">不改，只警告</text>
+    <text x="200" y="241" font-size="15.5" text-anchor="middle" fill="var(--warn)" font-weight="700">class 不同</text>
+    <text x="200" y="267" font-size="15.5" text-anchor="middle" fill="var(--ink)">不改，开发版警告</text>
   </svg>
 </template>

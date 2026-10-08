@@ -538,7 +538,7 @@ function inject(key, defaultValue) {
 
 ```js
 // SearchBox.vue
-const inp = useTemplateRef('inp')   // 模板中 ref="inp" 的元素（模板 ref 见第 6.3 节）
+const inp = useTemplateRef('inp')   // 模板中 ref="inp" 的元素（模板 ref 见第 7.3 节）
 function focus() { inp.value.focus() }
 defineExpose({ focus })            // 父组件只能访问 focus
 

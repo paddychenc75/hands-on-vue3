@@ -380,7 +380,7 @@ function hydrateElement(el, vnode, parentComponent) {
   // 2. 属性：只处理三类
   for (const key in vnode.props) {
     if (isOn(key) || key[0] === '.' || vnode.dynamicProps?.includes(key)) {
-      patchProp(el, key, null, vnode.props[key])   // 就是渲染器的 patchProp（第 30 章）
+      patchProp(el, key, null, vnode.props[key])   // 就是渲染器的 patchProp（第 32 章）
     }
   }
   return el.nextSibling
@@ -566,7 +566,7 @@ createServer((req, res) => {
   const stream = renderToNodeStream(createSSRApp(App))
   stream.on('data', chunk => res.write(chunk))
   stream.on('end', () => {
-    res.end(`</div><script>window.__STATE__ = ${uneval(state)}</script>`)   // 流结束后状态才完整（uneval 见 29.4）
+    res.end(`</div><script>window.__STATE__ = ${uneval(state)}</script>`)   // 流结束后状态才完整（uneval 见 36.4）
   })
   stream.on('error', err => res.destroy(err))   // 已经发出的内容收不回，只能中断连接
 })

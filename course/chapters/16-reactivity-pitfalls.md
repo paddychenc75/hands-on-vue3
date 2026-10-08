@@ -210,7 +210,7 @@ const { count } = defineProps(['count'])
 const snap = count                       // 编译为 const snap = __props.count，仍然是快照
 const triple = computed(() => count * 3) // 编译为 __props.count * 3，在 computed 里被追踪
 useFoo(count)                            // 编译为 useFoo(__props.count)，传进去的是当前的值
-useFoo(() => count)                      // 传 getter，被调用方在副作用函数里读取（第 9 章 9.4 节）
+useFoo(() => count)                      // 传 getter，被调用方在副作用函数里读取（第 8 章 8.4 节）
 watch(count, cb)                         // 编译报错：要写成 watch(() => count, cb)
 ```
 

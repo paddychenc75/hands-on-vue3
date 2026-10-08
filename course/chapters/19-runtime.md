@@ -79,7 +79,7 @@ shouldUpdateComponent
 // runtime-core/renderer.ts（简化）
 function patch(n1, n2, container, anchor = null, parentComponent = null) {
   if (n1 === n2) return
-  if (n1 && !isSameVNodeType(n1, n2)) {   // type 或 key 不同（18.3 节）
+  if (n1 && !isSameVNodeType(n1, n2)) {   // type 或 key 不同（30.3 节）
     anchor = getNextHostNode(n1)          // 新节点要插在旧节点原来的位置
     unmount(n1)
     n1 = null
@@ -212,7 +212,7 @@ const setupRenderEffect = (instance, initialVNode, container, anchor) => {
     } else {
       // ---- 之后：更新 ----
       let { next, bu, u, vnode } = instance
-      if (next) {                                    // 是父组件触发的更新（19.5 节）
+      if (next) {                                    // 是父组件触发的更新（31.5 节）
         next.el = vnode.el
         updateComponentPreRender(instance, next)     // 更新 props 和插槽
       } else {
@@ -228,11 +228,11 @@ const setupRenderEffect = (instance, initialVNode, container, anchor) => {
     }
   }
 
-  const effect = (instance.effect = new ReactiveEffect(componentUpdateFn))   // 第 12 章
+  const effect = (instance.effect = new ReactiveEffect(componentUpdateFn))   // 第 24 章
   const update = (instance.update = effect.run.bind(effect))
   const job = (instance.job = effect.runIfDirty.bind(effect))
   job.i = instance
-  job.id = instance.uid                              // 第 13 章：父组件的 id 小，先更新
+  job.id = instance.uid                              // 第 25 章：父组件的 id 小，先更新
   effect.scheduler = () => queueJob(job)             // 数据变化时不直接运行，放进更新队列
   update()                                           // 第一次渲染
 }
@@ -497,7 +497,7 @@ function trigger(target, key) {
 }
 
 function effect(fn, { scheduler, lazy } = {}) {
-  const e = { deps: [], scheduler, run() { /* 和 12.2 节相同：清理依赖，设置 activeEffect，运行 fn */ } }
+  const e = { deps: [], scheduler, run() { /* 和 24.2 节相同：清理依赖，设置 activeEffect，运行 fn */ } }
   if (!lazy) e.run()
   return e
 }

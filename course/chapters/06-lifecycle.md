@@ -152,7 +152,7 @@ onUnmounted(() => {
 **场景：在容器中创建图表。**第三方库需要真实的 DOM 元素。在 onMounted 中创建实例，在 onUnmounted 中销毁它。
 
 ```js
-const el = useTemplateRef('chart')     // 模板中 ref="chart" 的元素（6.3 节）
+const el = useTemplateRef('chart')     // 模板中 ref="chart" 的元素（7.3 节）
 let chart
 onMounted(() => { chart = createChart(el.value, options) })   // createChart 来自你的图表库
 onUnmounted(() => { chart.destroy() })

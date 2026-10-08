@@ -181,7 +181,7 @@ function setupRenderEffect(instance, initialVNode, container) {
   const job = (instance.job = effect.runIfDirty.bind(effect))  // 调度器运行的任务
   job.i = instance
   job.id = instance.uid                          // id 决定更新顺序：父组件小于子组件
-  effect.scheduler = () => queueJob(job)         // 数据改变：放入更新队列（第 13 章）
+  effect.scheduler = () => queueJob(job)         // 数据改变：放入更新队列（第 25 章）
   update()                                       // 第一次渲染
 }
 ```

@@ -352,7 +352,7 @@ function flushJobs() {
     for (flushIndex = 0; flushIndex < queue.length; flushIndex++) {
       const job = queue[flushIndex]
       if (job && !(job.flags & DISPOSED)) {
-        checkRecursiveUpdates(seen, job)            // 仅开发环境，见 13.7
+        checkRecursiveUpdates(seen, job)            // 仅开发环境，见 25.7
         if (job.flags & ALLOW_RECURSE) job.flags &= ~QUEUED
         job()
         if (!(job.flags & ALLOW_RECURSE)) job.flags &= ~QUEUED

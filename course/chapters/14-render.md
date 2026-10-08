@@ -105,8 +105,8 @@ props 中的属性规则如下：
   key: null,
   el: null,                // 挂载后指向真实 DOM
   shapeFlag: 9,            // ELEMENT | TEXT_CHILDREN：这个节点和它的子节点是什么形态
-  patchFlag: 0,            // 手写 h() 没有标记（第 17 章）
-  dynamicChildren: null,   // 只有编译器生成的 Block 才有（第 17 章）
+  patchFlag: 0,            // 手写 h() 没有标记（第 29 章）
+  dynamicChildren: null,   // 只有编译器生成的 Block 才有（第 29 章）
   component: null          // 组件 vnode 挂载后指向组件实例
 }
 ```
@@ -371,7 +371,7 @@ function createVNode(type, props, children) {
     : isObject(type) ? STATEFUL_COMPONENT
     : isFunction(type) ? FUNCTIONAL_COMPONENT : 0     // Fragment、Text、Comment 是符号，类型位是 0
   const vnode = { type, props, children: null, shapeFlag, /* … */ }
-  normalizeChildren(vnode, children)                 // 见 14.8
+  normalizeChildren(vnode, children)                 // 见 28.8
   return vnode
 }
 ```

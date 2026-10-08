@@ -468,7 +468,7 @@ export function withSetup(composable) {
   return [result, app]                     // 测试结束时调用 app.unmount()
 }
 
-// 第 9 章的 useMouse(target)：在 onMounted 中读取 target.value，监听元素的 pointermove
+// 第 8 章的 useMouse(target)：在 onMounted 中读取 target.value，监听元素的 pointermove
 test('useMouse', () => {
   const el = document.createElement('div')
   document.body.append(el)

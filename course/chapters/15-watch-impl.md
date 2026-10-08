@@ -73,10 +73,10 @@ export function watch(source, cb, options = {}) {
   const { immediate, deep, once, scheduler, augmentJob } = options
   let effect, getter, cleanup, forceTrigger = false, isMultiSource = false
 
-  // ① 把侦听源变成 getter（15.2）
-  // ② 有 cb 并且 deep：getter = () => traverse(baseGetter(), depth)（15.2）
+  // ① 把侦听源变成 getter（26.2）
+  // ② 有 cb 并且 deep：getter = () => traverse(baseGetter(), depth)（26.2）
 
-  // ③ job：数据变了之后真正做事的函数（15.3）
+  // ③ job：数据变了之后真正做事的函数（26.3）
   const job = (immediateFirstRun) => { /* … */ }
   augmentJob && augmentJob(job)
 
@@ -89,7 +89,7 @@ export function watch(source, cb, options = {}) {
   else if (scheduler) scheduler(job.bind(null, true), true)
   else effect.run()
 
-  // ⑥ 返回句柄（15.6）
+  // ⑥ 返回句柄（26.6）
   return watchHandle
 }
 ```
@@ -152,7 +152,7 @@ const job = (immediateFirstRun) => {
   if (cb) {
     const newValue = effect.run()                     // ② 重新运行 getter，重新收集依赖
     if (immediateFirstRun || deep || forceTrigger || hasChanged(newValue, oldValue)) {   // ③ 比较
-      cleanup && cleanup()                            // ④ 先清理上一次（15.5）
+      cleanup && cleanup()                            // ④ 先清理上一次（26.5）
       const args = [newValue, oldValue === INITIAL ? undefined
         : (isMultiSource && oldValue[0] === INITIAL ? [] : oldValue), onCleanup]
       oldValue = newValue

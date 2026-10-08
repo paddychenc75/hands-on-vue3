@@ -88,7 +88,7 @@ export function useForm({ initialValues, schema, onSubmit }) {
   const validating = reactive({})
   const submitCount = ref(0)
   const isSubmitting = ref(false)
-  const fields = shallowReactive(new Map())                    // 已注册的字段（33.3 节）
+  const fields = shallowReactive(new Map())                    // 已注册的字段（39.3 节）
 
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
   const isDirty = p => !same(p ? getPath(values, p) : values, p ? getPath(initial.value, p) : initial.value)
@@ -177,7 +177,7 @@ export function useField(name, { rules = [], asyncRules = [], delay = 300, clear
     get: () => getPath(form.values, path()),
     set: v => setPath(form.values, path(), v)
   })
-  const meta = { el: null, flush /* 33.5 节 */, syncError /* 33.4 节 */ }
+  const meta = { el: null, flush /* 39.5 节 */, syncError /* 39.4 节 */ }
 
   watch(path, (p, _old, onCleanup) => {
     form.register(p, meta)
@@ -206,7 +206,7 @@ export function useField(name, { rules = [], asyncRules = [], delay = 300, clear
 - 第 3 层 `TextInput`：输入控件，只认 `v-model` 和透传属性，不知道表单的存在。
 
 ```vue
-<!-- TextInput.vue：控件，用 defineModel 暴露 v-model（5.4 节），其余属性透传到 input（5.3 节） -->
+<!-- TextInput.vue：控件，用 defineModel 暴露 v-model（6.4 节），其余属性透传到 input（6.3 节） -->
 <script setup>
 defineOptions({ inheritAttrs: false })
 const model = defineModel()
@@ -516,7 +516,7 @@ const visible = (f, values) => !f.showIf || values[f.showIf.field] === f.showIf.
 ```
 
 ```vue
-<!-- FormRenderer：每个字段仍然是 33.3 节的 FormField，只是由配置生成 -->
+<!-- FormRenderer：每个字段仍然是 39.3 节的 FormField，只是由配置生成 -->
 <template v-for="f in compiled" :key="f.name">
   <FormField v-if="visible(f, form.values)" :name="f.name" :label="f.label" :rules="f.parsed" :control="controls[f.control]" />
 </template>

@@ -173,7 +173,7 @@ Vue 的 `defineModel` 已经替你做了大部分工作。它判断“受控”�
 ```ts
 const { selected, active, listboxProps, optionProps } = useListbox({
   options,                        // MaybeRefOrGetter：选项数组，每项有 value、label、disabled
-  modelValue: () => props.value,  // 传了就是受控，undefined 表示非受控（21.2）
+  modelValue: () => props.value,  // 传了就是受控，undefined 表示非受控（35.2）
   defaultValue: 'banana',         // 非受控的初值
   onChange: v => emit('change', v)
 })

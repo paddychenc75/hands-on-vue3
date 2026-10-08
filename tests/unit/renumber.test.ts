@@ -97,3 +97,27 @@ describe('remap 系列：旧号 -> 任意新号', () => {
     expect(setFrontmatterStage('没有 frontmatter\nstage: 6', 5)).toBe('没有 frontmatter\nstage: 6')
   })
 })
+
+describe('remapRefs 的 known 选项：没有“节”字的裸 N.M 只要真是小节编号也跟着改', () => {
+  const known = new Set(['15.2', '15.4', '15.6', '16.4', '29.1', '29.2', '29.3', '3.3', '8.3'])
+  const up = (n: number) => (n >= 15 ? n + 2 : n)
+  it('括号、并列、区间、“N.M 的/说过”等裸写法', () => {
+    expect(remapRefs('绑定改成 $setup.c（15.6）。15.2 的 PatchFlag；15.2 到 15.4 的优化；（29.1 和 29.2）；（29.3 起）', up, { known })).toBe(
+      '绑定改成 $setup.c（17.6）。17.2 的 PatchFlag；17.2 到 17.4 的优化；（31.1 和 31.2）；（31.3 起）',
+    )
+  })
+  it('不是小节编号的小数、版本号、数值不动', () => {
+    // 15.9 不是小节；Vue 3.3 前面是英文字母；font-size="15.2" 是属性值；15.2 秒 / 15.4+ 是数值
+    expect(remapRefs('15.9 不改，Vue 3.3 不改，Vite 8.3 不改，等 15.2 秒，15.4+ 版本', up, { known })).toBe('15.9 不改，Vue 3.3 不改，Vite 8.3 不改，等 15.2 秒，15.4+ 版本')
+    expect(remapRefs('<text font-size="15.2">', up, { known })).toBe('<text font-size="15.2">')
+    expect(remapRefs('// ===== 15.2：patch 的分发 =====', up, { known })).toBe('// ===== 17.2：patch 的分发 =====')
+  })
+  it('小节标题行不当成引用；围栏里的不改；不传 known 时和以前一样', () => {
+    expect(remapRefs('### 15.2 标题\n正文（15.2）', up, { known, markdown: true })).toBe('### 15.2 标题\n正文（17.2）')
+    expect(remapRefs('```\n// 15.2\n```', up, { known, markdown: true })).toBe('```\n// 15.2\n```')
+    expect(remapRefs('正文（15.2）', up)).toBe('正文（15.2）')
+  })
+  it('“N.M 标题”只改一次（引号写法由原有规则处理，裸引用规则不重复改）', () => {
+    expect(remapRefs('第 15 章“15.2 标题”和 15.4', up, { known })).toBe('第 17 章“17.2 标题”和 17.4')
+  })
+})

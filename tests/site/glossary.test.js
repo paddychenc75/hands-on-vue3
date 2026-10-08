@@ -37,6 +37,7 @@ function readTerms() {
     for (let i = 0; i < lines.length - 1; i++) {
       if (lines[i].trim() && !/^:\s/.test(lines[i]) && /^:\s/.test(lines[i + 1])) {
         const t = lines[i].trim()
+        if (t.includes('【待写】')) continue // 骨架章的占位术语不进术语表
         if (!byTerm.has(t)) byTerm.set(t, [])
         if (!byTerm.get(t).includes(file)) byTerm.get(t).push(file)
       }
@@ -166,7 +167,7 @@ function readTerms() {
     {
       const g = R.group('术语标注：只标已学过的术语；每小节每个术语一次；不标代码、标题、链接、术语块、目标、类比、自测、实验台、练习')
       let total = 0
-      for (const c of ['03-refs', '05-comm', '16-diff']) {
+      for (const c of ['03-refs', '05-comm', '18-diff']) {
         const q = await newPage()
         await q.goto(base + `/chapters/${c}.html`)
         await q.waitForSelector('.vp-doc h1'); await q.waitForSelector('.vp-doc abbr.term', { timeout: 8000 }).catch(() => {})

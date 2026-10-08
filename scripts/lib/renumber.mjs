@@ -18,15 +18,15 @@ const CH_REF = /(第\s*)(\d+(?:\s*(?:[、,，和与]|[–—\-~到至])\s*\d+)*)
  * 把一行里指向章 X 的引用改成指向 map(X)：第 N 章、N.M 节、“N.M 标题”。
  * 规则与 validate.mjs 的引用检查一致。map 见 toNoFn。章内 id 不变，所以只改数字。
  */
-export function remapRefsInLine(line, map) {
-  return remapRefs(line, map);
+export function remapRefsInLine(line, map, known = null) {
+  return remapRefs(line, map, { known });
 }
 
 /** 一组行：先改小节引用（section-refs.mjs：N.M 节、见 N.M、区间和并列、表格引用列，位置按原文算），再改“第 N 章”和“N.M 标题” */
-function remapLines(lines, map, fenced = []) {
+function remapLines(lines, map, fenced = [], known = null) {
   const f = toNoFn(map);
   const up = n => String(f(Number(n)));
-  return remapSectionRefs(lines, f, fenced).map((line, i) =>
+  return remapSectionRefs(lines, f, fenced, known).map((line, i) =>
     fenced[i]
       ? line
       : line
@@ -35,10 +35,10 @@ function remapLines(lines, map, fenced = []) {
   );
 }
 
-/** 对整段文字做 remapRefsInLine。markdown 为真时跳过围栏代码块 */
-export function remapRefs(text, map, { markdown = false } = {}) {
+/** 对整段文字做 remapRefsInLine。markdown 为真时跳过围栏代码块。known：现有小节编号集合 Set('15.2', …)，传了就连没有“节”字的裸 N.M（见 section-refs.mjs 开头）也改 */
+export function remapRefs(text, map, { markdown = false, known = null } = {}) {
   const fenced = markdown ? maskFences(text).fenced : [];
-  return remapLines(text.split('\n'), map, fenced).join('\n');
+  return remapLines(text.split('\n'), map, fenced, known).join('\n');
 }
 
 /** 章号 >= from 的引用 +1（在中间插入一章时用） */

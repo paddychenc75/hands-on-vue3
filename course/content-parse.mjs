@@ -57,9 +57,12 @@ export function parseTerms(block) {
   return out;
 }
 
+/** 脚手架（new-chapter）写进骨架的占位标记。术语里带它的条目不进术语表 */
+const PLACEHOLDER = '【待写】';
+
 /**
  * 汇总全站术语。chapters 是 [{ meta: { id, file, link, chapter, title, stage }, src }]，按章的先后（阶段、章号）排好。
- * 同名术语合并：保留首次出现的定义，记录出现过的所有章；定义文字不同的同名术语记进 conflicts。只看有阶段的章（速查表没有术语块）。
+ * 同名术语合并：保留首次出现的定义，记录出现过的所有章；定义文字不同的同名术语记进 conflicts。只看有阶段的章（速查表没有术语块）。术语文字里含“【待写】”的占位条目跳过。
  * 返回 { entries: [{ term, defSrc, chapters: [{ id, link, chapter, title }] }], conflicts: [{ term, defs: [{ file, def }] }] }
  */
 export function collectGlossary(chapters) {
@@ -70,6 +73,7 @@ export function collectGlossary(chapters) {
     if (!block) continue;
     const ref = { id: meta.id, link: meta.link, chapter: meta.chapter, title: meta.title };
     for (const { term, def } of parseTerms(block)) {
+      if (term.includes(PLACEHOLDER)) continue; // 脚手架骨架里的占位术语（“【待写】术语”）不进术语表
       const e = byTerm.get(term);
       if (!e) byTerm.set(term, { term, defSrc: def, chapters: [ref], defs: [{ file: meta.file, def }] });
       else {

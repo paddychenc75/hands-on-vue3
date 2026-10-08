@@ -100,6 +100,18 @@ describe('样例', () => {
     expect(entries[0].chapters.map((c: any) => c.id)).toEqual(['a', 'b'])
     expect(conflicts.map((c: any) => c.term)).toEqual(['ref'])
   })
+  it('collectGlossary：脚手架骨架里的占位术语（含“【待写】”）不进术语表', () => {
+    const mk = (id: string, chapter: number, terms: string) => ({
+      meta: { id, file: `0${chapter}-${id}`, link: `/chapters/0${chapter}-${id}`, chapter, title: id, stage: 1 },
+      src: `::: terms\n${terms}\n:::\n`,
+    })
+    const { entries, conflicts } = collectGlossary([
+      mk('a', 1, '【待写】术语\n: 【待写】术语的一句话定义。\n\nref\n: 甲'),
+      mk('b', 2, '【待写】术语\n: 【待写】术语的一句话定义。'),
+    ])
+    expect(entries.map((e: any) => e.term)).toEqual(['ref'])
+    expect(conflicts).toEqual([])
+  })
 })
 
 describe('全部真实章节', () => {

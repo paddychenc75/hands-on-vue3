@@ -60,6 +60,16 @@ export function planRenumber(chapters, renumber, stages = {}) {
     nameMap[b] = `${pad2(renumber[b])}-${byBase[b].id}`;
     noMap[byBase[b].no] = renumber[b];
   }
+  // 现有小节编号（### N.M 标题）：让没有“节”字的裸 N.M（如“（15.6）”“15.2 的 PatchFlag”）也跟着改号
+  const known = new Set();
+  for (const c of chapters) {
+    const f = abs('course/chapters', c.base + '.md');
+    if (!fs.existsSync(f)) continue;
+    for (const l of fs.readFileSync(f, 'utf8').split('\n')) {
+      const m = /^###\s+(\d+\.\d+)\s/.exec(l);
+      if (m) known.add(m[1]);
+    }
+  }
   const writes = [];
   let textChanged = 0;
   const fencedRefs = [];
@@ -80,11 +90,11 @@ export function planRenumber(chapters, renumber, stages = {}) {
       }
       if (p.startsWith('course/exercises/') && nameMap[base]) text = remapExerciseCh(text, byBase[base].no, renumber[base]);
       if (REF_FILES(p)) {
-        text = remapRefs(text, noMap, { markdown: p.endsWith('.md') });
+        text = remapRefs(text, noMap, { markdown: p.endsWith('.md'), known });
         if (p.endsWith('.md')) {
           const fenced = maskFences(src).fenced;
           src.split('\n').forEach((l, i) => {
-            if (fenced[i] && remapRefsInLine(l, noMap) !== l) fencedRefs.push(`${p}:${i + 1}  ${l.trim().slice(0, 100)}`);
+            if (fenced[i] && remapRefsInLine(l, noMap, known) !== l) fencedRefs.push(`${p}:${i + 1}  ${l.trim().slice(0, 100)}`);
           });
         }
       }

@@ -570,7 +570,7 @@ module.exports = [
 - **实验台**：`<Lab id>` 全站唯一；有 `#predict` 插槽的才有先猜记录（进度里 `__pred[实验台 id]`）；每个 `<Lab id>` 在 `tests/site/labs/NN-id.js` 里有一项测试数据；`import` 的实验台和示意图文件必须存在。
 - **阶段测验专用题**（`checks/questions.ts`）：格式对、章 id 存在；每个阶段有测验页 `check/N.md`，题量够抽一套题。
 - **站内链接**：`/chapters/NN-id`、`/check/N`（N 在阶段数内）、`/review`、`/glossary`。`check:content` 扫章、`index.md`、`glossary.md`、`review.md`、`check/*.md`、练习的提示和题库里的链接；构建另外检查 Markdown 里的死链接。链接要不要带 base 见 4.14。
-- **引用**：“第 N 章”的 N 在范围内；“N.M 节”“N.M 标题”对应真实小节；`[第 N 章](/chapters/NN-id)` 的章号和链接目标一致；`第 N 章“词”` 的词要出现在第 N 章里。插入章会让后面的章号顺延，用 `new-chapter` 自动处理。
+- **引用**：“第 N 章”的 N 在范围内；“N.M 节”“N.M 标题”对应真实小节；`[第 N 章](/chapters/NN-id)` 的章号和链接目标一致；`第 N 章“词”` 的词要出现在第 N 章里。插入章会让后面的章号顺延，用 `new-chapter` 自动处理；移动章用 `move-chapter`。
 - **术语**：首页写作规则表（`course/writing-terms.mjs`）里的术语都要能在术语表里找到。
 - **卡片键快照**：见 AGENTS.md「卡片键快照」。
 - **残留**：章节里不能有 `TODO`、未闭合的 `:::`；`【待写】` 只提示（`--strict` 时算错误）。

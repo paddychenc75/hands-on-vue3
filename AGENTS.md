@@ -17,6 +17,10 @@
 7. 具体的 Markdown 写法（容器、`<Sc>`、`<Lab>`、示意图、练习字段、写作规范、`check:content` 检查的规则、站内链接和 base）以 [`course/AUTHORING.md`](course/AUTHORING.md) 为准，本文件讲规则和流程，不重复抄写法。两份文档里同一条规则只写一处，另一处指过去。
 8. **站内链接带 base**：站点部署在 `/hands-on-vue3/` 下，组件里手写链接用 `withBase`，localStorage 里存不带 base 的路径（见 AUTHORING 4.14）。
 
+## 待写的章（写完后删掉这一节）
+
+**第 17 章 `runtime`（组件运行时：从 vnode 到组件实例）、第 21 章 `state-arch`（状态归属与规模化）、第 28 章 `perf-clinic`（性能诊断实战）目前只有骨架**：文字是“【待写】”占位，练习和自测是脚手架生成的示例，还没有发布。写正文时：把占位换成真内容；这三章的卡片键（`runtime#N`、`state-arch#N`、`perf-clinic#N`）和指纹因为从未发布，可以用 `npm run check:content -- --update --force` 重写；用 `npm run check:content -- --strict` 确认占位清完；写完后**删掉本节这一段说明**。
+
 ## 命令
 
 ```bash
@@ -40,6 +44,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | **`npm test`** | check + build + test:e2e，**完整验收**。改引擎、主题组件、样式后必跑 | 约 9 分钟 |
 | `npm run test:site` | build + test:e2e（旧名字，保留） | 约 9 分钟 |
 | `npm run new-chapter -- <章id> --stage <1-6> --after <已有章id> --title "标题"` | 加一章 | 即时 |
+| `npm run move-chapter -- <章id> --after <已有章id> [--stage <1-6>]` | 把一章移到另一个位置（可同时改阶段），自动改名和改引用 | 即时 |
 | `npm run screenshots -- 03-refs` | 给一章截浅色和深色整页图（只构建这一章），改版面后人工看一眼 | 十几秒 |
 
 - `npm run test:e2e` 的用法：`-- <套件> [章名 …]`，套件是 `exercises`（逐章：练习、半成品、自测、实验台）、`progress`（跨章功能）、`mechanics`（学习机制）、`glossary`（术语表和术语标注）；写了章名就只跑 exercises；什么都不写就依次跑四个。
@@ -54,7 +59,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 
 | 位置 | 放什么 | 不放什么 |
 |---|---|---|
-| `course/chapters/NN-id.md` | 一章一个文件，`NN` 是两位章号，`id` 是章的稳定编号。`cheat.md` 是速查表（没有章号）。`27-quiz.md` 只是旧地址的跳转页 | 练习判题、实验台代码 |
+| `course/chapters/NN-id.md` | 一章一个文件，`NN` 是两位章号，`id` 是章的稳定编号。`cheat.md` 是速查表（没有章号）。`27-quiz.md` 只是旧地址的跳转页（它的文件名带 27，和第 27 章 `27-renderer.md` 并存、互不冲突：它没有 `id`，不是章，`REDIRECT_PAGES` 把它排除在所有校验和侧边栏之外；URL 要保持 `/chapters/27-quiz`，所以不改名） | 练习判题、实验台代码 |
 | `course/site.mjs` | 站点部署路径 `BASE_PATH`，**唯一的定义处**：`config.mts`、测试、脚本都从它取 | — |
 | `course/content-parse.mjs` | 章节 Markdown 的纯文本解析（frontmatter、自测题、小结、术语块、阅读时间、术语汇总）。站点构建和 Node 脚本共用这一份 | 读文件、DOM |
 | `course/writing-terms.mjs` | 首页「写作规则」表的数据（带“不使用的同义词”），术语表页的“不这样说”一栏也用它 | — |
@@ -110,7 +115,9 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 
 1. 生成 `course/chapters/NN-id.md`（frontmatter、目标、阅读时间、类比、术语、为什么需要它、一个小节、一道示例练习、一道自测、小结，文字是“【待写】”占位）、`course/exercises/NN-id.ts`（一道能通过的小练习，带 `hints`、`wrong`、`faded`）、`tests/site/labs/NN-id.js`（空数组）。
 2. 追加新卡片键到 `course/card-keys.snapshot.json`。
-3. **插在中间时**，后面的章全部顺延：文件改名（章、练习、`labs/`、`figures/`、测试数据）、frontmatter 的 `chapter`、练习的 `ch`、小节标题 `### N.M`、所有写到旧文件名的地方，以及章节、练习、题库里的“第 N 章”“N.M 节”“N.M 标题”引用，全部 +1。题干里带章号引用的自测题，指纹会随之改写，脚本会列出是哪几道（卡片键不变）。动手之前它要求 `check:content` 已通过、工作区干净（`--allow-dirty` 可跳过后一条），做完用 `check:content` 复核。`--dry-run` 只列计划不改文件。
+3. **插在中间时**，后面的章全部顺延：文件改名（章、练习、`labs/`、`figures/`、测试数据）、frontmatter 的 `chapter`、练习的 `ch`、小节标题 `### N.M`、所有写到旧文件名的地方，以及章节、练习、题库、术语表、首页、阶段测验页、实验台和示意图注释、浏览器测试里的“第 N 章”（含“第 N、M 章”“第 N–M 章”写法）“N.M 节”“N.M 标题”引用，全部 +1。题干里带章号引用的自测题，指纹会随之改写，脚本会列出是哪几道（卡片键不变）。动手之前它要求 `check:content` 已通过、工作区干净（`--allow-dirty` 可跳过后一条），做完用 `check:content` 复核。`--dry-run` 只列计划不改文件。
+
+**移动一章**（换位置、换阶段）用 `npm run move-chapter -- <章id> --after <章id> [--stage N]`：夹在中间的章顺延或前移，改名和改引用的规则与插入相同（两个脚本共用 `scripts/lib/renumber-plan.mjs`）；快照里已有键的顺序和值不动，只有题干里写着章号的自测题指纹会改写。做完同样要人工核对 `tests/expected.cjs`、`course/stages.ts` 和文档里写着章顺序的文字。
 4. 脚本不改、但会列出来的地方：`tests/expected.cjs`（锁定的章数和“每个阶段的可用题数”表，章数变了测试会在这里失败）、`course/stages.ts` 里提到章范围的说明、文档里的章数（`README.md`、本文件；`npm run check:docs` 会查出过期的数字）。首页的章数、章头的总章数、侧边栏、进度统计都是从章元数据算的，不用改。
 
 然后：

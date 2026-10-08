@@ -49,7 +49,7 @@ const resume = computed(() => {
     <header class="hero">
       <div class="eyebrow">VUE 3.5 · 中文互动课程</div>
       <h1>动手学 <em>Vue 3</em></h1>
-      <p>本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章，每个阶段末尾有一次阶段测验。阶段一和阶段二教你使用 Vue：模板、响应式、组件、内置组件、自定义指令、组合式函数、插件和表单。阶段三和阶段四说明 Vue 的内部原理：响应式、更新队列、渲染函数、模板编译、虚拟 DOM 与 diff，以及组件设计模式。阶段五介绍 Pinia、Router、TypeScript、性能优化和工程化。阶段六讲 SSR、自定义渲染器和 Vue 2 迁移，并包含一个完整的小项目。</p>
+      <p>本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章，每个阶段末尾有一次阶段测验。阶段一和阶段二教你使用 Vue：模板、响应式、组件、内置组件、自定义指令、组合式函数、插件和表单。阶段三和阶段四说明 Vue 的内部原理：响应式、更新队列、渲染函数、模板编译、虚拟 DOM 与 diff、组件运行时，以及组件与组合式函数的 API 设计。阶段五介绍 Pinia、Router、状态归属、TypeScript、性能优化、工程化和 Vue 2 迁移。阶段六讲 SSR、自定义渲染器和性能诊断实战，并包含一个完整的小项目。</p>
 
       <p class="prereq"><b>开始前你需要会：</b>HTML 和 CSS 基础（标签、属性、选择器），JavaScript 基础（变量、函数、箭头函数、数组的 map 和 filter、对象和数组的解构与展开、import 和 export 模块、Promise 与 async/await）。讲工程化的章节还会用到命令行和 npm。还不熟的话，先花一两周补 JavaScript，再回来学会轻松很多。</p>
 

@@ -46,7 +46,7 @@ npm run test:e2e -- 03-refs 04-computed   # 浏览器测试只测指定的章
 npm run new-chapter -- <章id> --stage <1-6> --after <已有章id> --title "标题"
 ```
 
-脚本会生成章节、练习和实验台测试数据的骨架，更新复习卡片键快照；插在中间时还会把后面的章改名、改章号、改引用。之后把“【待写】”占位换成内容，跑 `npm run check`。完整步骤、复习卡片键的规则、学习机制和写作规范都在 [AGENTS.md](AGENTS.md)；Markdown 的各种写法在 [course/AUTHORING.md](course/AUTHORING.md)。
+脚本会生成章节、练习和实验台测试数据的骨架，更新复习卡片键快照；插在中间时还会把后面的章改名、改章号、改引用；`npm run move-chapter` 用同样的办法移动一章的位置或阶段。之后把“【待写】”占位换成内容，跑 `npm run check`。完整步骤、复习卡片键的规则、学习机制和写作规范都在 [AGENTS.md](AGENTS.md)；Markdown 的各种写法在 [course/AUTHORING.md](course/AUTHORING.md)。
 
 ## 部署到 GitHub Pages
 

@@ -48,3 +48,13 @@
 
 `cards.test.ts` 会读 `course/chapters/*.md` 的 frontmatter 和 `<Sc>` 数量（没有 `id` 的页面，如旧地址 27-quiz 的跳转页，不算章），以及 `course/checks/questions.ts`，
 所以增删章或自测题时它会提醒你确认卡片键没有错位。
+
+每个阶段的可用题数和总章数在 `tests/expected.cjs` 里锁定（增删章、补题时要改它）。
+
+不属于学习机制、但也在这里测的：
+
+| 测什么 | 测试 |
+|---|---|
+| 章节 Markdown 解析（frontmatter、自测题、小结、术语块、阅读时间、术语汇总）是唯一的一份实现 | `content-parse`（样例 + 全部真实章节，并守着不再出现第二份副本） |
+| 内容校验规则（章节、自测、练习与半成品、实验台、卡片键快照、站内引用、术语） | `check-content`、`renumber` |
+| 术语标注的匹配规则（最长优先、复合词里的子串不标、纯英文术语要词边界） | `term-match` |

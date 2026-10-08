@@ -18,23 +18,25 @@ npm run build                     # 构建到 course/.vitepress/dist
 npm run preview                   # 预览构建结果
 ```
 
+站点有 base 路径 `/hands-on-vue3/`（和 GitHub Pages 的项目站点一致），所以本地地址不是根路径：开发服务器是 `http://localhost:5173/hands-on-vue3/`，预览是 `http://localhost:4173/hands-on-vue3/`（端口以命令输出为准）。base 只在 `course/site.mjs` 定义一处。
+
 ## 检查和测试
 
 ```bash
-npm run check      # 类型检查 + 内容校验 + 单元测试，约 2 秒，每次提交前跑
-npm test           # check + 构建 + 浏览器测试，约 7 分钟
+npm run check      # 类型检查 + 内容校验 + 文档数字核对 + 单元测试，约 3 秒，每次提交前跑
+npm test           # check + 构建 + 浏览器测试，约 9 分钟
 npm run test:e2e -- 03-refs 04-computed   # 浏览器测试只测指定的章
 ```
 
-`npm install` 会自动启用提交前钩子（提交前跑内容校验，1 到 2 秒）。每个命令何时用、多久跑完，见 [AGENTS.md](AGENTS.md) 的“命令”一节。
+`npm install` 会自动启用提交前钩子（提交前跑内容校验和文档数字核对，2 秒内；也可以手动 `node scripts/setup-hooks.mjs`）。每个命令何时用、多久跑完，见 [AGENTS.md](AGENTS.md) 的“命令”一节。
 
 ## 目录
 
 - `course/chapters/`：章节 Markdown（`NN-id.md`，自测题内联在里面），`cheat.md` 是速查表
-- `course/`：`exercises/`（练习判题数据）、`labs/`（实验台）、`figures/`（示意图）、`checks/`（阶段测验专用题）、`stages.ts`（6 个阶段）、`engine/`（学习机制，纯逻辑在 `engine/logic/`）
+- `course/`：`exercises/`（练习判题数据）、`labs/`（实验台）、`figures/`（示意图）、`checks/`（阶段测验专用题）、`stages.ts`（阶段定义）、`site.mjs`（部署路径 base）、`content-parse.mjs`（章节解析）、`writing-terms.mjs`（写作规则用词表）、`glossary.md`（术语表页）、`engine/`（学习机制，纯逻辑在 `engine/logic/`）
 - `course/.vitepress/`：站点配置、构建时抽取数据的插件、主题组件和样式
 - `editor/`：练习编辑器（CodeMirror 6）
-- `scripts/`：内容校验、新建一章、浏览器测试入口、截图
+- `scripts/`：内容校验、文档数字核对、新建一章、浏览器测试入口、截图、启用钩子
 - `tests/`：`unit/`（Vitest）、`site/`（Playwright）
 - `docs/`：旧版单文件课程的审查报告，只作背景参考
 
@@ -48,7 +50,7 @@ npm run new-chapter -- <章id> --stage <1-6> --after <已有章id> --title "标�
 
 ## 部署到 GitHub Pages
 
-1. 把仓库推到 GitHub，仓库名是 `hands-on-vue3`（换名字要同步改 `course/.vitepress/config.mts` 里的 `base`）。
+1. 把仓库推到 GitHub，仓库名是 `hands-on-vue3`（换名字要同步改 `course/site.mjs` 里的 `BASE_PATH`）。
 2. 在仓库 **Settings → Pages**，把 **Source** 设为 **GitHub Actions**。
 3. 推送到 `main`。`.github/workflows/ci.yml` 先跑检查、构建和浏览器测试；全部通过后 `deploy.yml` 发布站点，地址是 `https://paddychenc75.github.io/hands-on-vue3/`。
 

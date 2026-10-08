@@ -229,6 +229,9 @@
 /* CodeMirror 编辑器 */
 .vp-doc .ed { display: block; border: 1px solid var(--code-bg); border-radius: 8px; background: var(--code-bg); overflow: hidden; min-width: 0; min-height: calc(6 * 1.55em + 12px); }
 .vp-doc .ed .cm-editor .cm-scroller { min-height: calc(6 * 1.55em + 12px); }
+/* 长代码限高：编辑器超过约 24 行（手机上不超过屏幕高度的 70%）就在编辑器内部滚动，不再把整页撑到几千像素。CodeMirror 的 scroller 本来就是 overflow: auto */
+.vp-doc .ed .cm-editor { max-height: min(70vh, calc(24 * 1.55em + 12px)); }
+.vp-doc .ed .cm-editor .cm-scroller { overflow: auto; }
 .vp-doc .ed .cm-editor .cm-content { padding-bottom: calc(6px + 1.55em); }
 .vp-doc .ed .cm-editor .cm-gutters { min-height: calc(6 * 1.55em + 12px); }
 .vp-doc .ed .cm-editor .cm-lineNumbers .cm-gutterElement { min-width: 2.4em; padding: 0 6px 0 8px; }

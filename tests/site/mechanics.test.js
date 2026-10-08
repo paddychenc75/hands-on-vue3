@@ -492,6 +492,32 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g.end()
     }
 
+    // ---------- 长代码的编辑器限高 ----------
+    {
+      const g = R.group('长代码的编辑器限高：约 24 行（手机上不超过屏高的 70%）后在编辑器内部滚动，短代码不受影响')
+      for (const [label, vp, maxH] of [['桌面', { width: 1280, height: 800 }, 520], ['手机', { width: 390, height: 844 }, Math.round(844 * 0.7) + 2]]) {
+        const p = await site.newPage({ viewport: vp })
+        const box = await openExercise(p, base, '17-runtime', 'miniMount')
+        const r = await box.evaluate(el => {
+          const eds = [...el.querySelectorAll('.cm-editor')].map(e => ({ h: Math.round(e.getBoundingClientRect().height), sh: e.querySelector('.cm-scroller').scrollHeight, ch: e.querySelector('.cm-scroller').clientHeight }))
+          const sc = el.querySelectorAll('.cm-scroller')[1]
+          sc.scrollTop = sc.scrollHeight
+          return { eds, top: sc.scrollTop }
+        })
+        const [tpl, js] = r.eds
+        g.ok(js.h <= maxH, label + '：333 行的脚本编辑器高度 ' + js.h + 'px，不超过 ' + maxH + 'px')
+        g.ok(js.sh > js.ch + 100, label + '：脚本编辑器内容比可见高度高（' + js.sh + ' > ' + js.ch + '），在内部滚动')
+        g.ok(r.top > 0, label + '：脚本编辑器可以滚到底（scrollTop ' + Math.round(r.top) + '）')
+        g.ok(tpl.h < 200, label + '：4 行的模板编辑器不受影响（' + tpl.h + 'px）')
+        // 滚到底之后，页面本身没有被带着横向溢出，编辑器里还能键入
+        await box.locator('.cm-content').nth(1).click()
+        await p.keyboard.press('ControlOrMeta+End'); await p.keyboard.type('// 末尾')
+        g.ok((await box.evaluate(el => el.querySelectorAll('.cm-content')[1].textContent)).includes('// 末尾'), label + '：滚动后仍能在编辑器末尾键入')
+        g.ok(p.errs.length === 0, label + '：没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      }
+      g.end()
+    }
+
     // ---------- 手机宽度 ----------
     {
       const g = R.group('390px 宽下没有横向滚动：首页、复习页（含出题中）、各阶段测验页（含交卷后）、章页（有热身和自我解释）')
@@ -516,6 +542,31 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       await answerAll(p, 8)
       if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth)) wide.push('/check/2.html（交卷后）')
       g.ok(!wide.length, '没有横向滚动' + (wide.length ? '：' + wide.join(', ') : ''))
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      g.end()
+    }
+    {
+      // 深度补强过的 9 个章（15、16、17、18、21、26、27、28、29）：练习编辑器和实验台都挂载、深入块展开之后，页面不能被撑宽；
+      // 也不能有没被任何可滚动容器包住、却伸出窗口右边的元素（页面本身 overflow 被裁掉时 scrollWidth 看不出来）
+      const g = R.group('390px 宽下没有横向滚动：第 15、16、17、18、21、26、27、28、29 章（编辑器和实验台挂载后，深入块展开）')
+      const p = await site.newPage({ viewport: { width: 390, height: 844 } })
+      const wide = []
+      for (const c of ['15-compiler', '16-diff', '17-runtime', '18-patterns', '21-state-arch', '26-ssr', '27-renderer', '28-perf-clinic', '29-project']) {
+        await p.goto(base + '/chapters/' + c + '.html'); await p.waitForSelector('.vp-doc h1')
+        await p.waitForSelector('.ex[data-ex] .cm-content', { timeout: 20000 }).catch(() => {})
+        await p.waitForTimeout(1500)
+        await p.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true }))
+        await p.waitForTimeout(400)
+        const r = await p.evaluate(() => {
+          const w = innerWidth
+          const clipped = el => { for (let q = el.parentElement; q && q !== document.body; q = q.parentElement) { const o = getComputedStyle(q).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden' || o === 'clip') return true } return false }
+          const out = []
+          document.querySelectorAll('.vp-doc *').forEach(el => { const b = el.getBoundingClientRect(); if (b.width > 0 && b.right > w + 1 && !clipped(el) && getComputedStyle(el).position !== 'fixed') out.push(el.tagName.toLowerCase() + '.' + String(el.className).slice(0, 30)) })
+          return { over: document.documentElement.scrollWidth - w, out: out.slice(0, 3), editors: document.querySelectorAll('.cm-editor').length }
+        })
+        if (r.over > 0 || r.out.length || !r.editors) wide.push(c + '（页面多出 ' + r.over + 'px，伸出的元素：' + r.out.join(',') + '，编辑器 ' + r.editors + ' 个）')
+      }
+      g.ok(!wide.length, '没有横向溢出' + (wide.length ? '：' + wide.join('；') : ''))
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
       g.end()
     }

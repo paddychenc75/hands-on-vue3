@@ -34,6 +34,8 @@ const theme = EditorView.theme({
   '.cm-matchingBracket': { backgroundColor: 'rgba(127,209,167,.22)', outline: '1px solid rgba(127,209,167,.5)', color: 'inherit !important' },
   '.cm-nonmatchingBracket': { color: '#ff8f9c !important' },
   '.cm-selectionMatch': { backgroundColor: 'rgba(232,196,138,.16)' },
+  '.cm-todoLine': { backgroundColor: 'rgba(232,196,138,.16)', boxShadow: 'inset 3px 0 #e8c48a', color: '#f3dcb0' },
+  '.cm-todoLine span': { fontWeight: '600' },
   '.cm-badLine': { backgroundColor: 'rgba(255,120,135,.16)', boxShadow: 'inset 3px 0 #ff8f9c' },
   '.cm-badGutter': { color: '#ff8f9c', fontWeight: '700' },
   '.cm-tooltip': { backgroundColor: 'var(--surface)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: '6px', fontFamily: 'var(--f-mono)' },
@@ -59,6 +61,31 @@ const badField = StateField.define({
   provide: f => EditorView.decorations.from(f)
 });
 
+// 要写的地方：含 TODO 的行加醒目的底色和左边的标记。折叠块里有很多已经写好的代码，学习者要一眼找到自己该写哪里
+const todoField = StateField.define({
+  create: state => todoDecos(state.doc),
+  update: (deco, tr) => (tr.docChanged ? todoDecos(tr.state.doc) : deco),
+  provide: f => EditorView.decorations.from(f)
+});
+function todoDecos(doc) {
+  const ranges = [];
+  for (let i = 1; i <= doc.lines; i++) {
+    const l = doc.line(i);
+    if (/\bTODO\b/.test(l.text)) ranges.push(Decoration.line({ class: 'cm-todoLine' }).range(l.from));
+  }
+  return Decoration.set(ranges);
+}
+/** 第一个 TODO 行滚到编辑器内靠上的位置（只在带折叠块的长代码里用；只滚编辑器自己，不滚页面） */
+function scrollToFirstTodo(view) {
+  const doc = view.state.doc;
+  for (let i = 1; i <= doc.lines; i++) {
+    if (/\bTODO\b/.test(doc.line(i).text)) {
+      requestAnimationFrame(() => { view.requestMeasure({ read: v => v.lineBlockAt(doc.line(i).from).top, write: (top, v) => { v.scrollDOM.scrollTop = Math.max(0, top - 36); } }); });
+      return;
+    }
+  }
+}
+
 function apiCompletions(names) {
   const opts = names.map(n => ({ label: n, type: 'function', detail: 'Vue', boost: 2 }));
   return javascriptLanguage.data.of({ autocomplete: completeFromList(opts) });
@@ -75,7 +102,7 @@ export function create({ parent, doc, lang, api = [], onChange, onRun, label }) 
         indentOnInput(), bracketMatching(), closeBrackets(), autocompletion({ activateOnTyping: true, icons: false }),
         highlightActiveLine(), highlightSelectionMatches(),
         indentUnit.of('  '), EditorState.tabSize.of(2),
-        syntaxHighlighting(style), theme, badField, foldExtension(),
+        syntaxHighlighting(style), theme, badField, todoField, foldExtension(),
         lang === 'tpl' ? vue() : [javascript(), apiCompletions(api)],
         keymap.of([
           { key: 'Mod-Enter', run: () => { onRun && onRun(); return true; } },
@@ -87,6 +114,7 @@ export function create({ parent, doc, lang, api = [], onChange, onRun, label }) 
       ]
     })
   });
+  if (foldBlocks(view.state).length > 0) scrollToFirstTodo(view);
   return {
     view,
     get value() { return view.state.doc.toString(); },
@@ -96,6 +124,7 @@ export function create({ parent, doc, lang, api = [], onChange, onRun, label }) 
       if (v === cur) return;
       const hasFolds = foldBlocks(view.state).length > 0 || /#fold/.test(v);
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: v }, annotations: [replaceAll.of(true), Transaction.addToHistory.of(!hasFolds)] });
+      if (hasFolds) scrollToFirstTodo(view);
     },
     // 出错的行（真实行号）；在折叠块里就先展开那个块
     setBad(n) { if (n) revealLine(view, n, true); view.dispatch({ effects: setBad.of(n || 0) }); },

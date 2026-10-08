@@ -306,6 +306,23 @@ const headBtn = box => jsEd(box).locator('.cm-foldBtn[data-fold-kind="block"]')
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
       g.end()
     }
+    {
+      // 要写的地方一眼能找到：含 TODO 的行有醒目的底色；长代码里第一个 TODO 自动滚到编辑器靠上的位置
+      const g = R.group('TODO 行高亮：含 TODO 的行有 cm-todoLine 底色；折叠块后面很远的 TODO 自动滚进视野')
+      const p = await site.newPage()
+      await seed(p, base, {})
+      const box = await open(p, base)
+      const many = Array.from({ length: 60 }, (_, i) => 'const keep' + i + ' = ' + i).join('\n')
+      const js = FOLD + many + '\n// TODO 1：写在这里\nconst count = ref(1)\n\nreturn { count }'
+      await setStarter(box, { tpl: TPL, js }, { tpl: TPL, js })
+      await box.locator('[data-a="reset"]').click()
+      await p.waitForTimeout(700)
+      g.ok(await jsEd(box).locator('.cm-todoLine').count() === 1, '含 TODO 的行有高亮')
+      const vis = await jsEd(box).locator('.cm-todoLine').evaluate(l => { const a = l.getBoundingClientRect(), b = l.closest('.cm-scroller').getBoundingClientRect(); return a.top >= b.top && a.bottom <= b.bottom })
+      g.ok(vis, 'TODO 行在编辑器的可见范围内（它在 60 行填充之后）')
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      g.end()
+    }
   } finally {
     await site.stop()
   }

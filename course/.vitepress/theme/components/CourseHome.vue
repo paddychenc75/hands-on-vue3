@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // 首页：学习路线说明、继续学习、总进度、6 个阶段的章节和状态。阶段的名称和说明来自 course/stages.ts。
 // 进度只在浏览器里读（ready 之后），服务端渲染出来的是“全部未开始”的样子，所以不会水合不一致。
-// 按题的间隔复习是下一步的事，这一步首页不显示复习入口。
+// 复习入口：显示今天到期的题数和进入复习页的按钮；“N 道题在复习中”统计是进了复习队列的题数。
 import { computed, onMounted } from 'vue'
 import { withBase } from 'vitepress'
 import { chapters } from 'virtual:course-meta'
-import { agoText, chapterByPath, chapterState, chaptersOfStage, ensureReady, getLast, progressChapters, ready, STAGES, STATE_LABEL } from '../composables/learn'
+import { agoText, chapterByPath, chapterState, chaptersOfStage, dueCount, ensureReady, getLast, learnedCount, progressChapters, ready, STAGES, STATE_LABEL } from '../composables/learn'
 
 const cheat = chapters.find(c => c.id === 'cheat')
 const quiz = chapters.find(c => c.id === 'quiz')
@@ -26,6 +26,11 @@ const cards = computed(() =>
 const total = computed(() => cards.value.reduce((a, c) => a + c.list.length, 0))
 const doneN = computed(() => cards.value.reduce((a, c) => a + c.done, 0))
 const doingN = computed(() => cards.value.reduce((a, c) => a + c.list.filter(x => x.state === 'doing').length, 0))
+
+const due = computed(() => (ready.value ? dueCount() : 0))
+const learned = computed(() => (ready.value ? learnedCount() : 0))
+const scTotal = progressChapters.reduce((a, c) => a + c.scCount, 0)
+const exTotal = progressChapters.reduce((a, c) => a + c.ex.length, 0)
 
 // 继续学习：回到上次阅读的章（有小节锚点时定位到小节）。阅读位置存在引擎进度的 __last
 const resume = computed(() => {
@@ -50,9 +55,22 @@ const resume = computed(() => {
         <a class="b pri" id="resumeLink" :href="resume.href">继续学习</a>
       </div>
 
+      <div v-if="learned > 0" class="resume show review-entry" id="reviewEntry">
+        <span id="reviewTxt"><template v-if="due > 0">今日复习：<b>{{ due }}</b> 道题到期。</template><template v-else>今天没有到期的题，已学过 {{ learned }} 道。</template></span>
+        <a class="b pri" id="reviewLink" :href="withBase('/review')">{{ due > 0 ? '开始复习' : '去做混合练习' }}</a>
+      </div>
+
       <div class="progress-sum" id="progress">
         <div class="progress-txt" id="progTxt">已完成 {{ doneN }} / {{ total }} 章<template v-if="doingN"> · 进行中 {{ doingN }} 章</template></div>
         <div class="meter"><i id="progBar" :style="{ width: (total ? (doneN / total) * 100 : 0) + '%' }"></i></div>
+      </div>
+
+      <div class="stats" id="stats">
+        <div><b>{{ total }}</b><span>章正文</span></div>
+        <div><b>{{ scTotal }}</b><span>道章内自测</span></div>
+        <div><b>{{ exTotal }}</b><span>道可判题练习</span></div>
+        <div><b>{{ doneN }}/{{ total }}</b><span>章已完成</span></div>
+        <div id="statReview"><b>{{ learned }}</b><span>道题在复习中</span></div>
       </div>
 
       <div class="path" id="path">

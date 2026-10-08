@@ -58,9 +58,9 @@ export function buildSidebar(chaptersDir: string, opts: SidebarOptions = {}) {
     return a.order - b.order || a.file.localeCompare(b.file)
   }
   const strip = ({ text, link }: Item) => ({ text, link })
-  // 固定入口按 order 排（速查表 100，综合测验没写 order 排在后面）
-  const top = pinned.sort((a, b) => a.order - b.order || a.file.localeCompare(b.file)).map(strip)
+  // 固定入口：最上面是“今日复习”（页面 review.md，带到期题数的徽标，由 AppEffects 写），然后是没写 stage 的章页面（速查表），按 order 排
+  const top = [{ text: '今日复习', link: '/review' }, ...pinned.sort((a, b) => a.order - b.order || a.file.localeCompare(b.file)).map(strip)]
   const groups = byStage.map((items, i) => ({ text: stageTitle(i + 1), items: items.sort(sort).map(strip) })).filter(g => g.items.length)
   // 只构建部分章时，空的阶段不显示
-  return top.length ? [{ items: top }, ...groups] : groups
+  return [{ items: top }, ...groups]
 }

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // 不显示任何东西，只做几件全站的事（挂在布局的 layout-bottom 插槽里，整个站点只有一个实例）：
-//   1. 侧边栏里已完成/进行中章的标记（侧边栏是 VitePress 默认主题渲染的，这里按链接地址补上 data-state），
+//   1. 侧边栏里已完成/进行中章的标记、“今日复习”入口的到期题数（侧边栏是 VitePress 默认主题渲染的，这里按链接地址补上 data-state），
 //      以及每个阶段标题右侧的完成数（data-count，由 CSS 显示）。进度在浏览器里才有，所以挂载后才补，服务端渲染的是空的
 //   2. 阅读位置：进入一章时记下这章；滚动停下后记下读到的小节（引擎进度里的 __last）
 //   3. 带 #锚点 进入一章时，实验台和编辑器晚一点才挂载，会把版面撑高，所以持续补对齐（用户没动过才补）
 import { nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute } from 'vitepress'
-import { chapterByPath, chapterState, ensureReady, getLast, ready, rev, setLast, stageCount, type LastPos } from '../composables/learn'
+import { chapterByPath, chapterState, dueCount, ensureReady, getLast, ready, rev, setLast, stageCount, type LastPos } from '../composables/learn'
 
 const route = useRoute()
 let acted = false // 用户在这个页面上动过（滚轮、触摸、按键、点击）
@@ -30,6 +30,13 @@ function paintSidebar() {
     if (!c || c.stage == null) return
     const st = chapterState(c.id)
     if (a.dataset.state !== st) a.dataset.state = st
+  })
+  // “今日复习”入口右侧的到期题数（没有到期的不显示）
+  const due = dueCount()
+  document.querySelectorAll<HTMLAnchorElement>('.VPSidebar a[href$="/review"], .VPSidebar a[href$="/review.html"]').forEach(a => {
+    const t = a.querySelector<HTMLElement>('.text')
+    if (!t) return
+    if (due > 0) { if (t.dataset.badge !== String(due)) t.dataset.badge = String(due) } else delete t.dataset.badge
   })
 }
 const schedulePaint = () => { if (!paintRaf) paintRaf = requestAnimationFrame(paintSidebar) }

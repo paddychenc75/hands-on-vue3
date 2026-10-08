@@ -487,3 +487,34 @@ html.fig-open { overflow: hidden; }
 .selfx .sx-summary li { margin: 2px 0; line-height: 1.7; }
 .selfx .sx-summary p { color: var(--ink); }
 .selfx .sx-ask { margin-top: 6px; font-size: 13px; }
+
+/* ---- 今日复习页（ReviewPage） ---- */
+.review { max-width: 760px; }
+.review .rv-intro { margin: 0 0 16px; }
+.review .rv-intro .tag { display: inline-block; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 10px; }
+.review .rv-intro p { margin: 8px 0 0; color: var(--muted); line-height: 1.8; }
+.review .rv-progress { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); margin: 14px 0 8px; }
+.review .rv-progress .bar { flex: 1; height: 4px; border-radius: 2px; background: var(--sunken); overflow: hidden; }
+.review .rv-progress .bar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.review .q { margin-top: 0; }
+.review button.b, .review a.b, .quiz button.b, .quiz a.b { display: inline-flex; align-items: center; min-height: 36px; font: inherit; font-size: 14px; padding: 5px 16px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; text-decoration: none; }
+.review button.b.pri, .review a.b.pri, .quiz button.b.pri { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.review button.b:hover, .review a.b:hover, .quiz button.b:hover { border-color: var(--accent); }
+.review > button.b { margin-top: 8px; }
+.done-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 14px 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.done-card b { font-size: 16px; }
+.done-card > span { color: var(--muted); font-size: 14px; line-height: 1.8; }
+.done-card.pass { border-color: var(--accent); background: var(--accent-soft); }
+.done-card .rv-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.done-card .wrong-list { font-size: 14px; color: var(--ink); line-height: 1.8; }
+.done-card .wrong-list a { margin: 0 2px; }
+/* 侧边栏“今日复习”右侧的到期题数（AppEffects 写 data-badge） */
+.VPSidebar .text[data-badge] { display: flex; align-items: center; justify-content: space-between; }
+.VPSidebar .text[data-badge]::after { content: attr(data-badge); min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--warn); color: #fff; font-family: var(--f-mono); font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; }
+
+/* 首页：统计行和复习入口 */
+.home .stats { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 14px 0 6px; padding: 12px 0; border-block: 1px solid var(--line); }
+.home .stats > div { display: flex; flex-direction: column; }
+.home .stats b { font-family: var(--f-display); font-size: 26px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.home .stats span { font-size: 12.5px; color: var(--muted); }
+.home .review-entry b { color: var(--warn); }

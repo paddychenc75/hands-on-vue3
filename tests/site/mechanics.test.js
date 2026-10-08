@@ -272,6 +272,96 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
       g.end()
     }
+
+    // ---------- 今日复习页 ----------
+    {
+      const g = R.group('复习页：没有学过的题时是空状态；侧边栏有“今日复习”入口，徽标是到期题数')
+      const p = await site.newPage()
+      await seed(p, base, {})
+      await p.clock.setFixedTime(T0)
+      await p.goto(base + '/review.html'); await p.waitForSelector('.review .done-card'); await p.waitForTimeout(300)
+      g.ok(/还没有需要复习的题目/.test(await p.locator('.review').innerText()), '空状态：还没有需要复习的题目')
+      g.ok(await p.locator('.VPSidebar a[href$="/review.html"]').count() === 1, '侧边栏有今日复习入口')
+      const sideTop = await p.$$eval('.VPSidebar .VPSidebarItem.level-0:first-child a .text, .VPSidebar .group:first-child a .text', es => es.slice(0, 2).map(e => e.textContent.trim()))
+      g.ok(sideTop[0] === '今日复习', '入口在侧边栏最上面 ' + sideTop)
+      g.ok(await p.locator('.VPSidebar .text[data-badge]').count() === 0, '没有到期的题时没有徽标')
+      g.end()
+
+      const g2 = R.group('今日复习：只出到期的卡；答对到期的升级，答错回盒子 0 明天再出；没到期的卡不出、不改；做完有结果和下次到期时间')
+      const old = T0 - 3 * DAY
+      // 三张到期（不同章），一张没到期
+      await seed(p, base, { __srs: {
+        'first#0': card(1, T0 - 2 * DAY, old), 'refs#1': card(2, T0 - DAY, old), 'template#2': card(0, T0 - HOUR, old), 'computed#0': card(1, T0 + 5 * DAY, old)
+      } })
+      await p.goto(base + '/review.html'); await p.waitForSelector('.review .q'); await p.waitForTimeout(400)
+      g2.ok(await p.locator('.VPSidebar .text[data-badge="3"]').count() === 1, '侧边栏徽标：3 道到期')
+      g2.ok(/今日复习 · 第 1 \/ 3 题/.test(await p.locator('.rv-progress').innerText()), '进度：第 1 / 3 题')
+      const seen = []
+      const planned = { 'first#0': true, 'refs#1': false, 'template#2': true }
+      for (let n = 0; n < 3; n++) {
+        const q = p.locator('.review .q')
+        const key = await q.getAttribute('data-key')
+        seen.push(key)
+        g2.ok(key in planned, '出的是到期的题：' + key)
+        g2.ok(await q.locator('.explain').count() === 0, key + '：作答前没有解析')
+        await answer(q, key, planned[key])
+        g2.ok(await q.locator('.opt.right').count() === 1 && await q.locator('.explain').count() === 1, key + '：选一次就显示对错和解析')
+        g2.ok(await q.locator('.src a').count() === 1 && /出自第 \d+ 章/.test(await q.locator('.src').innerText()), key + '：标出来自哪一章并链接回去')
+        await p.locator('[data-a="next"]').click()
+        await p.waitForTimeout(150)
+      }
+      g2.ok(new Set(seen).size === 3 && !seen.includes('computed#0'), '三道到期的都出了，没到期的 computed#0 没出')
+      const srs = (await read(p)).__srs
+      g2.ok(srs['first#0'].box === 2 && Math.abs(srs['first#0'].due - (T0 + 3 * DAY)) < 5000, '到期答对：盒子 1 → 2，3 天后到期（' + JSON.stringify(srs['first#0']) + '）')
+      g2.ok(srs['refs#1'].box === 0 && Math.abs(srs['refs#1'].due - (T0 + DAY)) < 5000, '答错：回盒子 0，明天再出（' + JSON.stringify(srs['refs#1']) + '）')
+      g2.ok(srs['template#2'].box === 1 && Math.abs(srs['template#2'].due - (T0 + DAY)) < 5000, '盒子 0 的到期卡答对：升到盒子 1，1 天后（' + JSON.stringify(srs['template#2']) + '）')
+      g2.ok(JSON.stringify(srs['computed#0']) === JSON.stringify(card(1, T0 + 5 * DAY, old)), '没到期的卡没有被改')
+      const doneTxt = await p.locator('.review .done-card').innerText()
+      g2.ok(/今日复习完成：答对 2 \/ 3/.test(doneTxt), '完成状态：答对 2 / 3')
+      g2.ok(/下一批题目在 1 天后到期/.test(doneTxt) && /答错的题明天会再出现/.test(doneTxt), '完成状态：写明下次到期时间和答错的会再出现 ' + doneTxt.replace(/\n/g, ' '))
+      g2.ok(await p.locator('.VPSidebar .text[data-badge]').count() === 0, '做完后徽标消失')
+      g2.end()
+
+      const g3 = R.group('没有到期的：显示“都复习完了”和下次到期时间；混合练习从学过的卡里抽，没到期答对不改记录，答错回盒子 0')
+      await seed(p, base, { __srs: {
+        'first#0': card(2, T0 + 3 * DAY, old), 'first#1': card(3, T0 + 7 * DAY, old), 'refs#0': card(1, T0 + 2 * DAY, old)
+      } })
+      await p.goto(base + '/review.html'); await p.waitForSelector('.review .done-card'); await p.waitForTimeout(300)
+      const t = await p.locator('.review .done-card').innerText()
+      g3.ok(/今天该复习的都复习完了/.test(t) && /已学过 3 道题/.test(t) && /下一批题目在 2 天后到期/.test(t), '空闲状态：已学过 3 道，2 天后到期 ' + t.replace(/\n/g, ' '))
+      await p.locator('[data-a="mixed"]').click()
+      await p.waitForSelector('.review .q')
+      g3.ok(/混合练习 · 第 1 \/ 3 题/.test(await p.locator('.rv-progress').innerText()), '混合练习：学过的 3 道都抽出来')
+      const before = (await read(p)).__srs
+      const plan = {}
+      let wrongKey = null
+      for (let n = 0; n < 3; n++) {
+        const q = p.locator('.review .q')
+        const key = await q.getAttribute('data-key')
+        const right = n < 2
+        if (!right) wrongKey = key
+        await answer(q, key, right)
+        await p.locator('[data-a="next"]').click()
+        await p.waitForTimeout(150)
+      }
+      const after = (await read(p)).__srs
+      const keys = Object.keys(before)
+      const rightKeys = keys.filter(k => k !== wrongKey)
+      g3.ok(rightKeys.every(k => JSON.stringify(after[k]) === JSON.stringify(before[k])), '没到期的卡答对：盒子、到期时间、次数都不变')
+      g3.ok(after[wrongKey].box === 0 && after[wrongKey].n === before[wrongKey].n + 1 && Math.abs(after[wrongKey].due - (T0 + DAY)) < 5000, '没到期的卡答错：照样回盒子 0，明天再出（' + JSON.stringify(after[wrongKey]) + '）')
+      g3.ok(/混合练习完成：答对 2 \/ 3/.test(await p.locator('.review .done-card').innerText()), '混合练习的结果')
+      g3.end()
+
+      const g4 = R.group('章内自测题的题干里带代码块：在复习页正常渲染（高亮的代码块，不是源码文字）')
+      const withCode = CH.flatMap(c => c.selfchecks.map((s, i) => ({ c, i, s }))).find(x => /```/.test(x.s.stemSrc))
+      const key = withCode.c.id + '#' + withCode.i
+      await seed(p, base, { __srs: { [key]: card(1, T0 - DAY, old) } })
+      await p.goto(base + '/review.html'); await p.waitForSelector('.review .q'); await p.waitForTimeout(300)
+      g4.ok(await p.locator('.review .q .q-stem div[class*="language-"] pre').count() >= 1, '题干里有渲染好的代码块（' + key + '）')
+      g4.ok(!/```/.test(await p.locator('.review .q-stem').innerText()), '页面上没有出现 ``` 源码标记')
+      g4.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      g4.end()
+    }
   } finally {
     await site.stop()
   }

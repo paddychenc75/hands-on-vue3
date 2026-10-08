@@ -252,7 +252,7 @@ export const counter: Exercise = {
   js: 'const count = ref(0)\n\nreturn { count }',
   solTpl: '<button @click="count++">点了 {{ count }} 次</button>',
   hints: ['提示 1', '提示 2', '答案'],
-  faded: { tpl: '<button @click="___">点了 {{ ___ }} 次</button>' },   // 可选：半成品，见下面
+  faded: { tpl: '<button @click="/* ✏️ 点击时让 count 加 1 */">点了 {{ /* ✏️ 显示当前次数 */ }} 次</button>' },   // 必填：半成品，见下面
   async check(T) { /* 用 T.$ T.btn T.click T.ok 检查 */ },
   wrong: [{ tpl: '…', why: '…', expectFail: /失败信息里的关键字/ }]
 }
@@ -267,7 +267,11 @@ export const counter: Exercise = {
 - 起始代码本身有 TODO 而报错是正常的。想让进入页面时不自动运行，设 `lazy: true`。
 - 章完成标准：章内自测**全部答对** + 本章练习**全部通过**，达到后自动标记完成（没有手动按钮）。借助答案通过的练习也算通过，但章末的“掌握标准”条会单独标注。
 - **提示阶梯**（规则见第 10 节）：练习下面的按钮分三级，没解锁时是锁定状态并写明条件。`hints` 是**一整级**：第一级解锁后，多条提示用“下一级提示”逐条展开。参考答案是 `solTpl`/`solJs`（省略的那段用 `tpl`/`js`）。点参考答案时，编辑器里原来的代码会先存下来，可以点“找回我的代码”。
-- **半成品 `faded`（可选）**：参考答案的“半成品”，关键处挖空，让学习者补全，比直接看答案学得多。写法：`faded: { tpl?, js? }`，只写有改动的那一段，没写的那段用起始代码补上。挖空处用 `___` 或 `// TODO` 标出，其余照参考答案写，**不要写成能通过检查的完整答案**（那就是第二个参考答案）。没有 `faded` 字段的练习，阶梯自动只有“提示”和“参考答案”两级。现有练习都还没有 `faded`，以后逐章补。测试里想临时给练习加半成品，用练习根元素上的 `__setFaded({ tpl, js })`（见 `tests/site/mechanics.test.js`）。
+- **半成品 `faded`（必填）**：参考答案的“半成品”，关键处挖空，让学习者补全，比直接看答案学得多。`check:content` 要求每道练习都写。
+  - 写法：`faded: { tpl?, js? }`，只写有改动的那一段，没写的那段用起始代码补上（和 `Exercise.vue` 一致：`faded.tpl || tpl`、`faded.js || js`）。
+  - 挖空：一般挖 1 到 4 处。脚本里写 `/* ✏️ 说明 */`，模板里元素位置写 `<!-- ✏️ 说明 -->`；落在 `{{ }}` 或属性表达式里时只能用 `/* ✏️ 说明 */`。说明写“要做什么”，不写答案。其余照参考答案写。
+  - 三条硬要求：**原样提交不能通过**；补全后能通过（就是参考答案）；**不能与参考答案完全相同**。另外不能含 `WRONG_SUB_FAILED`，至少有 1 个 `✏️` 占位。`check:content` 查静态的几条，`tests/site/exercises.test.js` 真的把半成品原样提交一次，确认不通过。
+  - 阶梯里“没有半成品时只有提示和参考答案两级”的规则仍在引擎里，测试用练习根元素上的 `__setFaded(undefined)` 临时去掉它来验证，`__setFaded({ tpl, js })` 临时换一份（见 `tests/site/mechanics.test.js`）。
 
 ### 4.11 自测题
 
@@ -406,7 +410,7 @@ let count = 0
 - **章内自测**：答对 → 标出正确项并显示解析；答错 → 不亮正确答案、不显示解析，提示再试，点“再答一次”后隐藏上次选错的那一项（`Sc` / `Opt` 组件）。只有第一次作答计入复习卡片和首答记录（`answerSelfCheck`）。
 - **章完成**：章内自测全部答对 + 本章练习全部通过（`shouldAutoComplete`）。在答题或练习通过的那一刻检查，达标就标记完成并记 `doneAt`。没有手动“标记完成/取消”按钮。没有自测题也没有练习的页面不参与。
 - **掌握标准条**（`ChapterFoot`，章末）：列出还差哪几道自测没答对、哪几道练习没通过（`completionNeeds`）；全部达成显示“已完成”；借助答案通过的练习单独标注（`helpedExercises`）。
-- **练习**：通过、草稿、失败次数、是否看过答案都在 `ex[练习id]`，用 `exerciseState.ts` 的 `recordFailure`、`recordPass`、`saveDraft`、`viewSolution`、`resetExercise`、`stashCode`、`restoreStash` 改。练习类型有可选字段 `faded`（半成品，见 4.10）。
+- **练习**：通过、草稿、失败次数、是否看过答案都在 `ex[练习id]`，用 `exerciseState.ts` 的 `recordFailure`、`recordPass`、`saveDraft`、`viewSolution`、`resetExercise`、`stashCode`、`restoreStash` 改。练习类型的 `faded`（半成品，见 4.10）在校验里是必填。
 - **目标勾选**：`<Goal checks="sc:0,ex:counter">` 里自测要**答对**才算，练习要通过才算。
 - **阅读位置**：进入一章时记下这一章；用户滚动停下后记下读到的小节。首页“继续学习”按钮回到那里。带锚点进入一章时，编辑器和实验台陆续挂载会把版面撑高，`AppEffects` 在 5 秒内持续把目标拉回顶栏下方（用户一动就停）。
 - **侧边栏和顶栏**：侧边栏最上面是“今日复习”（右侧徽标是今天到期的题数，`AppEffects` 写 `data-badge`）和速查表；下面按 6 个阶段分组，标题形如 `01 入门`，右侧显示这个阶段的完成数（`AppEffects` 写 `data-count`，样式在 `style.css`），已完成的章带 ✓；每组末尾是“阶段测验”，右边显示通过状态（`data-check`：通过 ✓、该复测、未通过）。顶栏右侧（`NavProgress`）显示总进度条和“已完成 N/26”。

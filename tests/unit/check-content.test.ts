@@ -115,12 +115,30 @@ describe('目标、练习、实验台', () => {
     expectError(run(editExercise('03-refs', id, { hints: [] })), /hints 不能为空/)
     expectError(run(editExercise('03-refs', id, { title: '' })), /title 缺失或为空/)
   })
-  it('faded：没有时通过，格式错时报错', () => {
+  it('faded 必填：没有时报错，格式错时报错', () => {
     const id = firstExercise('03-refs')
-    expect(run(editExercise('03-refs', id, { faded: undefined }))).toEqual([])
+    expectError(run(editExercise('03-refs', id, { faded: undefined })), /缺少 faded/)
     expectError(run(editExercise('03-refs', id, { faded: {} })), /faded 是空对象/)
     expectError(run(editExercise('03-refs', id, { faded: { tpl: '' } })), /faded\.tpl 必须是非空字符串/)
     expectError(run(editExercise('03-refs', id, { faded: { html: 'x' } })), /faded 里有未知字段/)
+  })
+  it('faded 不能和参考答案相同、必须有 ✏️ 占位、不能含 WRONG_SUB_FAILED', () => {
+    const id = firstExercise('03-refs')
+    const ex = base.exercises['03-refs'][id]
+    // 和参考答案相同（没写的那段用起始代码补；这里把两段都写成答案）
+    expectError(run(editExercise('03-refs', id, { faded: { tpl: ex.solTpl ?? ex.tpl, js: ex.solJs ?? ex.js } })), /faded 和参考答案完全相同/)
+    // 没有 ✏️ 占位
+    expectError(run(editExercise('03-refs', id, { faded: { tpl: '<p>没有占位</p>' } })), /没有 ✏️ 占位/)
+    expectError(run(editExercise('03-refs', id, { faded: { js: 'const a = 1 // TODO' } })), /没有 ✏️ 占位/)
+    // WRONG_SUB_FAILED
+    expectError(run(editExercise('03-refs', id, { faded: { tpl: 'WRONG_SUB_FAILED：找不到 x ✏️' } })), /faded 构造失败/)
+    // 写了占位就通过（占位在 js 或 tpl 都行）
+    expect(run(editExercise('03-refs', id, { faded: { js: 'const a = /* ✏️ 补这里 */ null' } }))).toEqual([])
+  })
+  it('真实内容里每道练习都有 faded', () => {
+    for (const mod of Object.values(base.exercises) as any[])
+      for (const [id, ex] of Object.entries(mod) as [string, any][])
+        if (ex && typeof ex === 'object' && 'check' in ex) expect(ex.faded, `${id} 缺少 faded`).toBeTruthy()
   })
   it('练习 id 重复', () => {
     const id = firstExercise('03-refs')

@@ -10,6 +10,8 @@ export const REDIRECT_PAGES = ['27-quiz'];
 /** 章里可以直接使用、不用 import 的页面级 / 全局组件之外的“已知全局”由 inp.files 里的 theme/components/*.vue 推出 */
 const PLACEHOLDER = '【待写】';
 const EXERCISE_KEYS = ['title', 'ch', 'task', 'tpl', 'js', 'solTpl', 'solJs', 'hints', 'check', 'wrong', 'lazy', 'faded'];
+/** 半成品里每个挖空处的标记 */
+export const FADED_MARK = '✏️';
 const nonEmpty = v => typeof v === 'string' && v.trim() !== '';
 
 /**
@@ -244,8 +246,10 @@ export function validate(inp, opts = {}) {
       });
     }
     if (ex.lazy !== undefined && typeof ex.lazy !== 'boolean') fail(k('lazy'), where, 'lazy 必须是布尔值');
-    // faded 是可选的：有的话格式要对。等所有练习都补上 faded 后，这里应改为必填（见 AGENTS.md）
-    if (ex.faded !== undefined) {
+    // faded（半成品）每道练习都必须有：格式对，且能静态检查的几条也要对。
+    // “原样提交不能通过、补全后能通过”要跑代码才知道，由 tests/site/exercises.test.js 检查。
+    if (ex.faded === undefined) fail(k('faded'), where, '缺少 faded（半成品）', '加 faded: { tpl?, js? }：只写有改动的那一段，挖 1 到 4 处，每处写 /* ✏️ 说明 */（模板里元素位置写 <!-- ✏️ 说明 -->）');
+    else {
       const f = ex.faded;
       if (!f || typeof f !== 'object' || Array.isArray(f)) fail(k('faded'), where, 'faded 必须是 { tpl?, js? } 对象');
       else {
@@ -256,6 +260,14 @@ export function validate(inp, opts = {}) {
           else if (!nonEmpty(f[key])) fail(k('faded'), where, `faded.${key} 必须是非空字符串`);
         }
         if (String(f.tpl).startsWith('WRONG_SUB_FAILED') || String(f.js).startsWith('WRONG_SUB_FAILED')) fail(k('faded'), where, 'faded 构造失败（WRONG_SUB_FAILED）');
+        else if (keys.every(key => key === 'tpl' || key === 'js') && keys.length) {
+          // 取法和 Exercise.vue 一致：没写的那一段用起始代码
+          const fTpl = f.tpl || ex.tpl;
+          const fJs = f.js || ex.js;
+          if (fTpl === solTpl && fJs === solJs) fail(k('faded'), where, 'faded 和参考答案完全相同，它没有留任何空给学习者', '挖掉关键处，换成 /* ✏️ 说明 */');
+          const marks = (String(f.tpl ?? '') + String(f.js ?? '')).split(FADED_MARK).length - 1;
+          if (marks < 1) fail(k('faded'), where, `faded 里没有 ${FADED_MARK} 占位，学习者看不出该补哪里`, '每个挖空处写 /* ✏️ 说明 */（模板元素位置写 <!-- ✏️ 说明 -->）');
+        }
       }
     }
   }

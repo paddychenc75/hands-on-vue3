@@ -3,7 +3,7 @@
 //   node tests/site/exercises.test.js 03-refs 04-computed   只测指定章。自己构建：只构建这些章，输出到独立的临时目录，端口自动选空闲的。
 //                                                           多个 agent 同时跑互不影响，别人写到一半的章不会让构建失败
 // 起 vitepress preview，对每章页面：
-//   1. 每道练习：初始代码不通过，答案通过，每个 wrong 都不通过
+//   1. 每道练习：初始代码不通过，答案通过，每个 wrong 都不通过；半成品（faded）原样提交不通过、不等于答案、不含 WRONG_SUB_FAILED、至少 1 个 ✏️ 占位
 //   2. 页面没有控制台报错
 //   3. 自测题：答错不显示解析、刷新后仍是答错状态、重试隐藏上次选项、答对才显示解析、刷新后答对仍在；目标勾选
 //   4. 实验台：先猜之前实验台不显示，答完后出现，做一次有代表性的操作，断言结果。
@@ -182,6 +182,21 @@ async function runLabs(browser, base, ch) {
         const ok = !s.all && a.all && ws.every(x => !x.all && !x.broken && !x.reasonBad)
         log(ok, `${id}「${e.title}」初始${s.all ? '通过(错)' : '不通过'} 答案${a.all ? '通过' : '不通过(错) ' + a.fails.slice(0, 2).join(' | ')}` +
           ((e.wrong || []).length ? ' wrong ' + ws.map(x => (x.all ? '通过(错)' : '不通过')).join(',') : ' [无 wrong]'))
+      }
+
+      // ---- 半成品（faded）：原样提交必须不通过；不能和参考答案相同；不能含 WRONG_SUB_FAILED；至少 1 个 ✏️ 占位 ----
+      // 取法与 Exercise.vue 一致：没写的那一段用起始代码。补全后能通过，由上面的“答案通过”覆盖
+      for (const id of ids) {
+        const e = EX[id]
+        if (!e) continue
+        if (!e.faded) { log(false, `${id}: 没有 faded（半成品是必填的）`); continue }
+        const ft = e.faded.tpl || e.tpl, fj = e.faded.js || e.js
+        const f = await runWith(id, ft, fj)
+        const sameAsSolution = ft === (e.solTpl || e.tpl) && fj === (e.solJs || e.js)
+        const broken = /WRONG_SUB_FAILED/.test(ft + fj)
+        const marks = ((e.faded.tpl || '') + (e.faded.js || '')).split('✏️').length - 1
+        log(!f.all && !sameAsSolution && !broken && marks >= 1,
+          `${id}: 半成品原样提交${f.all ? '通过(错)' : '不通过'}，${marks} 个 ✏️ 占位` + (sameAsSolution ? '，和参考答案相同(错)' : '') + (broken ? '，构造失败(错)' : '') + (marks < 1 ? '，没有占位(错)' : ''))
       }
 
       // 编辑器真的可以输入（走真实键盘路径）

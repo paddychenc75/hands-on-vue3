@@ -17,10 +17,6 @@
 7. 具体的 Markdown 写法（容器、`<Sc>`、`<Lab>`、示意图、练习字段、写作规范、`check:content` 检查的规则、站内链接和 base）以 [`course/AUTHORING.md`](course/AUTHORING.md) 为准，本文件讲规则和流程，不重复抄写法。两份文档里同一条规则只写一处，另一处指过去。
 8. **站内链接带 base**：站点部署在 `/hands-on-vue3/` 下，组件里手写链接用 `withBase`，localStorage 里存不带 base 的路径（见 AUTHORING 4.14）。
 
-## 待写的章（写完后删掉这一节）
-
-**第 15 章 `watch-impl`（watch 与 effectScope 的实现）、第 16 章 `reactivity-pitfalls`（响应式陷阱诊断）、第 30 章 `builtins-impl`（内置组件的实现）、第 31 章 `errors`（错误处理与监控）、第 32 章 `forms-arch`（表单架构）、第 34 章 `lib`（组件库工程）目前只有骨架**：文字是“【待写】”占位，练习和自测是脚手架生成的示例，还没有发布。写正文时：把占位换成真内容（骨架里的占位术语“【待写】术语”不进术语表，换成真术语即可）；这六章的卡片键（`watch-impl#N`、`reactivity-pitfalls#N`、`builtins-impl#N`、`errors#N`、`forms-arch#N`、`lib#N`）和指纹因为从未发布，可以用 `npm run check:content -- --update --force` 重写；用 `npm run check:content -- --strict` 确认占位清完；写完后**删掉本节这一段说明**。
-
 ## 命令
 
 ```bash
@@ -211,7 +207,7 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 
 - **进度**只存在浏览器 `localStorage['hands-on-vue3-v1']`（单个键，结构见 `course/engine/types.ts` 的 `Progress`，细则见 `course/AUTHORING.md` 第 6 节）；服务端渲染时为空。界面读写只经过 `theme/composables/learn.ts`，它封装 `course/engine/`。旧版零散的进度键由引擎第一次读取时一次性迁移，之后不再读写。依赖进度的组件挂载后才显示真实数字（`ensureReady()`），避免水合不一致；引擎的进度对象是原地修改的，**不要把 `cpOf()` 的结果缓存在 `computed` 里**（引用不变，下游不会重算），要在每个 `computed` 里直接调用。存进去的页面路径（`__last.path`）不带 base。
 - **章数据在构建时抽取**：`course/.vitepress/course-data.mts` 是一个 Vite 插件，用 `content-parse.mjs` 从各章 Markdown 抽出元数据、自测题、小结、术语，生成虚拟模块（`virtual:course-meta`、`-selfchecks`、`-summaries`、`-glossary`，说明见 `course/AUTHORING.md` 第 7 节）。复习页、阶段测验、热身用动态 import 载入大的那一个。术语表页和术语标注（章里术语的虚线下划线）也由它供数据。
-- **实验台直接用的 Vue 编译器和开发构建**：第 17 章的实验台动态载入 `@vue/compiler-dom` 和 `@vue/compiler-sfc` 的浏览器构建，第 33 章的实验台动态载入 `vue/dist/vue.esm-browser.js`（开发构建，因为 `onRenderTriggered` 等钩子只有开发构建才有）。它们都是按需加载的独立分块，只在这两章的页面预加载，不在站点入口里；页面上因此有两份互不相干的 Vue（站点自己的生产构建和实验台里的开发构建，各有各的响应式、调度队列和当前实例，实验台的应用挂在自己新建的 div 里）。`@vue/compiler-dom`、`@vue/compiler-sfc` 在 `devDependencies` 里固定为和 `vue` 相同的版本，升级 `vue` 时三个一起升（Dependabot 已把 `@vue/*` 和 `vue` 分在同一组）。
+- **实验台直接用的 Vue 编译器和开发构建**：第 17 章的实验台动态载入 `@vue/compiler-dom` 和 `@vue/compiler-sfc` 的浏览器构建；第 16、33、34 章的实验台动态载入 `vue/dist/vue.esm-browser.js`（开发构建，因为 `onRenderTracked`、`onRenderTriggered` 等钩子只有开发构建才有；第 34 章还把它当作“库自带的第二份 Vue”）。它们都是按需加载的独立分块（第 16、33、34 章共用同一个 `vue.esm-browser.js` 分块），只在用到它们的章页面预加载，不在站点入口里；页面上因此有两份 Vue（站点自己的生产构建和实验台里的开发构建，各有各的响应式和调度队列，实验台的应用挂在自己新建的 div 里）。两份 Vue 之间断开的是响应式（“当前正在运行的副作用”各记各的），**当前组件实例不会断开**：runtime-core 把设置当前实例的函数登记在 `globalThis.__VUE_INSTANCE_SETTERS__`，每份 Vue 设置当前实例时通知所有副本，所以 `provide/inject` 和生命周期钩子跨副本仍然能用。后果是响应式悄悄失效而没有任何报错（第 34 章实测）。`@vue/compiler-dom`、`@vue/compiler-sfc` 在 `devDependencies` 里固定为和 `vue` 相同的版本，升级 `vue` 时三个一起升（Dependabot 已把 `@vue/*` 和 `vue` 分在同一组）。
 - **练习和实验台只在浏览器里渲染**，服务端渲染出来的只有占位。练习需要运行时编译模板，`Exercise` 组件挂载后动态 `import('vue/dist/vue.esm-bundler.js')`，所以**不要给站点的 `vue` 做 alias**。
 - **侧边栏**由 `sidebar.mts` 从各章 frontmatter（`chapter`、`stage`、`title`）自动生成，不用手写；顶部固定入口是今日复习、术语表、速查表；动态标记由 `AppEffects` 写成属性（`data-badge`、`data-count`、`data-check`）。
 - **章头**（`ChapterMeta`：阶段标签、第 N / 总章数 章、`desc`、阅读时间）由 `config.mts` 在一级标题后自动注入；阅读时间取自章里的 `::: rt` 块，正文里不再渲染那个块。

@@ -16,7 +16,7 @@ course/
   figures/NN-id/*.vue     示意图，每张一个 SFC，只含 template
   labs/NN-id/*.vue        实验台，每个一个 SFC（多标签页的每页再拆一个小 SFC）
   labs/_shared/           各章实验台共用的辅助函数（domLog、dLogBuf、useMouse、useDebounced）
-  checks/questions.ts     阶段测验专用题库（91 道题，不存阶段号，由所属章决定阶段）
+  checks/questions.ts     阶段测验专用题库（120 道题，不存阶段号，由所属章决定阶段）
   stages.ts               阶段的唯一定义（编号、名称、英文副标题、说明）
   site.mjs                站点的部署路径 BASE_PATH，只在这里定义一处（见 4.14）
   writing-terms.mjs       首页“写作规则”表的数据（带“不使用的同义词”），也是术语表页“不这样说”一栏的数据（见第 7 节）
@@ -73,7 +73,7 @@ desc: ref、reactive、toRefs
 - 比喻只放在“类比”块中。正文不用破折号（—）。
 - 每个 API 的小节：问题 → 最小代码 → 1 到 3 个“场景：” → 注意 → 实验台/练习 → 深入（原理，放在 `::: deep`）。阶段一、二先讲用法后讲原理。
 - 用到后面章节才讲的 API 时，写“（第 N 章）”或换掉。
-- 技术内容以 Vue 3.5 为准。已核实（2026-10）：vue 3.5.43，vue-router 5.3.1，vite 8.3.3（Rolldown），pinia 4.0.3。有疑问时用 `node_modules/vue` 运行代码核实。
+- 技术内容以 Vue 3.5 为准。已核实（2026-10）：vue 3.5.43，vue-router 5.3.1（第 31 章讲的路由行为在 5.4.0 下相同，正文只写主版本号 5），vite 8.3.3（Rolldown），pinia 4.0.3。第 34 章（组件库工程）实测用的工具链：`@vitejs/plugin-vue` 6.0.9，`vue-tsc` 3.3.12，TypeScript 5.9.3（`vue-tsc` 3.3.12 与 TypeScript 7.0.2 不兼容，库项目钉在 5.9 或 6.0；本仓库自己用 7.0.2），`vite-plugin-dts` 5.1.2，`unplugin-vue-components` 32.1.0，publint 0.3.25，`@arethetypeswrong/cli` 0.18.5。有疑问时用 `node_modules/vue` 运行代码核实。
 - 一章内块的顺序：目标、阅读时间、类比、本章术语、为什么需要它、小节 `### N.M 标题`（含正文、代码、图、实验台、练习、深入块、注意框）、注意、自测、小结。
 - 小节从 N.1 起连续编号，不能放在 `::: deep` 里。移动小节后，要更新练习提示和测验解析里引用的“N.M 标题”或“N.M 节”。
 - 目标：`<Goal checks="…">` 的标签（自测 N 题 · 练习 M 道）自动算，不要手写。不要给目标挂“回顾”题。
@@ -553,7 +553,7 @@ module.exports = [
 | 阶段测验：12 题（8 新 + 4 常规）、交卷后才显示解析、80% 通过 | `logic/stageCheck.ts` 的 `pickStageQuestions`、`isPass`；`StageCheck.vue`、`Question.vue`（defer） | `stageCheck.test.ts > 抽题`、`及格判定`；`cards.test.ts > 阶段题池`；mechanics：阶段测验 12 题、各阶段测验页 |
 | 中途离开算未通过；未通过冷却 30 分钟；以最近一次为准；通过后清掉 `weak`；35 天后提示复测 | `logic/stageCheck.ts` 的 `settlePending`、`cooldownLeft`、`settleResult`、`needsRetest`、`stageStatus` | `stageCheck.test.ts`（中途离开、冷却、交卷后的记录、35 天、状态）；mechanics：中途离开、答对 10 题通过、答对 9 题不通过 |
 | 章完成 = 自测全部答对 + 练习全部通过，自动标记 | `logic/completion.ts`，`learn.ts` 的 `completeIfMet`；`ChapterFoot.vue` | `completion.test.ts`；`progress.test.js`（掌握标准条和自动完成） |
-| 卡片键 `章id#N` / `章id#cN` 不能变 | `cards.ts`（`scKey`、`checkKey`、`buildCatalog`） | `cards.test.ts > 卡片键规则`、`91 道阶段测验专用题…` |
+| 卡片键 `章id#N` / `章id#cN` 不能变 | `cards.ts`（`scKey`、`checkKey`、`buildCatalog`） | `cards.test.ts > 卡片键规则`、`120 道阶段测验专用题…` |
 | `logic/` 不碰 DOM、localStorage、`Date.now()`；不允许循环依赖 | `course/engine/logic/` | `purity.test.ts`、`cycles.test.ts` |
 | 手机宽度无横向滚动 | `style.css` | mechanics：390px 宽下没有横向滚动 |
 

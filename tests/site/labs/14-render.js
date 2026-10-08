@@ -20,5 +20,21 @@ module.exports = [
       await p.waitForTimeout(500)
       ok(/openBlock/.test(await body.locator('.domview').last().textContent()), '编译结果里有 openBlock')
     }
+  },
+  {
+    id: 'demo-vnode-inspector', name: '预设调用的 shapeFlag:组件加函数子节点是 36,数组子节点是 20,Teleport 是 80;改输入框能重新计算', pick: 2,
+    async run(p, body, ok) {
+      const flag = async () => (await body.locator('[data-test=flag]').textContent()).trim().split('(')[0]
+      ok(await flag() === '36', '初始预设 h(Comp, null, () => \'x\') 的 shapeFlag 是 36(当前 ' + await flag() + ')')
+      ok(/default/.test(await body.locator('[data-test=children]').textContent()), '函数子节点被包成插槽对象,键里有 default')
+      await body.getByRole('button', { name: "h(Comp, null, [h('b')])", exact: true }).click()
+      ok(await flag() === '20', '组件加数组子节点是 20(当前 ' + await flag() + ')')
+      await body.getByRole('button', { name: "h(Teleport, { to: 'body' }, [h('p')])", exact: true }).click()
+      ok(await flag() === '80', 'Teleport 加数组子节点是 80(当前 ' + await flag() + ')')
+      await body.locator('[data-test=code]').fill("h('div', null, 'a', 'b')")
+      ok(await flag() === '17', '三个以上参数收成数组:17(当前 ' + await flag() + ')')
+      await body.locator('[data-test=code]').fill("h('div', ")
+      ok(await body.locator('[data-test=error]').count() === 1, '语法错误时显示错误信息')
+    }
   }
 ]

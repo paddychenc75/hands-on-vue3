@@ -309,3 +309,314 @@ fnComp.faded = {
     "render: row => h('button', { onClick: () => removeTask(row.id) }, '删除')",
     "render: row => h('button', { /* ✏️ 点击时删除这一行 */ }, /* ✏️ 按钮文字 */)")
 }
+
+// ===== 实现级:简化的 h() =====
+const MH_HEAD = `// ===== 已给出:shapeFlag 的位、判断函数、要展示的调用 =====
+const ShapeFlags = { ELEMENT: 1, FUNCTIONAL_COMPONENT: 2, STATEFUL_COMPONENT: 4, TEXT_CHILDREN: 8, ARRAY_CHILDREN: 16, SLOTS_CHILDREN: 32 }
+const isVNode = v => !!(v && v.__v_isVNode)
+const isPlainObject = v => v !== null && typeof v === 'object' && !Array.isArray(v)
+
+`
+const MH_TAIL = `
+
+// ===== 已给出:用 miniH 创建 vnode,把结果列在表格里 =====
+const C = { render() {} }            // 有状态组件(对象)
+const F = () => null                 // 函数式组件(函数)
+const cases = [
+  ["miniH('div')", () => miniH('div')],
+  ["miniH('div', 'hi')", () => miniH('div', 'hi')],
+  ["miniH('div', { id: 1 })", () => miniH('div', { id: 1 })],
+  ["miniH('div', [miniH('p')])", () => miniH('div', [miniH('p')])],
+  ["miniH('div', miniH('p'))", () => miniH('div', miniH('p'))],
+  ["miniH('div', null, 'a', 'b')", () => miniH('div', null, 'a', 'b')],
+  ["miniH('div', null, miniH('p'))", () => miniH('div', null, miniH('p'))],
+  ["miniH('div', null, 5)", () => miniH('div', null, 5)],
+  ["miniH(C, null, () => 'x')", () => miniH(C, null, () => 'x')],
+  ["miniH(C, { a: 1 }, { default: f, foot: g })", () => miniH(C, { a: 1 }, { default: () => 'x', foot: () => 'y' })],
+  ["miniH(F, { a: 1 })", () => miniH(F, { a: 1 })],
+  ["miniH(C, null, 'text')", () => miniH(C, null, 'text')]
+]
+const rows = cases.map(([label, make]) => {
+  const v = make()
+  const c = v.children
+  return {
+    label, flag: v.shapeFlag, props: v.props == null ? 'null' : JSON.stringify(v.props),
+    kids: c == null ? 'none' : typeof c === 'string' ? 'text:' + c : Array.isArray(c) ? 'array:' + c.length : 'slots:' + Object.keys(c).join('+')
+  }
+})
+
+return { rows }`
+const MH_TPL = `<table>
+  <tr v-for="r in rows" :key="r.label" class="case">
+    <td class="label">{{ r.label }}</td><td class="flag">{{ r.flag }}</td><td class="kids">{{ r.kids }}</td><td class="props">{{ r.props }}</td>
+  </tr>
+</table>`
+const MH_START = `// ===== 要实现:createMiniVNode 和 miniH =====
+function createMiniVNode(type, props, children) {
+  // TODO 1:按 type 算出类型位:字符串是元素,函数是函数式组件,对象是有状态组件
+  let shapeFlag = 0
+  const vnode = { __v_isVNode: true, type, props, children: null, shapeFlag }
+  // TODO 2:规范化 children,并把子节点位加到 vnode.shapeFlag 上
+  //   null:没有子节点;数组:ARRAY_CHILDREN;函数:包成 { default: fn },SLOTS_CHILDREN;
+  //   普通对象:当作插槽对象,SLOTS_CHILDREN;其余:转成字符串,TEXT_CHILDREN
+  return vnode
+}
+
+function miniH(type, propsOrChildren, children) {
+  // TODO 3:两个参数时,第二个是普通对象就当 props(但 vnode 要当成只有一个子节点),否则当 children
+  //        三个以上参数时,第三个起都是 children;第三个参数是单个 vnode 时包成数组
+  return createMiniVNode(type, null, null)
+}`
+const MH_SOL = `// ===== 要实现:createMiniVNode 和 miniH =====
+function createMiniVNode(type, props, children) {
+  const shapeFlag = typeof type === 'string' ? ShapeFlags.ELEMENT
+    : typeof type === 'function' ? ShapeFlags.FUNCTIONAL_COMPONENT
+    : typeof type === 'object' ? ShapeFlags.STATEFUL_COMPONENT : 0
+  const vnode = { __v_isVNode: true, type, props, children: null, shapeFlag }
+  if (children == null) {
+    // 没有子节点
+  } else if (Array.isArray(children)) {
+    vnode.children = children
+    vnode.shapeFlag |= ShapeFlags.ARRAY_CHILDREN
+  } else if (typeof children === 'function') {
+    vnode.children = { default: children }
+    vnode.shapeFlag |= ShapeFlags.SLOTS_CHILDREN
+  } else if (typeof children === 'object') {
+    vnode.children = children
+    vnode.shapeFlag |= ShapeFlags.SLOTS_CHILDREN
+  } else {
+    vnode.children = String(children)
+    vnode.shapeFlag |= ShapeFlags.TEXT_CHILDREN
+  }
+  return vnode
+}
+
+function miniH(type, propsOrChildren, children) {
+  const argc = arguments.length
+  if (argc === 2) {
+    if (isPlainObject(propsOrChildren)) {
+      return isVNode(propsOrChildren)
+        ? createMiniVNode(type, null, [propsOrChildren])
+        : createMiniVNode(type, propsOrChildren, null)
+    }
+    return createMiniVNode(type, null, propsOrChildren)
+  }
+  if (argc > 3) {
+    children = Array.prototype.slice.call(arguments, 2)
+  } else if (argc === 3 && isVNode(children)) {
+    children = [children]
+  }
+  return createMiniVNode(type, propsOrChildren, children)
+}`
+const MH_FADED = `// ===== 要实现:createMiniVNode 和 miniH =====
+function createMiniVNode(type, props, children) {
+  const shapeFlag = typeof type === 'string' ? ShapeFlags.ELEMENT
+    : typeof type === 'function' ? /* ✏️ 函数是哪一种组件 */ 0
+    : typeof type === 'object' ? ShapeFlags.STATEFUL_COMPONENT : 0
+  const vnode = { __v_isVNode: true, type, props, children: null, shapeFlag }
+  if (children == null) {
+    // 没有子节点
+  } else if (Array.isArray(children)) {
+    vnode.children = children
+    vnode.shapeFlag /* ✏️ 把子节点位加到已有的类型位上,不能覆盖它 */ = ShapeFlags.ARRAY_CHILDREN
+  } else if (typeof children === 'function') {
+    vnode.children = { default: children }
+    vnode.shapeFlag |= ShapeFlags.SLOTS_CHILDREN
+  } else if (typeof children === 'object') {
+    vnode.children = children
+    vnode.shapeFlag |= ShapeFlags.SLOTS_CHILDREN
+  } else {
+    vnode.children = String(children)
+    vnode.shapeFlag |= ShapeFlags.TEXT_CHILDREN
+  }
+  return vnode
+}
+
+function miniH(type, propsOrChildren, children) {
+  const argc = arguments.length
+  if (argc === 2) {
+    if (isPlainObject(propsOrChildren)) {
+      return /* ✏️ 第二个参数本身是 vnode 时,它是唯一的子节点 */ false
+        ? createMiniVNode(type, null, [propsOrChildren])
+        : createMiniVNode(type, propsOrChildren, null)
+    }
+    return createMiniVNode(type, null, propsOrChildren)
+  }
+  if (/* ✏️ 什么时候第三个起的所有参数都是 children */ false) {
+    children = Array.prototype.slice.call(arguments, 2)
+  } else if (argc === 3 && isVNode(children)) {
+    children = [children]
+  }
+  return createMiniVNode(type, propsOrChildren, children)
+}`
+const MH_EXPECT: Record<string, [string, string, string]> = {
+  "miniH('div')": ['1', 'none', 'null'],
+  "miniH('div', 'hi')": ['9', 'text:hi', 'null'],
+  "miniH('div', { id: 1 })": ['1', 'none', '{"id":1}'],
+  "miniH('div', [miniH('p')])": ['17', 'array:1', 'null'],
+  "miniH('div', miniH('p'))": ['17', 'array:1', 'null'],
+  "miniH('div', null, 'a', 'b')": ['17', 'array:2', 'null'],
+  "miniH('div', null, miniH('p'))": ['17', 'array:1', 'null'],
+  "miniH('div', null, 5)": ['9', 'text:5', 'null'],
+  "miniH(C, null, () => 'x')": ['36', 'slots:default', 'null'],
+  "miniH(C, { a: 1 }, { default: f, foot: g })": ['36', 'slots:default+foot', '{"a":1}'],
+  "miniH(F, { a: 1 })": ['2', 'none', '{"a":1}'],
+  "miniH(C, null, 'text')": ['12', 'text:text', 'null']
+}
+
+export const miniH: Exercise = {
+  title: '手写一个简化的 h()', ch: 14,
+  task: '<p>脚本里的 <code>miniH(type, propsOrChildren, children)</code> 要像真实的 <code>h()</code> 那样创建 vnode。完成 <code>createMiniVNode</code> 和 <code>miniH</code>:</p><ol><li><code>createMiniVNode</code>:按 <code>type</code> 算出类型位(字符串是元素 1,函数是函数式组件 2,对象是有状态组件 4)。再规范化 <code>children</code> 并加上子节点位:文本 8,数组 16,插槽对象 32。函数当作默认插槽,包成 <code>{ default: fn }</code>。</li><li><code>miniH</code>:两个参数时,第二个参数是普通对象就当 props,是 vnode 就当唯一的子节点,否则当 children。三个以上参数时,第三个起都是 children。</li></ol><p>表格列出了 12 个调用的结果。让每一行的 shapeFlag、children 和 props 都和真实 Vue 一致。</p>',
+  tpl: MH_TPL,
+  js: MH_HEAD + MH_START + MH_TAIL,
+  solJs: MH_HEAD + MH_SOL + MH_TAIL,
+  faded: { js: MH_HEAD + MH_FADED + MH_TAIL },
+  hints: [
+    '对照 14.7 和 14.8 节。shapeFlag 是一个整数,每一位表示一个事实:类型位来自 type,子节点位来自 children。两部分用位或(|)合并。',
+    'createMiniVNode:先用 typeof type 选出类型位,存进 vnode.shapeFlag;再按 children 的种类设置 vnode.children,并用 vnode.shapeFlag |= … 加上子节点位。miniH:用 arguments.length 区分参数个数。两个参数时,先判断第二个参数是不是普通对象,再判断它是不是 vnode。',
+    MH_SOL
+  ],
+  async check(T) {
+    const rows = T.$$('tr.case')
+    T.ok(rows.length === 12, '表格有 12 行(当前 ' + rows.length + ' 行)')
+    for (const r of rows) {
+      const q = (s: string) => (r.querySelector(s)?.textContent || '').trim()
+      const label = q('.label')
+      const exp = MH_EXPECT[label]
+      if (!exp) continue
+      T.ok(q('.flag') === exp[0], label + ' 的 shapeFlag 应为 ' + exp[0] + '(当前 ' + q('.flag') + ')')
+      T.ok(q('.kids') === exp[1], label + ' 的 children 应为 ' + exp[1] + '(当前 ' + q('.kids') + ')')
+      T.ok(q('.props') === exp[2], label + ' 的 props 应为 ' + exp[2] + '(当前 ' + q('.props') + ')')
+    }
+  },
+  wrong: [
+    { js: MH_HEAD + MH_SOL.replaceAll('vnode.shapeFlag |= ', 'vnode.shapeFlag = ') + MH_TAIL, why: '用赋值(=)而不是位或(|=)加子节点位,类型位被覆盖。元素带文本子节点得到 8,而不是 1 | 8 = 9。patch 就不知道它是元素了。', expectFail: /shapeFlag/ },
+    { js: MH_HEAD + sub(MH_SOL, `      return isVNode(propsOrChildren)
+        ? createMiniVNode(type, null, [propsOrChildren])
+        : createMiniVNode(type, propsOrChildren, null)`, `      return createMiniVNode(type, propsOrChildren, null)`) + MH_TAIL, why: '第二个参数是对象就当 props,没有排除 vnode。h(\'div\', h(\'p\')) 会把子 vnode 当成 props,children 丢失。', expectFail: /children|shapeFlag/ },
+    { js: MH_HEAD + sub(MH_SOL, 'if (argc > 3) {', 'if (false) {') + MH_TAIL, why: '没有处理三个以上参数。h(\'div\', null, \'a\', \'b\') 只取到第一个 children,得到文本 a,而不是两项的数组。', expectFail: /shapeFlag|children/ },
+    { js: MH_HEAD + sub(MH_SOL, 'vnode.children = { default: children }', 'vnode.children = children') + MH_TAIL, why: '函数 children 没有包成插槽对象。组件收到的 children 是函数本身,子组件没法按名字取插槽。', expectFail: /children/ }
+  ]
+}
+
+// ===== 实现级:转发作用域插槽的两个渲染函数组件 =====
+const SF_TPL = `<FancyList :items="tasks">
+  <template #item="{ item, index }"><b>{{ index + 1 }}. {{ item }} ({{ suffix }})</b></template>
+</FancyList>
+<TaskList :items="tasks" />
+<button @click="tasks.push('任务' + (tasks.length + 1))">添加</button>
+<button @click="suffix = suffix === 'A' ? 'B' : 'A'">换后缀</button>`
+const SF_START = `const { h } = Vue   // 从全局 Vue 中取出
+
+// TODO 1:TaskList 渲染 <ul>,每一项一个 <li>(写 key)。
+//   有 item 插槽时,调用它并传入 { item, index },结果放进 li。
+//   没有 item 插槽时,li 里直接显示这一项的文字。
+const TaskList = {
+  props: ['items'],
+  setup(props, { slots }) {
+    return () => h('ul')
+  }
+}
+
+// TODO 2:FancyList 渲染 <div class="fancy">,里面是 TaskList。
+//   把 FancyList 自己收到的 item 插槽转发给 TaskList,参数也要原样传下去。
+const FancyList = {
+  props: ['items'],
+  setup(props, { slots }) {
+    return () => h('div', { class: 'fancy' })
+  }
+}
+
+const tasks = ref(['写周报', '修复登录'])
+const suffix = ref('A')
+return { tasks, suffix, components: { TaskList, FancyList } }`
+const SF_SOL = `const { h } = Vue   // 从全局 Vue 中取出
+
+const TaskList = {
+  props: ['items'],
+  setup(props, { slots }) {
+    return () => h('ul', props.items.map((item, index) =>
+      h('li', { key: item }, slots.item ? slots.item({ item, index }) : item)
+    ))
+  }
+}
+
+const FancyList = {
+  props: ['items'],
+  setup(props, { slots }) {
+    return () => h('div', { class: 'fancy' }, [
+      h(TaskList, { items: props.items }, {
+        item: slotProps => slots.item?.(slotProps)   // 参数原样传下去
+      })
+    ])
+  }
+}
+
+const tasks = ref(['写周报', '修复登录'])
+const suffix = ref('A')
+return { tasks, suffix, components: { TaskList, FancyList } }`
+const SF_FADED = `const { h } = Vue   // 从全局 Vue 中取出
+
+const TaskList = {
+  props: ['items'],
+  setup(props, { slots }) {
+    return () => h('ul', props.items.map((item, index) =>
+      h('li', { key: item }, slots.item ? /* ✏️ 调用 item 插槽,参数是什么 */ item : item)
+    ))
+  }
+}
+
+const FancyList = {
+  props: ['items'],
+  setup(props, { slots }) {
+    return () => h('div', { class: 'fancy' }, [
+      h(TaskList, { items: props.items }, {
+        item: slotProps => /* ✏️ 调用自己的 item 插槽,把 slotProps 传给它 */ null
+      })
+    ])
+  }
+}
+
+const tasks = ref(['写周报', '修复登录'])
+const suffix = ref('A')
+return { tasks, suffix, components: { TaskList, FancyList } }`
+
+export const scopedSlotForward: Exercise = {
+  title: '用渲染函数写接收并转发作用域插槽的组件', ch: 14,
+  task: '<p>页面里有两处使用:<code>FancyList</code>(带 <code>item</code> 作用域插槽)和一个没有插槽的 <code>TaskList</code>。只改脚本里两个组件的渲染函数:</p><ol><li><code>TaskList</code>:渲染 <code>ul</code>。每项一个带 key 的 <code>li</code>。有 <code>item</code> 插槽时,调用它并传入 <code>{ item, index }</code>。没有时,li 里显示这一项的文字。</li><li><code>FancyList</code>:渲染 <code>div.fancy</code>,里面是 <code>TaskList</code>。把自己收到的 <code>item</code> 插槽转发给 <code>TaskList</code>。</li></ol><p>期望:<code>.fancy</code> 里的 li 显示“1. 写周报”这样的加粗文字。独立的 <code>TaskList</code> 显示普通文字。点击“添加”后两边都多一行。</p>',
+  tpl: SF_TPL,
+  js: SF_START,
+  solJs: SF_SOL,
+  faded: { js: SF_FADED },
+  hints: [
+    '14.9 节:插槽是函数。子组件调用 slots.item(参数) 得到 vnode,父组件那边的函数用参数渲染内容。转发就是在中间再包一层函数,把参数原样交给下一层。',
+    'TaskList:slots.item ? slots.item({ item, index }) : item。FancyList:给 TaskList 的第三个参数写成对象 { item: slotProps => slots.item?.(slotProps) }。注意插槽名是 item,不是 default。',
+    SF_SOL
+  ],
+  async check(T) {
+    const fancyLis = () => T.$$('.fancy ul > li')
+    const plainLis = () => T.$$('ul').filter(u => !u.closest('.fancy')).flatMap(u => [...u.children])
+    const fancyText = () => fancyLis().map(l => (l.textContent || '').trim())
+    T.ok(fancyLis().length === 2, '.fancy 里有 2 个 li(当前 ' + fancyLis().length + ' 个)')
+    T.ok(fancyText().join('|') === '1. 写周报 (A)|2. 修复登录 (A)', 'FancyList 的 li 显示插槽内容:1. 写周报 (A)、2. 修复登录 (A)(当前:' + fancyText().join('、') + ')')
+    T.ok(fancyLis().every(l => l.querySelector('b')), '插槽内容的加粗标签 b 出现在 li 里')
+    T.ok(plainLis().map(l => (l.textContent || '').trim()).join('|') === '写周报|修复登录', '没有插槽的 TaskList 显示普通文字(当前:' + plainLis().map(l => (l.textContent || '').trim()).join('、') + ')')
+    const add = T.btn('添加')
+    if (!add) { T.ok(false, '找到“添加”按钮'); return }
+    await T.click(add)
+    T.ok(fancyText().join('|') === '1. 写周报 (A)|2. 修复登录 (A)|3. 任务3 (A)', '添加后 FancyList 多一行:3. 任务3 (A)(当前:' + fancyText().join('、') + ')')
+    T.ok(plainLis().length === 3, '添加后独立的 TaskList 也是 3 行(当前 ' + plainLis().length + ' 行)')
+    const sw = T.btn('换后缀')
+    if (!sw) { T.ok(false, '找到“换后缀”按钮'); return }
+    await T.click(sw)
+    T.ok(fancyText().every(t => t.endsWith('(B)')), '改变插槽里用到的数据后,插槽内容跟着更新(当前:' + fancyText().join('、') + ')')
+  },
+  wrong: [
+    { js: sub(SF_SOL, 'slots.item({ item, index })', 'slots.item(item)'), why: '调用插槽时直接传了 item,而父组件的插槽函数解构的是 { item, index }。参数必须是一个对象,键要和插槽里解构的名字一致。', expectFail: /1\. 写周报/ },
+    { js: sub(SF_SOL, `{
+        item: slotProps => slots.item?.(slotProps)   // 参数原样传下去
+      }`, 'slots.item'), why: '把插槽函数直接当作第三个参数传下去,它被当成了 TaskList 的默认插槽。TaskList 读的是 item 插槽,读不到,所以显示普通文字。', expectFail: /1\. 写周报|加粗/ },
+    { js: sub(SF_SOL, 'slots.item ? slots.item({ item, index }) : item', 'slots.item({ item, index })'), why: '没有判断插槽是否存在。独立使用的 TaskList 没有 item 插槽,slots.item 是 undefined,调用它报错。', expectFail: /./ },
+    { js: sub(SF_SOL, 'item: slotProps => slots.item?.(slotProps)   // 参数原样传下去', 'item: slots.item?.()'), why: '转发时立刻调用了插槽,而且没有传参数。插槽应该保持为函数,等 TaskList 调用时再带着 { item, index } 运行。', expectFail: /./ }
+  ]
+}

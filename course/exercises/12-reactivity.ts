@@ -1,4 +1,5 @@
 import type { Exercise } from './types'
+import { sub } from './types'
 
 export const computedFill: Exercise = {
   title: '补全：迷你 computed 的缓存标记', ch: 12,
@@ -481,3 +482,291 @@ miniComputed.solJs = miniComputed.js.replace(`function miniComputed(getter) {
     }
   }
 }`);
+
+
+// ===== 练习：给迷你响应式加上依赖清理 =====
+const CLEANUP_JS = (t1: string, t2: string, t3: string) => `// ===== 已给出：迷你响应式系统（reactive 和 trigger 不用修改） =====
+let activeEffect = null
+const targetMap = new WeakMap()
+
+function track(target, key) {
+  if (!activeEffect) return
+  let depsMap = targetMap.get(target)
+  if (!depsMap) targetMap.set(target, (depsMap = new Map()))
+  let dep = depsMap.get(key)
+  if (!dep) depsMap.set(key, (dep = new Set()))
+  dep.add(activeEffect)
+  ${t1}
+}
+
+function trigger(target, key) {
+  const dep = targetMap.get(target)?.get(key)
+  if (!dep) return
+  ;[...dep].forEach(e => e.run())   // 先复制一份：run() 会修改 dep 本身
+}
+
+function reactive(obj) {
+  return new Proxy(obj, {
+    get(t, k, r) { track(t, k); return Reflect.get(t, k, r) },
+    set(t, k, v, r) {
+      const old = t[k]
+      const ok = Reflect.set(t, k, v, r)
+      if (!Object.is(old, v)) trigger(t, k)
+      return ok
+    }
+  })
+}
+
+// ===== 补全：依赖清理 =====
+function cleanup(e) {
+  ${t2}
+}
+
+function effect(fn) {
+  const e = {
+    deps: [],   // 这个 effect 订阅过的所有 dep（Set）
+    run() {
+      ${t3}
+      const prev = activeEffect
+      activeEffect = e
+      try { fn() } finally { activeEffect = prev }
+    }
+  }
+  e.run()
+  return e
+}
+
+// ===== 已给出：使用 =====
+const state = reactive({ useA: true, a: 1, b: 1 })
+let runs = 0
+const view = ref({ runs: 0, shown: '' })
+
+effect(() => {
+  runs++
+  const shown = state.useA ? 'a = ' + state.a : 'b = ' + state.b
+  view.value = { runs, shown }
+})
+
+const toggle = () => { state.useA = !state.useA }
+const incA = () => { state.a++ }
+const incB = () => { state.b++ }
+
+return { view, toggle, incA, incB }`
+
+const CLEANUP_SOL_1 = 'activeEffect.deps.push(dep)   // 反向记录：这个 effect 订阅了 dep'
+const CLEANUP_SOL_2 = 'for (const dep of e.deps) dep.delete(e)   // 先从每个 dep 里退订\n  e.deps.length = 0                       // 再清空自己的记录'
+const CLEANUP_SOL_3 = 'cleanup(e)   // 运行 fn 之前清理，运行时重新收集'
+
+export const depCleanup: Exercise = {
+  title: '给迷你响应式加上依赖清理', ch: 12,
+  task: '<p>脚本里的 <code>effect</code> 读取 <code>state.useA ? state.a : state.b</code>。它还没有依赖清理，所以 <code>useA</code> 变成 false 以后，改 <code>a</code> 仍然会让它运行。补全 3 处 TODO：</p><ol><li>TODO 1：<code>track</code> 里让 effect 记住它订阅了哪个 dep（<code>activeEffect.deps</code> 是数组）。</li><li>TODO 2：<code>cleanup(e)</code> 把 e 从它订阅过的每个 dep 里删掉，再清空 <code>e.deps</code>。</li><li>TODO 3：<code>run</code> 在运行 <code>fn</code> 之前调用清理。</li></ol><p>目标：切换分支后，旧分支读过的属性不再触发这个 effect。</p>',
+  tpl: '<p>{{ view.shown }}</p>\n<p>effect 运行次数：{{ view.runs }}</p>\n<button @click="toggle">切换 useA</button>\n<button @click="incA">a + 1</button>\n<button @click="incB">b + 1</button>',
+  js: CLEANUP_JS('// TODO 1：让 activeEffect 记住这个 dep', '// TODO 2：把 e 从它订阅过的每个 dep 里删掉，再清空 e.deps', '// TODO 3：运行 fn 之前，先清理旧依赖'),
+  solJs: CLEANUP_JS(CLEANUP_SOL_1, CLEANUP_SOL_2, CLEANUP_SOL_3),
+  faded: {
+    js: CLEANUP_JS(
+      'activeEffect.deps.push(/* ✏️ 要记住的 dep */)',
+      'for (const dep of e.deps) {\n    /* ✏️ 把 e 从这个 dep 里删掉 */\n  }\n  /* ✏️ 清空 e.deps，下一次运行重新收集 */',
+      '/* ✏️ 运行 fn 之前，先做什么 */'
+    )
+  },
+  hints: [
+    '清理要做两件事：一是把 effect 从它订阅过的每个 dep（Set）里删掉，二是清空 effect 自己记的 deps。要做第一件事，effect 得先知道它订阅过哪些 dep，所以 track 要反向记录。',
+    'track 里 dep.add(activeEffect) 之后，再 activeEffect.deps.push(dep)。cleanup 里遍历 e.deps，对每个 dep 调用 dep.delete(e)，最后 e.deps.length = 0。run 里第一件事是 cleanup(e)。',
+    'track：activeEffect.deps.push(dep)\ncleanup：for (const dep of e.deps) dep.delete(e); e.deps.length = 0\nrun：在 const prev = activeEffect 之前调用 cleanup(e)'
+  ],
+  async check(T) {
+    const runs = () => { const m = T.text().match(/运行次数：\s*(\d+)/); return m ? +m[1] : -1 }
+    const shown = () => { const p = T.$$('p')[0]; return p ? p.textContent.trim() : '' }
+    const press = async (name: string) => { const b = T.btn(name); if (b) await T.click(b); return !!b }
+    for (const n of ['切换 useA', 'a + 1', 'b + 1']) if (!T.btn(n)) { T.ok(false, '找到按钮“' + n + '”'); return }
+    T.ok(runs() === 1, '创建时运行 1 次（当前 ' + runs() + ' 次）')
+    await press('b + 1')
+    T.ok(runs() === 1, 'useA 为 true 时没读过 b，改 b 不运行（当前 ' + runs() + ' 次）')
+    await press('切换 useA')
+    T.ok(runs() === 2 && /b = 1/.test(shown()) === false && /b = 2/.test(shown()), '切换后运行第 2 次，改读 b（当前 ' + runs() + ' 次，显示 ' + shown() + '）')
+    await press('a + 1')
+    T.ok(runs() === 2, '切换后旧依赖 a 已清理，改 a 不再运行（当前 ' + runs() + ' 次）')
+    await press('b + 1')
+    T.ok(runs() === 3, '改 b 运行第 3 次（当前 ' + runs() + ' 次）')
+    await press('切换 useA')
+    T.ok(runs() === 4 && /a = 2/.test(shown()), '切回 useA 运行第 4 次，改读 a（当前 ' + runs() + ' 次，显示 ' + shown() + '）')
+    await press('b + 1')
+    T.ok(runs() === 4, '切回后旧依赖 b 已清理，改 b 不再运行（当前 ' + runs() + ' 次）')
+    await press('a + 1')
+    T.ok(runs() === 5, '改 a 运行第 5 次，一次改动只运行一次（当前 ' + runs() + ' 次）')
+  },
+  wrong: [
+    {
+      js: CLEANUP_JS(CLEANUP_SOL_1, 'e.deps.length = 0   // 清空记录', CLEANUP_SOL_3),
+      why: '只清空了 effect 自己的数组，没有从 dep 里退订。dep 里仍然有这个 effect，旧依赖照样触发它。',
+      expectFail: /旧依赖/
+    },
+    {
+      js: CLEANUP_JS('// 忘了反向记录', CLEANUP_SOL_2, CLEANUP_SOL_3),
+      why: 'track 没有把 dep 记进 activeEffect.deps，cleanup 遍历的是空数组，什么也删不掉。',
+      expectFail: /旧依赖/
+    },
+    {
+      js: sub(CLEANUP_JS(CLEANUP_SOL_1, CLEANUP_SOL_2, '// 不在这里清理'), 'try { fn() } finally { activeEffect = prev }', 'try { fn() } finally { activeEffect = prev; cleanup(e) }'),
+      why: '在 fn 运行之后清理，会把刚收集到的依赖删光。effect 之后不再被任何数据触发。',
+      expectFail: /切换后运行第 2 次/
+    }
+  ]
+}
+
+
+// ===== 练习：带版本号的 computed 缓存 =====
+const VC_JS = (body: string) => `// ===== 已给出：带版本号的迷你响应式（不用修改） =====
+let globalVersion = 0         // 任何数据改变，加 1
+let collecting = null         // 正在运行的 getter 把读到的 dep 记在这里
+class Dep { version = 0 }     // 这个数据改变一次，加 1
+
+function miniRef(initial) {
+  const dep = new Dep()
+  let value = initial
+  return {
+    get value() {
+      if (collecting) collecting.set(dep, dep.version)   // 记下：读到了哪个 dep，当时的 version
+      return value
+    },
+    set value(next) {
+      if (Object.is(next, value)) return                 // 值没变：什么都不加
+      value = next
+      dep.version++
+      globalVersion++
+    }
+  }
+}
+
+// 运行 getter。返回 { value, deps }，deps 是 Map(dep -> 读取时的 version)
+function collect(getter) {
+  const prev = collecting
+  collecting = new Map()
+  try { return { value: getter(), deps: collecting } }
+  finally { collecting = prev }
+}
+
+// ===== 补全：只靠版本号做缓存。没有 dirty 标记，没有 scheduler =====
+function miniComputed(getter) {
+  let cached
+  let deps = null        // 上次计算时的 Map(dep -> version)
+  let seenGlobal = -1    // 上次检查时的 globalVersion
+  return {
+    get value() {
+${body}
+      return cached
+    }
+  }
+}
+
+// ===== 已给出：使用 =====
+const a = miniRef(1)
+const b = miniRef(2)
+const c = miniRef(0)          // 和 total 无关
+let runs = 0
+const total = miniComputed(() => { runs++; return a.value + b.value })
+
+const view = ref({ total: '未读取', runs: 0 })
+const read = () => { view.value = { total: total.value, runs } }
+const incA = () => { a.value++ }
+const incB = () => { b.value++ }
+const incC = () => { c.value++ }
+const sameA = () => { a.value = a.value }
+
+return { view, read, incA, incB, incC, sameA }`
+
+const VC_SOL = `      if (seenGlobal === globalVersion) return cached     // 1. 整个世界没变过：直接用缓存
+      seenGlobal = globalVersion
+      // 2. 世界变了，但只在 dep 的 version 真的变了才重算
+      const stale = !deps || [...deps].some(([dep, v]) => dep.version !== v)
+      if (stale) {
+        const r = collect(getter)                          // 3. 重算，同时换成新的依赖记录
+        cached = r.value
+        deps = r.deps
+      }`
+
+export const versionComputed: Exercise = {
+  title: '实现带版本号的 computed 缓存', ch: 12,
+  task: '<p>Vue 3.5 的 computed 不靠 <code>scheduler</code> 打脏标记，而是靠版本号判断缓存能不能用。脚本里已经有 <code>globalVersion</code>、每个数据的 <code>dep.version</code>，以及 <code>collect(getter)</code>（运行 getter，并返回读到的 dep 和当时的 version）。补全 <code>miniComputed</code> 的 <code>value</code>：</p><ol><li>TODO 1：<code>globalVersion</code> 和上次检查时相同，直接返回 <code>cached</code>。</li><li>TODO 2：不同时，记下新的 <code>seenGlobal</code>。</li><li>TODO 3：从没算过，或任何一个依赖的 <code>dep.version</code> 和记录的不同，才重新计算，并更新 <code>cached</code> 和 <code>deps</code>。</li></ol><p>目标：无关数据 <code>c</code> 改变时，getter 不运行。</p>',
+  tpl: '<p>total：{{ view.total }}</p>\n<p>getter 运行次数：{{ view.runs }}</p>\n<button @click="read">读取 total.value</button>\n<button @click="incA">a + 1</button>\n<button @click="incB">b + 1</button>\n<button @click="incC">c + 1（无关）</button>\n<button @click="sameA">把 a 设成相同的值</button>',
+  js: VC_JS('      // TODO 1：globalVersion 没变，直接返回 cached\n      // TODO 2：否则，记下 seenGlobal\n      // TODO 3：从没算过，或有 dep 的 version 变了，才用 collect(getter) 重算，并更新 cached 和 deps'),
+  solJs: VC_JS(VC_SOL),
+  faded: {
+    js: VC_JS(`      if (/* ✏️ 什么条件下可以直接返回缓存 */ false) return cached
+      seenGlobal = globalVersion
+      const stale = !deps || [...deps].some(([dep, v]) => /* ✏️ 一个依赖「变了」的条件 */ false)
+      if (stale) {
+        const r = collect(getter)
+        cached = r.value
+        /* ✏️ 换成这次读到的依赖记录 */
+      }`)
+  },
+  hints: [
+    'computed 不需要知道「是谁改了数据」，只需要比较版本号。先比较 globalVersion（便宜，一个数字）。它没变，什么都不用做。',
+    'globalVersion 变了，只说明某个数据变过，不说明 total 的依赖变过。再遍历 deps（Map），把每个 dep.version 和记录的 version 比较，有一个不同才重算。重算后用 collect 返回的新 deps 覆盖旧的。',
+    'if (seenGlobal === globalVersion) return cached\nseenGlobal = globalVersion\nconst stale = !deps || [...deps].some(([dep, v]) => dep.version !== v)\nif (stale) { const r = collect(getter); cached = r.value; deps = r.deps }'
+  ],
+  async check(T) {
+    const runs = () => { const m = T.text().match(/运行次数：\s*(\d+)/); return m ? +m[1] : -1 }
+    const total = () => { const p = T.$$('p').find(x => /total：/.test(x.textContent)); return p ? p.textContent.replace(/^\s*total：\s*/, '').trim() : '' }
+    for (const n of ['读取', 'a + 1', 'b + 1', 'c + 1', '相同的值']) if (!T.btn(n)) { T.ok(false, '找到按钮“' + n + '”'); return }
+    const press = async (name: string) => { await T.click(T.btn(name)) }
+    T.ok(runs() === 0, '创建时 getter 不运行（当前 ' + runs() + ' 次）')
+    await press('读取')
+    T.ok(total() === '3' && runs() === 1, '第一次读取：total = 3，getter 运行 1 次（当前 ' + total() + '，' + runs() + ' 次）')
+    await press('读取')
+    T.ok(runs() === 1, '依赖没变，再读取一次不重算（当前 ' + runs() + ' 次）')
+    await press('c + 1')
+    await press('读取')
+    T.ok(runs() === 1, '无关数据 c 改变后，globalVersion 变了但依赖的 version 没变，不重算（当前 ' + runs() + ' 次）')
+    await press('a + 1')
+    await press('读取')
+    T.ok(total() === '4' && runs() === 2, 'a 改变后重算：total = 4，共 2 次（当前 ' + total() + '，' + runs() + ' 次）')
+    await press('相同的值')
+    await press('读取')
+    T.ok(runs() === 2, '把 a 设成相同的值，version 不变，不重算（当前 ' + runs() + ' 次）')
+    await press('b + 1')
+    await press('读取')
+    T.ok(total() === '5' && runs() === 3, 'b 改变后重算：total = 5，共 3 次（当前 ' + total() + '，' + runs() + ' 次）')
+    await press('c + 1')
+    await press('读取')
+    T.ok(runs() === 3, '重算后换了新的依赖记录，无关数据 c 再改变，仍然不重算（当前 ' + runs() + ' 次）')
+  },
+  wrong: [
+    {
+      js: VC_JS(`      if (seenGlobal === globalVersion) return cached
+      seenGlobal = globalVersion
+      const r = collect(getter)
+      cached = r.value
+      deps = r.deps`),
+      why: '只看 globalVersion：任何数据改变都重算。无关数据 c 一变，getter 就白白运行一次。',
+      expectFail: /无关数据 c/
+    },
+    {
+      js: VC_JS(`      if (seenGlobal === globalVersion) return cached
+      seenGlobal = globalVersion
+      const first = deps && [...deps][0]
+      const stale = !deps || first[0].version !== first[1]
+      if (stale) {
+        const r = collect(getter)
+        cached = r.value
+        deps = r.deps
+      }`),
+      why: '只比较了第一个依赖。b 是第二个依赖，它变了却没被发现，读到的是过期的缓存。',
+      expectFail: /b 改变后/
+    },
+    {
+      js: VC_JS(`      if (seenGlobal === globalVersion) return cached
+      seenGlobal = globalVersion
+      const stale = !deps || [...deps].some(([dep, v]) => dep.version !== v)
+      if (stale) {
+        const r = collect(getter)
+        cached = r.value
+        if (!deps) deps = r.deps
+      }`),
+      why: '重算后没有换成新的依赖记录，记录里还是第一次的 version。a 改过以后，记录永远落后，之后无论哪个数据改变，都被认为「有依赖变了」。',
+      expectFail: /换了新的依赖记录/
+    }
+  ]
+}

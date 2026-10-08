@@ -52,6 +52,9 @@ export async function collect(root = ROOT) {
 
   const files = new Set();
   for (const d of ['course', 'tests']) walk(root, d, files);
+  // 实验台和示意图的 .vue 源文件：只扫其中的章引用和小节引用
+  const vueFiles = {};
+  for (const rel of files) if (/^course\/(?:labs|figures)\/.+\.vue$/.test(rel)) vueFiles[rel] = fs.readFileSync(rd(rel), 'utf8');
   const snapshot = fs.existsSync(rd('course/card-keys.snapshot.json')) ? JSON.parse(fs.readFileSync(rd('course/card-keys.snapshot.json'), 'utf8')) : null;
-  return { chapterFiles, extraPages, writingTerms, exercises, questions, stageCount, stageQuestions, labTests, files, snapshot };
+  return { chapterFiles, extraPages, writingTerms, exercises, questions, stageCount, stageQuestions, labTests, files, vueFiles, snapshot };
 }

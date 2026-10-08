@@ -4,6 +4,7 @@
 // 每条错误是 { key, text }：text 是给人看的“位置  问题 → 怎么修”，key 是稳定的标识（规则:对象），临时豁免（known-issues.mjs）按 key 匹配。
 import { checkContainers, collectGlossary, exercisesOf, frontmatterLines, goalsOf, h1Of, importsOf, labsOf, maskFences, normTitle, readFrontmatter, scanSc, sectionsOf } from '../../course/content-parse.mjs';
 import { compareSnapshot, computeCards } from './cards.mjs';
+import { RANGE_SEP, scanSectionRefs } from './section-refs.mjs';
 
 /** 不是章的页面：旧地址的跳转页，没有 id */
 export const REDIRECT_PAGES = ['27-quiz'];
@@ -24,6 +25,7 @@ const nonEmpty = v => typeof v === 'string' && v.trim() !== '';
  *   stageCount     阶段数
  *   stageQuestions 阶段测验每次抽的题数（12）
  *   labTests       { 章文件名: [实验台测试数据里的 id…] }（没有这个文件的章不出现）
+ *   vueFiles       { 'course/labs/NN-id/X.vue': 源文件文字 }：实验台和示意图。只扫章引用和小节引用（没有这个字段则不扫）
  *   files          仓库里存在的文件（相对仓库根，用 / 分隔）的 Set
  *   snapshot       快照 JSON；null 表示文件不存在；undefined 表示不检查
  * opts: { strict }（strict 时【待写】占位算错误）
@@ -355,21 +357,47 @@ export function validate(inp, opts = {}) {
     textOfChapter.set(c.no, (c.src + '\n' + extra).toLowerCase());
   }
   /** 待扫描的文字来源：{ where, lines: [[行号|null, 文字]] } */
-  const sources = pages.map(c => ({ where: c.where, lines: c.masked.split('\n').map((t, i) => [i + 1, t]), rawText: c.src }));
-  for (const [rel, src] of Object.entries(inp.extraPages || {})) sources.push({ where: rel, lines: maskFences(src).masked.split('\n').map((t, i) => [i + 1, t]), rawText: src });
+  const sources = pages.map(c => ({ where: c.where, ch: c.no, lines: c.masked.split('\n').map((t, i) => [i + 1, t]), rawText: c.src }));
+  for (const [rel, src] of Object.entries(inp.extraPages || {})) sources.push({ where: rel, ch: null, lines: maskFences(src).masked.split('\n').map((t, i) => [i + 1, t]), rawText: src });
+  for (const [rel, src] of Object.entries(inp.vueFiles || {})) {
+    const own = /^course\/(?:labs|figures)\/(\d\d)-/.exec(rel);
+    sources.push({ where: rel, ch: own ? Number(own[1]) : null, lines: src.split('\n').map((t, i) => [i + 1, t]), rawText: src });
+  }
   for (const [file, mod] of Object.entries(inp.exercises)) {
     for (const [id, ex] of Object.entries(mod)) {
       if (!ex || typeof ex !== 'object') continue;
       const strs = [['title', ex.title], ['task', ex.task], ...(ex.hints || []).map((h, i) => [`hints[${i}]`, h]), ...(ex.wrong || []).map((w, i) => [`wrong[${i}].why`, w?.why])];
-      for (const [f, t] of strs) if (typeof t === 'string') sources.push({ where: `course/exercises/${file}.ts (${id}.${f})`, lines: [[null, t]] });
+      for (const [f, t] of strs) if (typeof t === 'string') sources.push({ where: `course/exercises/${file}.ts (${id}.${f})`, ch: chapters.find(c => c.file === file)?.no ?? ex.ch, lines: [[null, t]] });
     }
   }
   inp.questions.forEach((row, i) => {
-    [row[0], ...(row[1] || []), row[2]].forEach((t, j) => typeof t === 'string' && sources.push({ where: `course/checks/questions.ts 第 ${i + 1} 题`, lines: [[null, t]] }));
+    [row[0], ...(row[1] || []), row[2]].forEach((t, j) => typeof t === 'string' && sources.push({ where: `course/checks/questions.ts 第 ${i + 1} 题`, ch: chById.get(row[3])?.no ?? null, lines: [[null, t]] }));
   });
   const secOk = (n, m) => chByNo.get(n)?.sections.find(s => s.m === m);
   let refCount = 0;
-  for (const { where, lines } of sources) {
+  for (const { where, lines, ch: ownCh } of sources) {
+    // 小节引用（N.M 节、见 N.M、区间和并列、表格引用列、第 X 章 N.M）：规则见 section-refs.mjs
+    for (const chain of scanSectionRefs(lines.map(l => l[1]))) {
+      const ln = lines[chain.line][0];
+      const at = ln ? `${where}:${ln}` : where;
+      chain.tokens.forEach((t, i) => {
+        refCount++;
+        const { n, m: mm } = t;
+        const ref = `${n}.${mm}`;
+        if (!secOk(n, mm)) fail(`secref:${where}:${ref}`, at, `引用了 ${ref} 节，但第 ${n} 章没有这个小节`, '小节从 N.1 起编号；移动小节后要更新引用');
+        if (chain.explicit !== null) {
+          if (chain.explicit !== n) fail(`secref-ch:${where}:${ref}`, at, `写的是"第 ${chain.explicit} 章 ${ref}"，但 ${ref} 属于第 ${n} 章`, '核对章号（插入章会让后面的章号顺延）');
+        } else if ((chain.kind === 'jian' || chain.kind === 'cell') && n !== ownCh) {
+          // “N.M 节”“第 N.M 节”自带“节”字，数字本身就说明了章；不带“节”字的“见 N.M”和表格里的裸 N.M 没有这层说明，默认指本章
+          fail(`secref-implicit:${where}:${ref}`, at, `${chain.kind === 'jian' ? `“见 ${ref}”` : `表格里的 ${ref}`}没写“节”也没写“第 ${n} 章”，会被当成本章${ownCh ? `（第 ${ownCh} 章）` : ''}的小节，但它属于第 ${n} 章`, `改成“第 ${n} 章 ${ref} 节”；如果其实指本章的小节，改正章号（插入、移动章后最容易漏改这种写法）`);
+        }
+        if (i > 0 && RANGE_SEP.test(chain.seps[i - 1])) {
+          const p = chain.tokens[i - 1];
+          if (p.n !== n) fail(`secref-range:${where}:${p.n}.${p.m}-${ref}`, at, `区间 ${p.n}.${p.m} 到 ${ref} 跨了两章`, '区间两端必须在同一章；多半是章号没改全');
+          else if (p.m >= mm) fail(`secref-range:${where}:${p.n}.${p.m}-${ref}`, at, `区间 ${p.n}.${p.m} 到 ${ref} 的两端顺序不对`);
+        }
+      });
+    }
     for (const [ln, line] of lines) {
       const at = ln ? `${where}:${ln}` : where;
       // 第 N 章 的范围，以及后面跟的“N.M 标题”“N.M 节”“词”
@@ -388,15 +416,6 @@ export function validate(inp, opts = {}) {
       for (const m of line.matchAll(/\[([^\]]*?第\s*(\d+)\s*章[^\]]*)\]\(\/chapters\/([^)#\s]+)/g)) {
         const target = pages.find(p => p.file === m[3].replace(/\.html$/, ''));
         if (target?.no && target.no !== Number(m[2])) fail(`chlink:${where}:${m[2]}`, at, `链接文字写的是第 ${m[2]} 章，链接指向的 ${m[3]} 是第 ${target.no} 章`);
-      }
-      // N.M 节：小节必须存在；前面紧跟“第 X 章”时 X 要等于 N
-      for (const m of line.matchAll(/(?<![\d.])(\d{1,2})\.(\d{1,2})\s*节(?![点流省约奏日制])/g)) {
-        refCount++;
-        const n = Number(m[1]);
-        const mm = Number(m[2]);
-        if (!secOk(n, mm)) fail(`secref:${where}:${n}.${mm}`, at, `引用了 ${n}.${mm} 节，但第 ${n} 章没有这个小节`, '小节从 N.1 起编号；移动小节后要更新引用');
-        const pre = /第\s*(\d+)\s*章\s*(?:的)?\s*$/.exec(line.slice(0, m.index));
-        if (pre && Number(pre[1]) !== n) fail(`secref-ch:${where}:${n}.${mm}`, at, `写的是"第 ${pre[1]} 章 ${n}.${mm} 节"，但 ${n}.${mm} 属于第 ${n} 章`);
       }
       // “N.M 标题”：小节存在，标题对得上
       for (const m of line.matchAll(/[“"](\d{1,2})\.(\d{1,2})\s+([^”"]+)[”"]/g)) {

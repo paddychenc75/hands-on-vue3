@@ -133,7 +133,7 @@ const store = useTaskStore()
 </Lab>
 
 ::: deep defineStore 的实现
-Pinia 把所有 store 的 state 保存在一个 ref 中：`pinia.state.value[id]`。这让 DevTools 和服务端渲染可以读取全部数据。每个 store 在自己的 effectScope 中运行。下面的代码也包括 18.2 至 19.4 节的 storeToRefs、$patch 和 $subscribe。
+Pinia 把所有 store 的 state 保存在一个 ref 中：`pinia.state.value[id]`。这让 DevTools 和服务端渲染可以读取全部数据。每个 store 在自己的 effectScope 中运行。下面的代码也包括 19.2 至 19.4 节的 storeToRefs、$patch 和 $subscribe。
 
 ```js
 // pinia（简化）

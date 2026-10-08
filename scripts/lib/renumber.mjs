@@ -6,6 +6,7 @@
 //   frontmatter 的 chapter；练习里的 ch；小节标题 ### N.M；正文、练习提示、题库里的“第 N 章”“N.M 节”“N.M 标题”
 // 章 id（frontmatter 的 id）是存储键，不变；复习卡片键快照按 id 记，所以不受影响。
 import { maskFences } from '../../course/content-parse.mjs';
+import { remapSectionRefs } from './section-refs.mjs';
 
 /** 章号映射：对象 { 旧号: 新号 }（没列出的章号不变）或函数 旧号 -> 新号 */
 export const toNoFn = map => (typeof map === 'function' ? map : n => (map[n] ?? n));
@@ -18,19 +19,26 @@ const CH_REF = /(第\s*)(\d+(?:\s*(?:[、,，和与]|[–—\-~到至])\s*\d+)*)
  * 规则与 validate.mjs 的引用检查一致。map 见 toNoFn。章内 id 不变，所以只改数字。
  */
 export function remapRefsInLine(line, map) {
+  return remapRefs(line, map);
+}
+
+/** 一组行：先改小节引用（section-refs.mjs：N.M 节、见 N.M、区间和并列、表格引用列，位置按原文算），再改“第 N 章”和“N.M 标题” */
+function remapLines(lines, map, fenced = []) {
   const f = toNoFn(map);
   const up = n => String(f(Number(n)));
-  return line
-    .replace(CH_REF, (_m, a, nums, b) => a + nums.replace(/\d+/g, up) + b)
-    .replace(/(?<![\d.])(\d{1,2})(\.\d{1,2}\s*节(?![点流省约奏日制]))/g, (_m, n, rest) => up(n) + rest)
-    .replace(/([“"])(\d{1,2})(\.\d{1,2}\s+[^”"]+[”"])/g, (_m, q, n, rest) => q + up(n) + rest);
+  return remapSectionRefs(lines, f, fenced).map((line, i) =>
+    fenced[i]
+      ? line
+      : line
+          .replace(CH_REF, (_m, a, nums, b) => a + nums.replace(/\d+/g, up) + b)
+          .replace(/([“"])(\d{1,2})(\.\d{1,2}\s+[^”"]+[”"])/g, (_m, q, n, rest) => q + up(n) + rest),
+  );
 }
 
 /** 对整段文字做 remapRefsInLine。markdown 为真时跳过围栏代码块 */
 export function remapRefs(text, map, { markdown = false } = {}) {
-  const lines = text.split('\n');
   const fenced = markdown ? maskFences(text).fenced : [];
-  return lines.map((l, i) => (fenced[i] ? l : remapRefsInLine(l, map))).join('\n');
+  return remapLines(text.split('\n'), map, fenced).join('\n');
 }
 
 /** 章号 >= from 的引用 +1（在中间插入一章时用） */

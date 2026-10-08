@@ -198,6 +198,51 @@ describe('站内引用', () => {
     expectError(run(editChapter('01-first', s => s + '\n见 3.99 节。\n')), /3\.99 节/)
     expectError(run(editChapter('01-first', s => s + '\n见第 4 章 3.1 节。\n')), /属于第 3 章/)
   })
+  it('N.M 节的各种写法：并列、区间、不带“节”字的“见 N.M”、表格里的引用列、第 X 章 N.M', () => {
+    const add = (text: string) => run(editChapter('03-refs', s => s + '\n' + text + '\n'))
+    // 并列和区间里的每个小节都要存在（只检查最后一个“N.M 节”是旧版的漏洞）
+    expectError(add('见 3.1、3.99 节。'), /3\.99 节/)
+    expectError(add('见 3.99 至 3.1 节。'), /3\.99 节/)
+    expectError(add('见 3.1–3.99。'), /3\.99 节/) // 区间没有“节”字也算（“见”开头）
+    expectError(add('[第 3 章](/chapters/03-refs)的 3.1 和 3.99'), /3\.99 节/)
+    // 区间：两端同一章、顺序对
+    expectError(add('见 3.1 至 4.2 节。'), /区间 3\.1 到 4\.2 跨了两章/)
+    expectError(add('见 3.2 至 3.1 节。'), /3\.2 到 3\.1 的两端顺序不对/)
+    expectError(add('见 3.1–3.1 节。'), /两端顺序不对/)
+    // 前面写了“第 X 章”，链上的每个 N.M 都要属于 X
+    expectError(add('见第 4 章 4.1、3.1。'), /写的是"第 4 章 3\.1"，但 3\.1 属于第 3 章/)
+    // 不带“节”字的“见 N.M”：默认指本章，写成别的章必须带“节”或“第 N 章”
+    expectError(add('总表见 4.1。'), /“见 4\.1”没写“节”也没写“第 4 章”，会被当成本章（第 3 章）/)
+    // 带“节”字（数字本身说明了章）、写了章号、指本章，都通过
+    expect(add('总表见 4.1 节。')).toEqual([])
+    expect(add('总表见第 4 章 4.1。')).toEqual([])
+    expect(add('总表见 3.1。')).toEqual([])
+    expect(add('见第 4.1 节。')).toEqual([])
+    // 版本号和小数不是小节引用
+    expect(add('Vue 3.5 的行为见 Vue 3.5.43 的源码，耗时 1.5 倍、4.2 秒。')).toEqual([])
+    // 表格：表头含“位置 / 小节 / 章节 / 出处 / 对应 / 节”的列，格子里的裸 N.M 是小节引用
+    const table = (head: string, cell: string) => add(`| 问题 | ${head} |\n|---|---|\n| x | ${cell} |`)
+    expectError(table('本章位置', '4.1'), /表格里的 4\.1没写“节”也没写“第 4 章”，会被当成本章（第 3 章）/)
+    expectError(table('本章位置', '3.1–3.99'), /3\.99 节/)
+    expectError(table('本章位置', '3.3–3.1'), /两端顺序不对/)
+    expect(table('本章位置', '3.1–3.2')).toEqual([])
+    expect(table('本章位置', '第 4 章 4.1')).toEqual([])
+    expect(table('说明', '4.1 秒')).toEqual([]) // 不是引用列
+  })
+  it('练习的提示、题库解析里的小节引用也查（不带“节”的“见 N.M”、区间）', () => {
+    const id = firstExercise('03-refs')
+    const hints = base.exercises['03-refs'][id].hints
+    expectError(run(editExercise('03-refs', id, { hints: [...hints, '见 4.1。'] })), /“见 4\.1”没写“节”/)
+    expectError(run(editExercise('03-refs', id, { hints: [...hints, '看 3.1 至 4.2 节。'] })), /跨了两章/)
+    const q = base.questions.map((r: any) => [...r])
+    q[0][2] += ' 见 3.99 节。'
+    expectError(run({ ...base, questions: q }), /3\.99 节/)
+  })
+  it('实验台和示意图的 .vue 文字也查（注释里写错的小节号）', () => {
+    const rel = Object.keys(base.vueFiles).find(f => f.startsWith('course/labs/03-refs/'))!
+    const inp = { ...base, vueFiles: { ...base.vueFiles, [rel]: base.vueFiles[rel] + '\n// 见 3.99 节\n' } }
+    expectError(run(inp), /3\.99 节/)
+  })
   it('“第 N 章“词””的词不在那一章', () => {
     expectError(run(editChapter('01-first', s => s + '\n第 3 章“根本不存在的词语”讲了它。\n')), /找不到“根本不存在的词语”/)
   })

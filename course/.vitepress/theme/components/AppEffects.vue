@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // 不显示任何东西，只做几件全站的事（挂在布局的 layout-bottom 插槽里，整个站点只有一个实例）：
-//   1. 侧边栏里已完成/进行中章的标记、“今日复习”入口的到期题数（侧边栏是 VitePress 默认主题渲染的，这里按链接地址补上 data-state），
+//   1. 侧边栏里已完成/进行中章的标记、阶段测验的通过状态、“今日复习”入口的到期题数（侧边栏是 VitePress 默认主题渲染的，这里按链接地址补上 data-state），
 //      以及每个阶段标题右侧的完成数（data-count，由 CSS 显示）。进度在浏览器里才有，所以挂载后才补，服务端渲染的是空的
 //   2. 阅读位置：进入一章时记下这章；滚动停下后记下读到的小节（引擎进度里的 __last）
 //   3. 带 #锚点 进入一章时，实验台和编辑器晚一点才挂载，会把版面撑高，所以持续补对齐（用户没动过才补）
 import { nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute } from 'vitepress'
-import { chapterByPath, chapterState, dueCount, ensureReady, getLast, ready, rev, setLast, stageCount, type LastPos } from '../composables/learn'
+import { chapterByPath, chapterState, dueCount, ensureReady, getLast, ready, rev, setLast, stageCount, stageCheckStatus, type LastPos } from '../composables/learn'
 
 const route = useRoute()
 let acted = false // 用户在这个页面上动过（滚轮、触摸、按键、点击）
@@ -30,6 +30,13 @@ function paintSidebar() {
     if (!c || c.stage == null) return
     const st = chapterState(c.id)
     if (a.dataset.state !== st) a.dataset.state = st
+  })
+  // 每个阶段末尾的“阶段测验”：按测验记录写状态（passed / retest / failed / cooling / none），样式在 style.css
+  document.querySelectorAll<HTMLAnchorElement>('.VPSidebar a[href*="/check/"]').forEach(a => {
+    const m = /\/check\/(\d+)/.exec(a.getAttribute('href') || '')
+    if (!m) return
+    const st = stageCheckStatus(Number(m[1]))
+    if (a.dataset.check !== st) a.dataset.check = st
   })
   // “今日复习”入口右侧的到期题数（没有到期的不显示）
   const due = dueCount()

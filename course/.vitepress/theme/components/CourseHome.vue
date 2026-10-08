@@ -5,10 +5,9 @@
 import { computed, onMounted } from 'vue'
 import { withBase } from 'vitepress'
 import { chapters } from 'virtual:course-meta'
-import { agoText, chapterByPath, chapterState, chaptersOfStage, dueCount, ensureReady, getLast, learnedCount, progressChapters, ready, STAGES, STATE_LABEL } from '../composables/learn'
+import { agoText, chapterByPath, chapterState, chaptersOfStage, CHECK_LABEL, checkLink, dueCount, ensureReady, getLast, learnedCount, progressChapters, ready, stageCheckStatus, STAGES, STATE_LABEL } from '../composables/learn'
 
 const cheat = chapters.find(c => c.id === 'cheat')
-const quiz = chapters.find(c => c.id === 'quiz')
 
 onMounted(ensureReady)
 
@@ -20,7 +19,8 @@ const cards = computed(() =>
       state: ready.value ? chapterState(c.id) : ('todo' as const)
     }))
     const done = list.filter(c => c.state === 'done').length
-    return { stage, ...info, list, done, pct: list.length ? (done / list.length) * 100 : 0 }
+    const check = ready.value ? stageCheckStatus(stage) : ('none' as const)
+    return { stage, ...info, list, done, check, pct: list.length ? (done / list.length) * 100 : 0 }
   })
 )
 const total = computed(() => cards.value.reduce((a, c) => a + c.list.length, 0))
@@ -48,7 +48,7 @@ const resume = computed(() => {
     <header class="hero">
       <div class="eyebrow">VUE 3.5 · 中文互动课程</div>
       <h1>动手学 <em>Vue 3</em></h1>
-      <p>本课程有 6 个阶段：25 章正文、1 个综合实战和一套综合测验。阶段一和阶段二教你使用 Vue：模板、响应式、组件、内置组件、自定义指令、组合式函数、插件和表单。阶段三和阶段四说明 Vue 的内部原理：响应式、更新队列、渲染函数、模板编译、虚拟 DOM 与 diff，以及组件设计模式。阶段五介绍 Pinia、Router、TypeScript、性能优化和工程化。阶段六讲 SSR、自定义渲染器和 Vue 2 迁移，并包含一个完整的小项目。</p>
+      <p>本课程有 6 个阶段：25 章正文和 1 个综合实战，每个阶段末尾有一次阶段测验。阶段一和阶段二教你使用 Vue：模板、响应式、组件、内置组件、自定义指令、组合式函数、插件和表单。阶段三和阶段四说明 Vue 的内部原理：响应式、更新队列、渲染函数、模板编译、虚拟 DOM 与 diff，以及组件设计模式。阶段五介绍 Pinia、Router、TypeScript、性能优化和工程化。阶段六讲 SSR、自定义渲染器和 Vue 2 迁移，并包含一个完整的小项目。</p>
 
       <div class="resume show" id="resume">
         <span id="resumeTxt">{{ resume.text }}</span>
@@ -84,7 +84,7 @@ const resume = computed(() => {
               <span class="st">{{ STATE_LABEL[x.state] }}</span>
             </li>
             <li v-if="c.stage === STAGES.length && cheat" class="aside"><a :href="withBase(cheat.link)">附：{{ cheat.title }}</a></li>
-            <li v-if="c.stage === STAGES.length && quiz" class="aside"><a :href="withBase(quiz.link)">附：{{ quiz.title }}</a></li>
+            <li class="aside check" :data-check="c.check"><a :href="withBase(checkLink(c.stage))">阶段测验</a><span class="st">{{ CHECK_LABEL[c.check] }}</span></li>
           </ul>
           <div class="cap stage-sum">已完成 {{ c.done }} / {{ c.list.length }} 章</div>
           <div class="meter"><i :style="{ width: c.pct + '%' }"></i></div>
@@ -134,7 +134,7 @@ const resume = computed(() => {
           <li><b>第一遍跳过“深入”。</b>“深入”默认折叠。学完主线后，再打开它。</li>
           <li><b>先预测，再运行。</b>操作实验台前，先猜结果。然后运行，比较结果和你的猜测。</li>
           <li><b>不看书做自测。</b>回忆比重读更能记住内容。答错时，回到对应的图和文字。</li>
-          <li><b>间隔复习。</b>学完一个阶段后，隔一两天做一次综合测验中这个阶段的题目。</li>
+          <li><b>间隔复习。</b>每天先做“今日复习”，再学新章。学完一个阶段后，隔一两天做这个阶段的阶段测验。</li>
         </ol>
       </div></details>
     </header>

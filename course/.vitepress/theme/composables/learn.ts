@@ -12,12 +12,13 @@ import { commit, cp, initProgress, progress, save, subscribeProgress } from '../
 import { parseKey } from '../../../engine/cards'
 import { shouldAutoComplete } from '../../../engine/logic/completion'
 import { dueKeys } from '../../../engine/logic/srs'
-import type { ChapterProgress, ChapterSpec, LastPos, PredictRecord, Progress } from '../../../engine/types'
+import { stageStatus } from '../../../engine/logic/stageCheck'
+import type { ChapterProgress, ChapterSpec, LastPos, PredictRecord, Progress, StageRecord } from '../../../engine/types'
 
 export { STAGES, STAGE_COUNT }
 export type { LastPos }
 
-/** 计入进度的章：属于某个阶段的页面（速查表、综合测验不计入）。已按阶段、章号排好 */
+/** 计入进度的章：属于某个阶段的页面（速查表不计入）。已按阶段、章号排好 */
 export const progressChapters: ChapterMeta[] = chapters.filter(c => c.stage != null)
 export const chapterById = (id: string) => chapters.find(c => c.id === id)
 export const chapterByFile = (file: string) => chapters.find(c => c.file === file)
@@ -124,7 +125,7 @@ export function stageCount(stage: number): { done: number; total: number } {
   return { done: list.filter(c => isDone(c.id)).length, total: list.length }
 }
 
-/** 全部完成数和总章数（不含速查表、综合测验） */
+/** 全部完成数和总章数（不含速查表） */
 export function totalCount(): { done: number; total: number } {
   return { done: progressChapters.filter(c => isDone(c.id)).length, total: progressChapters.length }
 }
@@ -147,6 +148,18 @@ export function dueCount(now = Date.now()): number {
 export function learnedCount(): number {
   return Object.keys(allProgress().__srs ?? {}).filter(isKnownKey).length
 }
+
+// ---------------- 阶段测验 ----------------
+
+/** 阶段测验页的路径（阶段号 1 到 6）。用法：withBase(checkLink(2)) */
+export const checkLink = (stage: number): string => `/check/${stage}`
+
+/** 一个阶段的测验记录，没有测过返回 undefined。进度对象是原地修改的，别缓存 */
+export const stageRecord = (stage: number): StageRecord | undefined => allProgress().__stage?.[stage]
+
+/** 阶段测验的状态（none / passed / retest / cooling / failed），规则见 engine/logic/stageCheck.ts 的 stageStatus */
+export const stageCheckStatus = (stage: number, now = Date.now()) => stageStatus(stageRecord(stage), now)
+export const CHECK_LABEL = { none: '未测', passed: '已通过', retest: '该复测', cooling: '未通过', failed: '未通过' } as const
 
 // ---------------- 阅读位置、先猜 ----------------
 

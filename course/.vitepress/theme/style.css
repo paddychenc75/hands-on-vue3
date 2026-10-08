@@ -424,12 +424,6 @@ html.fig-open { overflow: hidden; }
 @media (max-width: 900px) { .home .path { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .home { padding: 0 16px 48px; } .home .path { grid-template-columns: minmax(0, 1fr); } .home .stage li a { padding: 6px 0; } }
 
-/* 综合测验里的各章自测题：题干和解析是构建时渲染好的 HTML */
-.vp-doc .q .sc-stem p, .vp-doc .q .sc-explain p { margin: 6px 0; }
-.vp-doc .q .sc-explain { display: inline; }
-.vp-doc .q .sc-explain > p:first-child { display: inline; }
-.vp-doc .q .opt span { display: inline; }
-.vp-doc .q .opt span > p { display: inline; margin: 0; }
 .home .stage .stage-sum { font-size: 12.5px; color: var(--muted); }
 
 /* ---- 手机：触控目标不小于 32px ---- */
@@ -443,9 +437,9 @@ html.fig-open { overflow: hidden; }
 }
 
 /* ---- 题目（课前热身、复习页、阶段测验共用的 Question 组件） ---- */
-.vp-doc .q-text { display: flex; gap: 8px; font-weight: 600; font-size: 15px; line-height: 1.7; }
-.vp-doc .q-text .qn { flex: none; font-family: var(--f-mono); color: var(--accent); font-weight: 600; font-size: 13px; padding-top: 1px; }
-.vp-doc .q-stem { min-width: 0; flex: 1; }
+.vp-doc .q-text { font-weight: 600; font-size: 15px; line-height: 1.7; }
+.vp-doc .q-text .qn { display: inline-block; margin-right: 8px; font-family: var(--f-mono); color: var(--accent); font-weight: 600; font-size: 13px; }
+.vp-doc .q-stem > p:first-child { display: inline; }
 .vp-doc .q-stem p { margin: 0 0 6px; }
 .vp-doc .q-stem div[class*='language-'] { margin: 8px 0; font-weight: 400; }
 .vp-doc .q pre.code { margin: 8px 0; }
@@ -454,7 +448,8 @@ html.fig-open { overflow: hidden; }
 .vp-doc .opt .ol { flex: none; font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
 .vp-doc .opt .ot { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .vp-doc .opt .ot code { font-size: 12.5px; }
-.vp-doc .opt.picked { border-color: var(--accent); background: var(--accent-soft); }
+/* 交卷模式里选过的项：中性的蓝色，不能像“对”（绿）也不能像“错”（红） */
+.vp-doc .opt.picked { border-color: var(--info); background: var(--info-soft); }
 .vp-doc .opt.gone { visibility: hidden; }
 .vp-doc .q .explain { margin-top: 10px; padding: 8px 12px; border-left: 3px solid var(--line); border-radius: 2px; font-size: 14px; color: var(--muted); }
 .vp-doc .q .explain.ok { border-left-color: var(--accent); }
@@ -483,14 +478,15 @@ html.fig-open { overflow: hidden; }
 .selfx button.b:hover:not([disabled]) { border-color: var(--accent); }
 .selfx button.b[disabled] { opacity: .5; cursor: not-allowed; }
 .selfx .sx-keys { padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); font-size: 14px; }
-.selfx .sx-summary ul, .selfx .sx-summary ol { margin: 6px 0; padding-left: 1.4em; }
+.selfx .sx-summary ul, .selfx .sx-summary ol { margin: 6px 0; padding-left: 1.4em; list-style: disc; }
+.selfx .sx-summary code { font-family: var(--f-mono); font-size: 12.5px; padding: 1px 5px; border-radius: 4px; background: var(--surface); }
 .selfx .sx-summary li { margin: 2px 0; line-height: 1.7; }
 .selfx .sx-summary p { color: var(--ink); }
 .selfx .sx-ask { margin-top: 6px; font-size: 13px; }
 
 /* ---- 今日复习页（ReviewPage） ---- */
 .review { max-width: 760px; }
-.review .rv-intro { margin: 0 0 16px; }
+.review .rv-intro { margin: 18px 0 16px; }
 .review .rv-intro .tag { display: inline-block; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 10px; }
 .review .rv-intro p { margin: 8px 0 0; color: var(--muted); line-height: 1.8; }
 .review .rv-progress { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); margin: 14px 0 8px; }
@@ -518,3 +514,21 @@ html.fig-open { overflow: hidden; }
 .home .stats b { font-family: var(--f-display); font-size: 26px; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .home .stats span { font-size: 12.5px; color: var(--muted); }
 .home .review-entry b { color: var(--warn); }
+
+/* ---- 阶段测验页（StageCheck） ---- */
+.quiz { max-width: 760px; }
+.quiz .check-meta { display: flex; align-items: center; gap: 8px; margin: 18px 0 8px; }
+.quiz .check-meta .tag { font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 10px; }
+.quiz .check-meta .kind { font-size: 13px; color: var(--muted); }
+.quiz .check-intro { margin: 0 0 8px; color: var(--muted); line-height: 1.8; }
+.quiz .check-status { margin: 0 0 8px; }
+.quiz .check-rule, .quiz .lesson-sum { margin: 12px 0; font-size: 13.5px; color: var(--muted); line-height: 1.7; }
+.quiz .q { scroll-margin-top: 80px; }
+
+/* 侧边栏里“阶段测验”的状态（AppEffects 写 data-check） */
+.VPSidebar a[data-check="passed"] .text::after { content: " ✓"; color: var(--accent); font-weight: 700; }
+.VPSidebar a[data-check="retest"] .text::after { content: " ↻ 该复测"; color: var(--warn); font-size: 12px; }
+.VPSidebar a[data-check="failed"] .text::after, .VPSidebar a[data-check="cooling"] .text::after { content: " ✗ 未通过"; color: var(--bad); font-size: 12px; }
+.home .stage li.aside.check[data-check="passed"] .st { color: var(--accent); font-weight: 600; }
+.home .stage li.aside.check[data-check="retest"] .st { color: var(--warn); }
+.home .stage li.aside.check[data-check="failed"] .st, .home .stage li.aside.check[data-check="cooling"] .st { color: var(--bad); }

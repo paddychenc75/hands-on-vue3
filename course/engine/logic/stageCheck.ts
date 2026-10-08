@@ -88,10 +88,10 @@ export const pendingRecord = (n: number, answered: number, right: number, wrongC
 export const daysSincePass = (rec: StageRecord, now: number): number => (rec.passedAt ? Math.floor((now - rec.passedAt) / DAY) : 0)
 
 /** 阶段测验的状态：none 没测过；passed 已通过；retest 通过很久该复测；cooling 没通过、还在 30 分钟冷却里；failed 没通过、可以重测。
-    还没结算的 pending（答到一半离开）按 failed 看：下次进入页面时会结算成未通过 */
+    只看已经结算的字段：答到一半的 pending 要等下次进入测验页时才结算成未通过（settlePending），在那之前显示的是上一次的结果，
+    所以正在答题时侧边栏不会显示“未通过” */
 export function stageStatus(rec: StageRecord | undefined, now: number): 'none' | 'passed' | 'retest' | 'cooling' | 'failed' {
   if (!rec) return 'none'
-  if (rec.pending) return 'failed'
   if (rec.passed) return needsRetest(rec, now) ? 'retest' : 'passed'
   if (rec.failedAt) return cooldownLeft(rec, now) > 0 ? 'cooling' : 'failed'
   return 'none'

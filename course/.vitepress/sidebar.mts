@@ -60,7 +60,11 @@ export function buildSidebar(chaptersDir: string, opts: SidebarOptions = {}) {
   const strip = ({ text, link }: Item) => ({ text, link })
   // 固定入口：最上面是“今日复习”（页面 review.md，带到期题数的徽标，由 AppEffects 写），然后是没写 stage 的章页面（速查表），按 order 排
   const top = [{ text: '今日复习', link: '/review' }, ...pinned.sort((a, b) => a.order - b.order || a.file.localeCompare(b.file)).map(strip)]
-  const groups = byStage.map((items, i) => ({ text: stageTitle(i + 1), items: items.sort(sort).map(strip) })).filter(g => g.items.length)
+  // 每个阶段的章列表末尾加一条“阶段测验”（/check/N，页面是 course/check/N.md），AppEffects 在它右边显示通过状态
+  const groups = byStage
+    .map((items, i) => ({ text: stageTitle(i + 1), items: [...items.sort(sort).map(strip), { text: '阶段测验', link: `/check/${i + 1}` }], count: items.length }))
+    .filter(g => g.count)
+    .map(({ text, items }) => ({ text, items }))
   // 只构建部分章时，空的阶段不显示
   return [{ items: top }, ...groups]
 }

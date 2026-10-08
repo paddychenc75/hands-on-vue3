@@ -25,7 +25,7 @@ export interface ChapterMeta {
   link: string // 页面路径，例如 /chapters/03-refs
   title: string
   desc: string
-  stage: number | null // 阶段 1 到 6（见 course/stages.ts）。速查表和综合测验不属于任何阶段，是 null，不计入进度
+  stage: number | null // 阶段 1 到 6（见 course/stages.ts）。速查表不属于任何阶段，是 null，不计入进度
   chapter: number | null // 没有章号的页面（速查表）是 null
   scCount: number // 本章自测题数（不含先猜）
   scAnswers: number[] // 本章自测的正确选项序号，按题号排列（长度 = scCount）
@@ -84,7 +84,7 @@ export function readChapters(chaptersDir: string): { meta: ChapterMeta; src: str
       throw new Error(`${f}：stage 必须是 1 到 ${STAGE_COUNT} 的整数（实际是 ${fm.stage}）`)
     }
     // 有章号的正文章必须指定阶段，否则它不会计入进度
-    if (stage == null && fm.chapter && fm.id !== 'quiz') throw new Error(`${f}：有 chapter 的章必须写 stage（1 到 ${STAGE_COUNT}）`)
+    if (stage == null && fm.chapter) throw new Error(`${f}：有 chapter 的章必须写 stage（1 到 ${STAGE_COUNT}）`)
     const selfChecks = parseSelfChecks(src)
     out.push({
       src,

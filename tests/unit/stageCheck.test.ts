@@ -191,8 +191,9 @@ describe('阶段测验的状态（侧边栏和首页显示）', () => {
     expect(stageStatus({ passed: false, failedAt: NOW - 10 * MIN, last: 50 }, NOW)).toBe('cooling');
     expect(stageStatus({ passed: false, failedAt: NOW - 31 * MIN, last: 50 }, NOW)).toBe('failed');
   });
-  it('还有没结算的 pending：按 failed 看（进入页面时才会结算成未通过）', () => {
-    expect(stageStatus({ pending: pendingRecord(12, 2, 1, [], NOW - 5 * DAY2) }, NOW)).toBe('failed');
+  it('答到一半的 pending 不改变显示的状态：下次进入页面才结算成未通过；之前没测过就仍是 none', () => {
+    expect(stageStatus({ pending: pendingRecord(12, 2, 1, [], NOW - 5 * DAY2) }, NOW)).toBe('none');
+    expect(stageStatus({ passed: true, passedAt: NOW - DAY2, pending: pendingRecord(12, 2, 1, [], NOW) }, NOW)).toBe('passed');
   });
 });
 

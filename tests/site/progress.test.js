@@ -43,7 +43,7 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
         g.ok(n === c.scCount && c.scAnswers.length === n, `${c.file} 自测 ${n} ≠ ${c.scCount}`)
         g.ok(JSON.stringify(ex) === JSON.stringify(c.ex), `${c.file} 练习 ${ex} ≠ ${c.ex}`)
       }
-      g.ok(PROGRESS_CH.length === 26, '计入进度的有 26 章（不含速查表和综合测验）：' + PROGRESS_CH.length)
+      g.ok(PROGRESS_CH.length === 26, '计入进度的有 26 章（不含速查表）：' + PROGRESS_CH.length)
       g.end()
     }
 
@@ -55,7 +55,7 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       await p.goto(base + '/')
       await p.waitForSelector('.stage li')
       const txt = await p.locator('.home').innerText()
-      g.ok(txt.includes('本课程有 6 个阶段：25 章正文、1 个综合实战和一套综合测验。'), '路线说明')
+      g.ok(txt.includes('本课程有 6 个阶段：25 章正文和 1 个综合实战，每个阶段末尾有一次阶段测验。'), '路线说明')
       g.ok(!/四个阶段|4 个阶段/.test(txt), '没有旧的“4 个阶段”说法')
       g.ok(await p.locator('details.ste').count() === 1 && await p.locator('#glossary tr').count() === 15, '写作规则和术语表')
       g.ok(await p.locator('.stage').count() === 6, '六个阶段')
@@ -66,14 +66,18 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       g.ok(/已完成 0 \/ 26 章/.test(await p.locator('#progTxt').innerText()), '总进度 0 / 26')
       g.ok(await p.locator('#resumeLink').getAttribute('href').then(h => /01-first/.test(h)), '没有记录时继续学习指向第 1 章')
       g.ok(await p.locator('#review').count() === 0 && !/复习/.test(await p.locator('.resume').allInnerTexts().then(a => a.join())), '首页没有复习提示和入口')
-      g.ok(await p.locator('.stage li.aside a').count() === 2, '首页有速查表和综合测验两个附加链接')
+      g.ok(await p.locator('.stage li.aside:not(.check) a').count() === 1, '首页有速查表的附加链接')
+      const checks = await p.locator('.stage li.aside.check a').evaluateAll(es => es.map(e => e.getAttribute('href')))
+      g.ok(checks.length === 6 && checks.every((h, i) => h.endsWith('/check/' + (i + 1) + '.html') || h.endsWith('/check/' + (i + 1))), '每个阶段卡片上有阶段测验入口：' + checks)
+      g.ok((await p.locator('.stage li.aside.check .st').allInnerTexts()).every(t => t === '未测'), '没测过：状态是未测')
+      g.ok(await p.locator('.howto, .methods').count() >= 1, '首页有学习方式说明')
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
       g.end()
     }
 
     // ---------- 侧边栏和顶栏 ----------
     {
-      const g = R.group('侧边栏按 6 个阶段分组并显示完成数、已完成的章带 ✓；顶栏显示总进度；速查表和综合测验是顶部固定入口')
+      const g = R.group('侧边栏按 6 个阶段分组并显示完成数、已完成的章带 ✓；顶栏显示总进度；今日复习和速查表是顶部固定入口；每个阶段末尾有阶段测验')
       const p = await site.newPage()
       await seed(p, base, {
         first: fullChapter(byId('first'), { done: true }),
@@ -96,16 +100,21 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       g.ok(await p.locator('.VPSidebar a[href*="03-refs"]').getAttribute('data-state') === 'doing', '答过自测的章是进行中')
       g.ok(await p.locator('.VPSidebar a[href*="04-computed"]').getAttribute('data-state') === 'todo', '别的章没有标记')
       const top = await p.locator('.VPSidebar .VPSidebarItem.level-0').first().locator('a').allInnerTexts()
-      g.ok(top.join('|') === '今日复习|速查表|综合测验', '顶部固定入口：' + top)
+      g.ok(top.join('|') === '今日复习|速查表', '顶部固定入口：' + top)
+      const lastItems = await p.$$eval('.VPSidebar .VPSidebarItem.level-0', gs => gs.slice(1).map(g => { const a = [...g.querySelectorAll('a')]; return a[a.length - 1].textContent.trim() }))
+      g.ok(lastItems.length === 6 && lastItems.every(t => t === '阶段测验'), '每个阶段的章节列表末尾是“阶段测验”：' + lastItems)
       g.ok(/已完成 3\/26/.test(await p.locator('.nav-progress').innerText()), '顶栏：已完成 3/26：' + await p.locator('.nav-progress').innerText())
       const w = await p.locator('.nav-progress .np-bar i').evaluate(e => e.style.width)
       g.ok(Math.abs(parseFloat(w) - (3 / 26) * 100) < 0.5, '顶栏进度条宽度 ' + w)
-      // 速查表、综合测验页没有章末条，侧边栏也没有标记
+      // 速查表页没有章末条，侧边栏也没有标记
       await p.goto(base + '/chapters/cheat.html'); await p.waitForSelector('.vp-doc h1'); await p.waitForTimeout(300)
       g.ok(await p.locator('.chapter-foot').count() === 0, '速查表页没有章末状态')
-      await p.goto(base + '/chapters/27-quiz.html'); await p.waitForSelector('.vp-doc h1'); await p.waitForTimeout(300)
-      g.ok(await p.locator('.chapter-foot').count() === 0, '综合测验页没有章末状态')
-      g.ok(/已完成 3\/26/.test(await p.locator('.nav-progress').innerText()), '综合测验页顶栏也有总进度')
+      await p.goto(base + '/check/2.html'); await p.waitForSelector('.vp-doc h1'); await p.waitForTimeout(300)
+      g.ok(await p.locator('.chapter-foot').count() === 0, '阶段测验页没有章末状态')
+      g.ok(/已完成 3\/26/.test(await p.locator('.nav-progress').innerText()), '阶段测验页顶栏也有总进度')
+      // 旧地址 /chapters/27-quiz：跳转到第一个阶段测验，不是死链
+      await p.goto(base + '/chapters/27-quiz.html'); await p.waitForURL(/\/check\/1/, { timeout: 8000 }).catch(() => {})
+      g.ok(/\/check\/1/.test(p.url()), '旧地址 /chapters/27-quiz 跳转到 /check/1：' + p.url())
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
       g.end()
     }

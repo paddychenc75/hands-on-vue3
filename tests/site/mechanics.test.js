@@ -362,6 +362,143 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g4.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
       g4.end()
     }
+
+    // ---------- 阶段测验 ----------
+    const STAGE1 = CH.filter(c => c.stage === 1).map(c => c.id)
+    const Q = loadQuestions()
+    const freshCount = Q.filter(row => STAGE1.includes(row[3])).length
+    /** 在阶段测验页上依次作答所有题：rightN 道答对，其余答错（前面的答错）。返回每题的 key 和是否答对 */
+    async function answerAll(p, rightN) {
+      const keys = await p.$$eval('.quiz .q', es => es.map(e => e.dataset.key))
+      const plan = keys.map((k, i) => ({ key: k, right: i >= keys.length - rightN }))
+      for (let i = 0; i < plan.length; i++) await answer(p.locator('.quiz .q').nth(i), plan[i].key, plan[i].right)
+      await p.waitForTimeout(300)
+      return plan
+    }
+    {
+      const g = R.group('阶段测验：12 题（8 道专用题 + 4 道常规题）；交卷前不显示对错和解析；每题只选一次')
+      const p = await site.newPage()
+      await seed(p, base, {})
+      await p.clock.setFixedTime(T0)
+      await p.goto(base + '/check/1.html'); await p.waitForSelector('.quiz .q'); await p.waitForTimeout(400)
+      g.ok(await p.locator('.vp-doc h1').innerText().then(t => t.includes('入门阶段测验')), '标题：入门阶段测验')
+      const keys = await p.$$eval('.quiz .q', es => es.map(e => e.dataset.key))
+      g.ok(keys.length === 12, '12 题：' + keys.length)
+      const nFresh = keys.filter(k => /#c\d+$/.test(k)).length
+      g.ok(nFresh === Math.min(8, freshCount) && keys.every(k => STAGE1.includes(k.split('#')[0])), '8 道专用题（#cN）+ 4 道常规题，都来自本阶段的章：专用 ' + nFresh)
+      g.ok(/交卷模式：每题选一次，全部答完后统一显示对错和解析。中途离开按未通过记录。/.test(await p.locator('.check-rule').innerText()), '有交卷模式说明')
+      for (let i = 0; i < 5; i++) await answer(p.locator('.quiz .q').nth(i), keys[i], true)
+      g.ok(await p.locator('.quiz .opt.right').count() === 0 && await p.locator('.quiz .opt.wrong').count() === 0 && await p.locator('.quiz .explain').count() === 0, '答了 5 题：交卷前不显示对错和解析')
+      g.ok(await p.locator('.quiz .q').nth(0).locator('.opt:not([disabled])').count() === 0, '每题只选一次：选过的题不能再改')
+      g.ok(await p.locator('.quiz .done-card').count() === 0, '没答完不出结果')
+      g.ok(await p.locator('.VPSidebar a[href*="/check/1"]').getAttribute('data-check') === 'none', '正在答题时侧边栏不显示未通过')
+      g.end()
+
+      const g2 = R.group('中途离开算未通过：按已答的题计分，没答的算错；进入冷却，写明还要等多久；30 分钟后可以重测')
+      const rec0 = (await read(p)).__stage?.[1]
+      g2.ok(rec0?.pending?.answered === 5 && rec0.pending.n === 12 && rec0.pending.right === 5, '每答一题记下进度（pending）：' + JSON.stringify(rec0?.pending))
+      await p.reload(); await p.waitForSelector('.quiz .done-card'); await p.waitForTimeout(400)
+      const txt = await p.locator('.quiz').innerText()
+      g2.ok(/上次测验答了 5\/12 题就离开了，按“未通过”记录/.test(txt), '进入页面时结算：说明答了 5/12 题就离开')
+      g2.ok(/先复习，30 分钟后可以重测/.test(txt), '冷却：写明还要等 30 分钟 ' + txt.replace(/\n/g, ' ').slice(0, 160))
+      g2.ok(await p.locator('.quiz .q').count() === 0, '冷却中不出题')
+      const rec = (await read(p)).__stage[1]
+      g2.ok(rec.passed === false && rec.last === 42 && !rec.pending && rec.failedAt > 0, '记为未通过：5/12 = 42%，没有 pending（' + JSON.stringify(rec) + '）')
+      g2.ok(await p.locator('.VPSidebar a[href*="/check/1"]').getAttribute('data-check') === 'cooling', '侧边栏的阶段测验显示未通过（冷却中）')
+      await p.clock.setFixedTime(T0 + 10 * MIN)
+      await p.reload(); await p.waitForSelector('.quiz .done-card'); await p.waitForTimeout(300)
+      g2.ok(/先复习，\d+ 分钟后可以重测/.test(await p.locator('.quiz').innerText()) && !/先复习，30 分钟/.test(await p.locator('.quiz').innerText()), '过了 10 分钟：还要等的时间变短 ' + (await p.locator('.quiz .done-card b').innerText()))
+      await p.clock.setFixedTime(Date.now() + 25 * MIN)
+      await p.reload(); await p.waitForSelector('.quiz .q'); await p.waitForTimeout(300)
+      g2.ok(await p.locator('.quiz .q').count() === 12, '过了 30 分钟：可以重测，再出 12 题')
+      g2.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      g2.end()
+    }
+    {
+      const g = R.group('阶段测验：答对 10 题（83%）通过；全部答完才统一显示对错和解析；通过后清掉 weak；答错的题进入复习队列')
+      const p = await site.newPage()
+      await seed(p, base, { __stage: { 1: { passed: false, failedAt: T0 - HOUR, last: 50, best: 50, weak: ['refs', 'computed'] } } })
+      await p.clock.setFixedTime(T0)
+      await p.goto(base + '/check/1.html'); await p.waitForSelector('.quiz .q'); await p.waitForTimeout(400)
+      const plan = await answerAll(p, 10) // 10 对 2 错
+      g.ok(await p.locator('.quiz .opt.right').count() === 12, '全部答完：统一显示 12 题的正确答案')
+      g.ok(await p.locator('.quiz .opt.wrong').count() === 2 && await p.locator('.quiz .explain').count() === 12, '2 道错选标红，12 道题都有解析')
+      const done = await p.locator('.quiz .done-card').innerText()
+      g.ok(/已掌握入门阶段：答对 10\/12（83%）/.test(done), '通过：10/12 = 83% ' + done.replace(/\n/g, ' ').slice(0, 80))
+      g.ok(/答错的题：第 1 题、第 2 题/.test(done), '列出答错的题（链接到那一题）')
+      const wrongKeys = plan.filter(x => !x.right).map(x => x.key)
+      const weakIds = [...new Set(wrongKeys.map(k => k.split('#')[0]))]
+      const weakShown = await p.locator('.quiz .done-card .wrong-list').nth(1).locator('a').allInnerTexts()
+      g.ok(weakShown.length === weakIds.length && weakIds.every(id => weakShown.includes(CH.find(c => c.id === id).title)), '“需要加强的章”：' + weakShown + '（应为 ' + weakIds + '）')
+      g.ok(await p.locator('.quiz .done-card .wrong-list').nth(1).locator('a').first().getAttribute('href').then(h => /\/chapters\//.test(h)), '需要加强的章链接回那一章')
+      const st = await read(p)
+      const rec = st.__stage[1]
+      g.ok(rec.passed === true && rec.last === 83 && rec.best === 83 && !rec.weak && !rec.failedAt && !rec.pending && rec.passedAt === T0, '以最近一次为准：通过，清掉 weak 和 failedAt（' + JSON.stringify(rec) + '）')
+      g.ok(wrongKeys.every(k => st.__srs[k] && st.__srs[k].box === 0 && Math.abs(st.__srs[k].due - (T0 + DAY)) < 5000), '答错的题进入复习队列：回盒子 0，明天再出')
+      g.ok(await p.locator('.VPSidebar a[href*="/check/1"]').getAttribute('data-check') === 'passed', '侧边栏的阶段测验显示通过 ✓')
+      await p.locator('.quiz [data-a="again"]').click(); await p.waitForTimeout(500)
+      g.ok(await p.locator('.quiz .q').count() === 12 && await p.locator('.quiz .opt.right').count() === 0, '“换一组题再测”：重新出 12 题，不显示答案')
+      await p.goto(base + '/'); await p.waitForSelector('.stage'); await p.waitForTimeout(400)
+      g.ok(/已通过/.test(await p.locator('.stage[data-stage="1"] li.aside.check').innerText()), '首页第 1 个阶段卡片上显示已通过')
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      g.end()
+
+      const g2 = R.group('阶段测验：答对 9 题（75%）不通过；写明还差一点和冷却；通过 35 天后提示复测；最近一次未通过会覆盖之前的通过')
+      await seed(p, base, { __stage: { 1: { passed: true, passedAt: T0 - 5 * DAY, last: 92, best: 92 } } })
+      await p.goto(base + '/check/1.html'); await p.waitForSelector('.quiz .q'); await p.waitForTimeout(300)
+      g2.ok(await p.locator('.quiz .lesson-sum').count() === 0, '通过没到 35 天：不提示复测')
+      await answerAll(p, 9)
+      let rec2 = (await read(p)).__stage[1]
+      g2.ok(/还差一点：答对 9\/12（75%）/.test(await p.locator('.quiz .done-card').innerText()), '未通过：还差一点 9/12')
+      g2.ok(rec2.passed === false && rec2.best === 92 && rec2.last === 75 && rec2.weak.length >= 1 && rec2.failedAt === T0, '以最近一次为准：通过过，后来没通过，记为未通过；最好成绩仍是 92（' + JSON.stringify(rec2) + '）')
+      await seed(p, base, { __stage: { 1: { passed: true, passedAt: T0 - 36 * DAY, last: 92, best: 92 } } })
+      await p.goto(base + '/check/1.html'); await p.waitForSelector('.quiz .q'); await p.waitForTimeout(300)
+      g2.ok(/你在 36 天前通过了这个阶段.*建议再测一次/.test(await p.locator('.quiz .lesson-sum').innerText()), '通过 36 天后：提示复测')
+      g2.ok(await p.locator('.VPSidebar a[href*="/check/1"]').getAttribute('data-check') === 'retest', '侧边栏显示该复测')
+      g2.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      g2.end()
+    }
+    {
+      const g = R.group('6 个阶段测验页都能抽满 12 题，标题和 stages.ts 一致')
+      const p = await site.newPage()
+      await seed(p, base, {})
+      const names = ['入门', '进阶', '高级', '原理与架构', '生态与实战', '深入']
+      for (let i = 1; i <= 6; i++) {
+        await p.goto(base + '/check/' + i + '.html'); await p.waitForSelector('.quiz .q'); await p.waitForTimeout(250)
+        g.ok(await p.locator('.quiz .q').count() === 12, '阶段 ' + i + ' 抽满 12 题')
+        g.ok((await p.locator('.vp-doc h1').innerText()).includes(names[i - 1] + '阶段测验'), '阶段 ' + i + ' 标题 ' + names[i - 1])
+      }
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      g.end()
+    }
+
+    // ---------- 手机宽度 ----------
+    {
+      const g = R.group('390px 宽下没有横向滚动：首页、复习页（含出题中）、6 个阶段测验页（含交卷后）、章页（有热身和自我解释）')
+      const p = await site.newPage({ viewport: { width: 390, height: 844 } })
+      const wide = []
+      const old = T0 - 3 * DAY
+      const srs = { 'first#0': card(1, T0 - DAY, old), 'refs#1': card(1, T0 - DAY, old), 'template#0': card(1, T0 + DAY, old), 'refs#0': card(1, T0 + DAY, old) }
+      await seed(p, base, { __srs: srs })
+      await p.clock.setFixedTime(T0)
+      const pages = [['/', '.home'], ['/review.html', '.review .q'], ...[1, 2, 3, 4, 5, 6].map(i => ['/check/' + i + '.html', '.quiz .q']), ['/chapters/04-computed.html', '.warmup .q'], ['/chapters/03-refs.html', '.selfx']]
+      for (const [u, sel] of pages) {
+        await p.goto(base + u); await p.waitForSelector(sel, { timeout: 15000 }); await p.waitForTimeout(300)
+        if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth)) wide.push(u)
+      }
+      // 复习页作答后、阶段测验交卷后（解析和代码块都出来了）
+      await p.goto(base + '/review.html'); await p.waitForSelector('.review .q')
+      const rk = await p.locator('.review .q').getAttribute('data-key')
+      await answer(p.locator('.review .q'), rk, false); await p.waitForTimeout(200)
+      if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth)) wide.push('/review.html（答错后）')
+      await seed(p, base, {})
+      await p.goto(base + '/check/2.html'); await p.waitForSelector('.quiz .q'); await p.waitForTimeout(300)
+      await answerAll(p, 8)
+      if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth)) wide.push('/check/2.html（交卷后）')
+      g.ok(!wide.length, '没有横向滚动' + (wide.length ? '：' + wide.join(', ') : ''))
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      g.end()
+    }
   } finally {
     await site.stop()
   }

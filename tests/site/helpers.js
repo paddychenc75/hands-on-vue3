@@ -1,6 +1,6 @@
 // 站点测试的公共部分：起 vitepress preview、读章节数据、读练习和题库数据。
 //   progress.test.js  跨章学习功能（进度、自测答错、章完成、侧边栏和顶栏、首页、旧键迁移、图片放大）
-//   quiz.test.js      综合测验（最小版：按阶段筛选、点选出解析，答案只在内存里）
+//   mechanics.test.js 学习机制：提示阶梯、热身、自我解释、复习页、阶段测验、手机宽度
 // 都用已经构建好的 course/.vitepress/dist（npm run test:site 会先构建）。
 const { chromium } = require('playwright')
 const { spawn } = require('child_process')

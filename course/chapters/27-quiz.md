@@ -1,23 +1,20 @@
 ---
-title: 综合测验
-id: quiz
-chapter: 27
-desc: 60 题，按阶段筛选，有解析
+layout: page
+head:
+  - - meta
+    - http-equiv: refresh
+      content: "0; url=../check/1.html"
 ---
 
 <script setup>
-import Quiz from '../labs/27-quiz/Quiz.vue'
+import { onMounted } from 'vue'
+import { useRouter, withBase } from 'vitepress'
+
+// 旧地址 /chapters/27-quiz（综合测验）已经没有了：每个阶段末尾改成了阶段测验。跳转到第一个阶段测验，避免死链
+const router = useRouter()
+onMounted(() => router.go(withBase('/check/1')))
 </script>
 
-# 综合测验
+# 综合测验已改成阶段测验
 
-测验有 60 题。按下面的步骤完成：
-
-1. 选择一个阶段，或选择“全部”。
-2. 每题选择一个答案。
-3. 阅读解析。
-4. 答错时，点击解析中的链接，复习对应章节。
-
-页面把你的成绩保存在这个浏览器中。点击“重新作答”清除成绩。
-
-<Quiz />
+综合测验已经拆成 6 个阶段测验，每个阶段末尾一次。正在跳转到[入门阶段测验](/check/1)。

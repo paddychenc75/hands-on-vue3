@@ -28,13 +28,15 @@ const chapters = fs
   .map(f => {
     const src = fs.readFileSync(path.join(chaptersDir, f), 'utf8')
     const fm = /^---\n([\s\S]*?)\n---/.exec(src)![1]
-    const id = /^id:\s*(\S+)/m.exec(fm)![1]
-    // 速查表和综合测验页没有 stage（固定入口，不属于任何阶段）
+    const id = /^id:\s*(\S+)/m.exec(fm)?.[1]
+    // 速查表没有 stage（固定入口，不属于任何阶段）
     const m = /^stage:\s*(\d)/m.exec(fm)
     const stage = m ? Number(m[1]) : null
     const scCount = [...src.matchAll(/<Sc\b([^>]*)>/g)].filter(m => !/\bpredict\b/.test(m[1])).length
     return { id, stage, scCount }
   })
+  // 没有 id 的页面（旧地址 27-quiz 的跳转页）不是章，不参与
+  .filter((c): c is { id: string; stage: number | null; scCount: number } => !!c.id)
 const selfchecks: SelfCheckData[] = chapters.flatMap(c =>
   Array.from({ length: c.scCount }, (_, i) => ({ key: `${c.id}:${i}`, chapterId: c.id, a: i % 4, stem: `${c.id}-${i}`, opts: ['a', 'b', 'c', 'd'], explain: 'e' }))
 )
@@ -77,7 +79,7 @@ describe('卡片键规则：章内自测 章id#N，阶段测验专用题 章id#c
   })
 })
 
-describe('60 道综合测验题 = 阶段测验专用题，按所属章分组、组内按题库出现顺序编号', () => {
+describe('60 道阶段测验专用题（题库 course/checks/questions.ts），按所属章分组、组内按题库出现顺序编号', () => {
   it('题库有 60 题，每题都能变成一张卡片', () => {
     expect(Q.length).toBe(60)
     expect(catalog.all.filter(c => c.kind === 'check').length).toBe(60)
@@ -144,7 +146,6 @@ describe('章内自测卡片', () => {
     expect(keys.slice(0, nSc)).toEqual(Array.from({ length: nSc }, (_, i) => `template#${i}`))
     expect(keys.slice(nSc)).toEqual(['template#c0', 'template#c1', 'template#c2', 'template#c3', 'template#c4'])
     expect(catalog.keysOfChapter('nope')).toEqual([])
-    expect(catalog.keysOfChapter('quiz')).toEqual([]) // 综合测验页自己没有题
   })
 })
 

@@ -92,13 +92,13 @@ props 中的属性规则如下：
   key: null,
   el: null,                // 挂载后指向真实 DOM
   shapeFlag: 9,            // ELEMENT | TEXT_CHILDREN：这个节点和它的子节点是什么形态
-  patchFlag: 0,            // 手写 h() 没有标记（第 15 章）
-  dynamicChildren: null,   // 只有编译器生成的 Block 才有（第 15 章）
+  patchFlag: 0,            // 手写 h() 没有标记（第 17 章）
+  dynamicChildren: null,   // 只有编译器生成的 Block 才有（第 17 章）
   component: null          // 组件 vnode 挂载后指向组件实例
 }
 ```
 
-后面的章节会用到这些字段。第 15 章读 `patchFlag` 和 `dynamicChildren`。第 16 章读 `type`、`key` 和 `el`，用它们判断两个节点能否复用。第 26、27 章读 `el`，它就是 vnode 对应的 DOM 节点。
+后面的章节会用到这些字段。第 17 章读 `patchFlag` 和 `dynamicChildren`。第 18 章读 `type`、`key` 和 `el`，用它们判断两个节点能否复用。第 28、29 章读 `el`，它就是 vnode 对应的 DOM 节点。
 
 ### 14.1 在 setup 中返回渲染函数
 
@@ -288,7 +288,7 @@ JSX 中的变量 Tag 以大写字母开头。插件因此把它当作组件或�
 模板也可以处理大部分动态结构。例如 `<component :is="'h' + level">`。先尝试模板，模板写不出来时再用渲染函数。
 
 ::: deep JSX 和手写 h() 的代价
-编译器编译模板时，知道哪些部分是静态的。它生成三种优化信息（[第 15 章](/chapters/15-compiler)详细讲）：
+编译器编译模板时，知道哪些部分是静态的。它生成三种优化信息（[第 17 章](/chapters/17-compiler)详细讲）：
 
 - **PatchFlags**：标记节点的哪些部分是动态的。例如只有文字或只有 class。
 - **Block Tree**：根节点收集所有动态后代。diff 时只比较这些节点。

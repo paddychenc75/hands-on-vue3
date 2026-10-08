@@ -20,7 +20,7 @@ export const STAGES: Stage[] = [
     en: 'Components in depth',
     desc: '组件通信、生命周期、内置组件、自定义指令、组合式函数、应用与插件，最后学会处理表单。'
   },
-  { no: '03', name: '高级', en: 'Under the hood', desc: '响应式原理、更新队列与 nextTick、渲染函数与 JSX，知其然更知其所以然。' },
+  { no: '03', name: '高级', en: 'Under the hood', desc: '响应式原理、更新队列与 nextTick、渲染函数与 JSX、watch 与 effectScope 的实现、响应式陷阱诊断，知其然更知其所以然。' },
   { no: '04', name: '原理与架构', en: 'Compiler & architecture', desc: '模板编译、虚拟 DOM 与 diff、组件运行时与迷你 Vue，以及组件与组合式函数的 API 设计。' },
   {
     no: '05',
@@ -28,7 +28,7 @@ export const STAGES: Stage[] = [
     en: 'Ecosystem & projects',
     desc: 'Pinia 状态管理、Vue Router、状态归属与规模化、TypeScript、性能优化、工程化与测试，以及 Vue 2 迁移，把常用工具接进项目。'
   },
-  { no: '06', name: '深入', en: 'In depth', desc: 'SSR 与水合、自定义渲染器、性能诊断实战，最后用一个综合项目收尾。' }
+  { no: '06', name: '深入', en: 'In depth', desc: 'SSR 与水合、自定义渲染器、内置组件的实现、错误处理与监控、表单架构、性能诊断实战、组件库工程，最后用一个综合项目收尾。' }
 ]
 
 /** 阶段数 */

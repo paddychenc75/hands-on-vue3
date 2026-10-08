@@ -1,6 +1,6 @@
 # AGENTS.md：维护“动手学 Vue 3”课程
 
-这是一套中文交互式 Vue 3 课程：29 章，6 个阶段（入门、进阶、高级、原理与架构、生态与实战、深入），外加一页速查表。站点用 **VitePress** 构建，静态发布到 GitHub Pages。每章是一个 Markdown 文件，自测题内联在 Markdown 里；练习的判题数据在 `course/exercises/`，实验台是 Vue 组件，引擎逻辑在 `course/engine/`。进度只存在浏览器里。
+这是一套中文交互式 Vue 3 课程：35 章，6 个阶段（入门、进阶、高级、原理与架构、生态与实战、深入），外加一页速查表。站点用 **VitePress** 构建，静态发布到 GitHub Pages。每章是一个 Markdown 文件，自测题内联在 Markdown 里；练习的判题数据在 `course/exercises/`，实验台是 Vue 组件，引擎逻辑在 `course/engine/`。进度只存在浏览器里。
 
 用户用中文交流。回复、提交信息和课程文字都用中文。本文件是唯一的规则源：`CLAUDE.md` 只导入它，Codex 等其他 agent 直接读它。
 
@@ -16,6 +16,10 @@
 6. **章 id、实验台 id、练习 id 是存储键**，创建后不能改。
 7. 具体的 Markdown 写法（容器、`<Sc>`、`<Lab>`、示意图、练习字段、写作规范、`check:content` 检查的规则、站内链接和 base）以 [`course/AUTHORING.md`](course/AUTHORING.md) 为准，本文件讲规则和流程，不重复抄写法。两份文档里同一条规则只写一处，另一处指过去。
 8. **站内链接带 base**：站点部署在 `/hands-on-vue3/` 下，组件里手写链接用 `withBase`，localStorage 里存不带 base 的路径（见 AUTHORING 4.14）。
+
+## 待写的章（写完后删掉这一节）
+
+**第 15 章 `watch-impl`（watch 与 effectScope 的实现）、第 16 章 `reactivity-pitfalls`（响应式陷阱诊断）、第 30 章 `builtins-impl`（内置组件的实现）、第 31 章 `errors`（错误处理与监控）、第 32 章 `forms-arch`（表单架构）、第 34 章 `lib`（组件库工程）目前只有骨架**：文字是“【待写】”占位，练习和自测是脚手架生成的示例，还没有发布。写正文时：把占位换成真内容（骨架里的占位术语“【待写】术语”不进术语表，换成真术语即可）；这六章的卡片键（`watch-impl#N`、`reactivity-pitfalls#N`、`builtins-impl#N`、`errors#N`、`forms-arch#N`、`lib#N`）和指纹因为从未发布，可以用 `npm run check:content -- --update --force` 重写；用 `npm run check:content -- --strict` 确认占位清完；写完后**删掉本节这一段说明**。
 
 ## 命令
 
@@ -55,7 +59,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 
 | 位置 | 放什么 | 不放什么 |
 |---|---|---|
-| `course/chapters/NN-id.md` | 一章一个文件，`NN` 是两位章号，`id` 是章的稳定编号。`cheat.md` 是速查表（没有章号）。`27-quiz.md` 只是旧地址的跳转页（它的文件名带 27，和第 27 章 `27-renderer.md` 并存、互不冲突：它没有 `id`，不是章，`REDIRECT_PAGES` 把它排除在所有校验和侧边栏之外；URL 要保持 `/chapters/27-quiz`，所以不改名） | 练习判题、实验台代码 |
+| `course/chapters/NN-id.md` | 一章一个文件，`NN` 是两位章号，`id` 是章的稳定编号。`cheat.md` 是速查表（没有章号）。`27-quiz.md` 只是旧地址的跳转页（它的文件名带 27，和第 27 章 `27-migrate.md` 并存、互不冲突：它没有 `id`，不是章，`REDIRECT_PAGES` 把它排除在所有校验和侧边栏之外；URL 要保持 `/chapters/27-quiz`，所以不改名） | 练习判题、实验台代码 |
 | `course/site.mjs` | 站点部署路径 `BASE_PATH`，**唯一的定义处**：`config.mts`、测试、脚本都从它取 | — |
 | `course/content-parse.mjs` | 章节 Markdown 的纯文本解析（frontmatter、自测题、小结、术语块、阅读时间、术语汇总）。站点构建和 Node 脚本共用这一份 | 读文件、DOM |
 | `course/writing-terms.mjs` | 首页「写作规则」表的数据（带“不使用的同义词”），术语表页的“不这样说”一栏也用它 | — |
@@ -111,7 +115,7 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 
 1. 生成 `course/chapters/NN-id.md`（frontmatter、目标、阅读时间、类比、术语、为什么需要它、一个小节、一道示例练习、一道自测、小结，文字是“【待写】”占位）、`course/exercises/NN-id.ts`（一道能通过的小练习，带 `hints`、`wrong`、`faded`）、`tests/site/labs/NN-id.js`（空数组）。
 2. 追加新卡片键到 `course/card-keys.snapshot.json`。
-3. **插在中间时**，后面的章全部顺延：文件改名（章、练习、`labs/`、`figures/`、测试数据）、frontmatter 的 `chapter`、练习的 `ch`、小节标题 `### N.M`、所有写到旧文件名的地方，以及章节、练习、题库、术语表、首页、阶段测验页、实验台和示意图注释、浏览器测试里的“第 N 章”（含“第 N、M 章”“第 N–M 章”写法）、小节引用（“N.M 节”、并列和区间、不带“节”的“见 N.M”、“第 X 章 N.M”、表格引用列，认法见 `scripts/lib/section-refs.mjs`，校验和改号共用）和“N.M 标题”引用，全部 +1。题干里带章号引用的自测题，指纹会随之改写，脚本会列出是哪几道（卡片键不变）。动手之前它要求 `check:content` 已通过、工作区干净（`--allow-dirty` 可跳过后一条），做完用 `check:content` 复核。`--dry-run` 只列计划不改文件。
+3. **插在中间时**，后面的章全部顺延：文件改名（章、练习、`labs/`、`figures/`、测试数据）、frontmatter 的 `chapter`、练习的 `ch`、小节标题 `### N.M`、所有写到旧文件名的地方，以及章节、练习、题库、术语表、首页、阶段测验页、实验台和示意图注释、浏览器测试里的“第 N 章”（含“第 N、M 章”“第 N–M 章”写法）、小节引用（“N.M 节”、并列和区间、不带“节”的“见 N.M”、“第 X 章 N.M”、表格引用列，认法见 `scripts/lib/section-refs.mjs`，校验和改号共用）和“N.M 标题”引用，全部 +1。另外，没有“节”字的裸 N.M（“（15.6）”“15.2 的 PatchFlag”“（29.1 和 29.2）”）只要真是某个小节的编号，改号时也会一起改（版本号 Vue 2.6 和数值 15.2 秒不改；校验不查这类写法）。区间“第 N 到 M 章”跨过新插入的章时含义会变宽，要人工核对。题干里带章号引用的自测题，指纹会随之改写，脚本会列出是哪几道（卡片键不变）。动手之前它要求 `check:content` 已通过、工作区干净（`--allow-dirty` 可跳过后一条），做完用 `check:content` 复核。`--dry-run` 只列计划不改文件。
 
 **移动一章**（换位置、换阶段）用 `npm run move-chapter -- <章id> --after <章id> [--stage N]`：夹在中间的章顺延或前移，改名和改引用的规则与插入相同（两个脚本共用 `scripts/lib/renumber-plan.mjs`）；快照里已有键的顺序和值不动，只有题干里写着章号的自测题指纹会改写。做完同样要人工核对 `tests/expected.cjs`、`course/stages.ts` 和文档里写着章顺序的文字。
 4. 脚本不改、但会列出来的地方：`tests/expected.cjs`（锁定的章数和“每个阶段的可用题数”表，章数变了测试会在这里失败）、`course/stages.ts` 里提到章范围的说明、文档里的章数（`README.md`、本文件；`npm run check:docs` 会查出过期的数字）。首页的章数、章头的总章数、侧边栏、进度统计都是从章元数据算的，不用改。
@@ -207,7 +211,7 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 
 - **进度**只存在浏览器 `localStorage['hands-on-vue3-v1']`（单个键，结构见 `course/engine/types.ts` 的 `Progress`，细则见 `course/AUTHORING.md` 第 6 节）；服务端渲染时为空。界面读写只经过 `theme/composables/learn.ts`，它封装 `course/engine/`。旧版零散的进度键由引擎第一次读取时一次性迁移，之后不再读写。依赖进度的组件挂载后才显示真实数字（`ensureReady()`），避免水合不一致；引擎的进度对象是原地修改的，**不要把 `cpOf()` 的结果缓存在 `computed` 里**（引用不变，下游不会重算），要在每个 `computed` 里直接调用。存进去的页面路径（`__last.path`）不带 base。
 - **章数据在构建时抽取**：`course/.vitepress/course-data.mts` 是一个 Vite 插件，用 `content-parse.mjs` 从各章 Markdown 抽出元数据、自测题、小结、术语，生成虚拟模块（`virtual:course-meta`、`-selfchecks`、`-summaries`、`-glossary`，说明见 `course/AUTHORING.md` 第 7 节）。复习页、阶段测验、热身用动态 import 载入大的那一个。术语表页和术语标注（章里术语的虚线下划线）也由它供数据。
-- **实验台直接用的 Vue 编译器和开发构建**：第 15 章的实验台动态载入 `@vue/compiler-dom` 和 `@vue/compiler-sfc` 的浏览器构建，第 28 章的实验台动态载入 `vue/dist/vue.esm-browser.js`（开发构建，因为 `onRenderTriggered` 等钩子只有开发构建才有）。它们都是按需加载的独立分块，只在这两章的页面预加载，不在站点入口里；页面上因此有两份互不相干的 Vue（站点自己的生产构建和实验台里的开发构建，各有各的响应式、调度队列和当前实例，实验台的应用挂在自己新建的 div 里）。`@vue/compiler-dom`、`@vue/compiler-sfc` 在 `devDependencies` 里固定为和 `vue` 相同的版本，升级 `vue` 时三个一起升（Dependabot 已把 `@vue/*` 和 `vue` 分在同一组）。
+- **实验台直接用的 Vue 编译器和开发构建**：第 17 章的实验台动态载入 `@vue/compiler-dom` 和 `@vue/compiler-sfc` 的浏览器构建，第 33 章的实验台动态载入 `vue/dist/vue.esm-browser.js`（开发构建，因为 `onRenderTriggered` 等钩子只有开发构建才有）。它们都是按需加载的独立分块，只在这两章的页面预加载，不在站点入口里；页面上因此有两份互不相干的 Vue（站点自己的生产构建和实验台里的开发构建，各有各的响应式、调度队列和当前实例，实验台的应用挂在自己新建的 div 里）。`@vue/compiler-dom`、`@vue/compiler-sfc` 在 `devDependencies` 里固定为和 `vue` 相同的版本，升级 `vue` 时三个一起升（Dependabot 已把 `@vue/*` 和 `vue` 分在同一组）。
 - **练习和实验台只在浏览器里渲染**，服务端渲染出来的只有占位。练习需要运行时编译模板，`Exercise` 组件挂载后动态 `import('vue/dist/vue.esm-bundler.js')`，所以**不要给站点的 `vue` 做 alias**。
 - **侧边栏**由 `sidebar.mts` 从各章 frontmatter（`chapter`、`stage`、`title`）自动生成，不用手写；顶部固定入口是今日复习、术语表、速查表；动态标记由 `AppEffects` 写成属性（`data-badge`、`data-count`、`data-check`）。
 - **章头**（`ChapterMeta`：阶段标签、第 N / 总章数 章、`desc`、阅读时间）由 `config.mts` 在一级标题后自动注入；阅读时间取自章里的 `::: rt` 块，正文里不再渲染那个块。

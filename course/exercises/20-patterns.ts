@@ -1,0 +1,470 @@
+import type { Exercise } from './types'
+import { nextTick } from 'vue'
+import { sub } from './types'
+
+// 判题辅助：沿输出区挂载根的 vnode 树，收集满足条件的 vnode（生产构建里也可用 _vnode）
+function collectVNodes(T: any, pred: (v: any) => boolean): any[] {
+  let el: any = T.$('ul')
+  while (el && !el._vnode) el = el.parentElement
+  const out: any[] = []
+  const walk = (v: any) => {
+    if (!v || typeof v !== 'object') return
+    if (Array.isArray(v)) { v.forEach(walk); return }
+    if (pred(v)) out.push(v)
+    if (v.component) walk(v.component.subTree)
+    else walk(v.children)
+  }
+  walk(el && el._vnode)
+  return out
+}
+// 按注册的组件对象匹配 vnode（不依赖组件选项里的 name 字段，学习者删掉 name 也能照样判）
+function byComp(T: any, name: string): (v: any) => boolean {
+  const inst = (T.$(':scope > div') as any)?._vnode?.component
+  const C = inst && inst.appContext.components[name]
+  return v => !!v.type && (C ? v.type === C : v.type.name === name)
+}
+
+export const treeItem: Exercise = {
+  title: '递归的 TreeItem', ch: 20,
+  task: '<ol><li>修改 TreeItem 的模板：节点有 children 并且 open 为 true 时，渲染一个 &lt;ul&gt;。</li><li>在 &lt;ul&gt; 中，用 TreeItem 渲染每个子节点。</li><li>点击名字时，折叠或展开子节点。这一步已经写好。</li></ol>',
+  tpl: '<ul>\n  <TreeItem :node="tree" />\n</ul>',
+  js: "const tree = reactive({\n  name: 'src',\n  children: [\n    { name: 'components', children: [\n      { name: 'Button.vue' },\n      { name: 'forms', children: [{ name: 'Input.vue' }] }\n    ] },\n    { name: 'main.js' }\n  ]\n})\n\nconst TreeItem = {\n  name: 'TreeItem',\n  props: ['node'],\n  setup(props) {\n    const open = ref(true)\n    const isFolder = computed(() => !!(props.node.children && props.node.children.length))\n    return { open, isFolder }\n  },\n  // TODO：在 </span> 后面加一个 <ul>，用 TreeItem 渲染 node.children\n  template: `<li>\n    <span class=\"name\" @click=\"open = !open\">{{ node.name }}</span>\n  </li>`\n}\n\nreturn { tree, components: { TreeItem } }",
+  solJs: "const tree = reactive({\n  name: 'src',\n  children: [\n    { name: 'components', children: [\n      { name: 'Button.vue' },\n      { name: 'forms', children: [{ name: 'Input.vue' }] }\n    ] },\n    { name: 'main.js' }\n  ]\n})\n\nconst TreeItem = {\n  name: 'TreeItem',\n  props: ['node'],\n  setup(props) {\n    const open = ref(true)\n    const isFolder = computed(() => !!(props.node.children && props.node.children.length))\n    return { open, isFolder }\n  },\n  template: `<li>\n    <span class=\"name\" @click=\"open = !open\">{{ isFolder ? (open ? '▾ ' : '▸ ') : '' }}{{ node.name }}</span>\n    <ul v-if=\"isFolder && open\">\n      <TreeItem v-for=\"child in node.children\" :key=\"child.name\" :node=\"child\" />\n    </ul>\n  </li>`\n}\n\nreturn { tree, components: { TreeItem } }",
+  hints: [
+    '递归组件在自己的模板中使用自己。必须有停止条件，否则无限渲染。第 20 章“20.6 递归组件”讲了它。',
+    '在 TreeItem 模板的 </span> 后面加一个 <ul>。用 v-if 写停止条件：isFolder 并且 open。在 <ul> 中用 v-for 渲染 <TreeItem>，传入 :node 和 :key。',
+    '<ul v-if="isFolder && open">\n  <TreeItem v-for="child in node.children" :key="child.name" :node="child" />\n</ul>'
+  ],
+  async check(T) {
+    const n = () => T.$$('li').length;
+    T.ok(n() === 6, '渲染出全部 6 个节点（当前 ' + n() + ' 个）');
+    T.ok(/Input\.vue/.test(T.text()), '最深的节点 Input.vue 已显示');
+    T.ok(T.$$('ul').length === 4, '只有文件夹才渲染 <ul>（共 4 个 ul，当前 ' + T.$$('ul').length + ' 个）');
+    const tv = collectVNodes(T, byComp(T, 'TreeItem')).filter(v => v.key != null);
+    T.ok(tv.length === 5, 'v-for 渲染的 5 个 TreeItem 都有 :key（当前 ' + tv.length + ' 个有 key）');
+    T.ok(T.$$('ul ul ul ul li').length === 1, 'Input.vue 在第 4 层 ul 中（嵌套结构正确）');
+    const comp = T.$$('.name').find(s => /components/.test(s.textContent));
+    if (!comp) { T.ok(false, '找到 components 节点'); return; }
+    await T.click(comp);
+    T.ok(n() === 3, '点击 components 后，它的子节点隐藏（剩下 ' + n() + ' 个节点）');
+    T.ok(T.$$('ul').length === 2, '折叠后，components 的 <ul> 也不渲染（当前 ' + T.$$('ul').length + ' 个 ul）');
+    await T.click(T.$$('.name').find(s => /components/.test(s.textContent)));
+    T.ok(n() === 6, '再次点击后，子节点重新显示');
+  }
+}
+
+// ===== 错误解法（基于参考答案做小改动）=====
+treeItem.wrong = [
+  { js: sub(treeItem.solJs, '<ul v-if=\"isFolder && open\">', '<ul v-if=\"open\">'), why: '停止条件漏了 isFolder。文件也渲染一个空的 <ul>。页面上看不出来，但结构不对：只有有 children 的节点才应该有 <ul>。' },
+  { js: sub(treeItem.solJs, '<ul v-if=\"isFolder && open\">', '<ul v-if=\"isFolder\" v-show=\"open\">'), why: '用 v-show 折叠。子节点只是被隐藏，仍在 DOM 中。题目要求 open 为 false 时不渲染 <ul>。' },
+  { js: sub(treeItem.solJs, ' :key=\"child.name\"', ''), why: '没有写 :key。页面看起来正常，但 Vue 只能按位置复用。' }
+]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+treeItem.faded = {
+  js: sub(sub(treeItem.solJs, `<ul v-if="isFolder && open">`,
+    '<!-- ✏️ 给下面的 ul 加停止条件：什么时候才需要渲染子节点？ -->\n    <ul>'),
+    `<TreeItem v-for="child in node.children" :key="child.name" :node="child" />`,
+    '<!-- ✏️ 给递归渲染的 TreeItem 加 key -->\n      <TreeItem v-for="child in node.children" :node="child" />')
+}
+
+// ===================== 20.5 复合组件：Tabs 的注册机制 =====================
+const TABS_TPL = `<label><input type="checkbox" v-model="showSec"> 显示“安全”</label>
+<Tabs>
+  <Tab name="info" title="资料">资料内容</Tab>
+  <Tab v-if="showSec" name="security" title="安全">安全内容</Tab>
+  <Tab name="notice" title="通知">通知内容</Tab>
+</Tabs>`
+
+const TABS_JS_HEAD = `const showSec = ref(true)
+const TabsKey = Symbol('Tabs')
+
+const Tabs = {
+  setup() {
+    const tabs = ref([])     // 已注册的标签：{ name, title }
+    const active = ref('')   // 当前选中的标签的 name
+    const select = name => { active.value = name }
+`
+const TABS_JS_MID = `
+    return { tabs, active, select }
+  },
+  template: \`<div class="tabs">
+    <div class="bar">
+      <button v-for="t in tabs" :key="t.name" class="tab-btn" :class="{ on: t.name === active }" @click="select(t.name)">{{ t.title }}</button>
+    </div>
+    <slot />
+  </div>\`
+}
+
+const Tab = {
+  props: ['name', 'title'],
+  setup(props) {
+    const ctx = inject(TabsKey)
+    if (!ctx) throw new Error('<Tab> 必须放在 <Tabs> 中')
+`
+const TABS_JS_TAIL = `  },
+  template: \`<div v-if="isActive" class="panel"><slot /></div>\`
+}
+
+return { showSec, components: { Tabs, Tab } }`
+
+const TABS_PROVIDE = `
+    provide(TabsKey, {
+      active: readonly(active),          // 子组件只读
+      register(tab) {
+        tabs.value.push(tab)
+        if (!active.value) active.value = tab.name
+        return () => {                   // 注销函数
+          tabs.value = tabs.value.filter(t => t.name !== tab.name)
+          if (active.value === tab.name) active.value = tabs.value.length ? tabs.value[0].name : ''
+        }
+      },
+      select
+    })
+`
+const TABS_TAB_SOL = `    onUnmounted(ctx.register({ name: props.name, title: props.title }))
+    const isActive = computed(() => ctx.active.value === props.name)
+    return { isActive }
+`
+
+export const tabsRegister: Exercise = {
+  title: '实现 Tabs 的注册机制', ch: 20,
+  task: '<p>Tabs 和 Tab 是一组复合组件。Tabs 用 provide 给后代一个 <code>register</code>。Tab 挂载时注册自己，卸载时注销自己。</p><ol><li>在 Tabs 的 setup 里写 <code>provide(TabsKey, { active, register, select })</code>。<code>active</code> 用 <code>readonly</code> 包装。<code>select</code> 已经写好。</li><li><code>register(tab)</code> 把 tab 加入 <code>tabs</code>。当前还没有选中的标签时，选中它。它返回一个注销函数。</li><li>注销函数把这个标签从 <code>tabs</code> 中删除。如果它正是当前选中的标签，改选第一个剩下的标签（没有剩下的，就设为空串）。</li><li>在 Tab 的 setup 里调用 <code>ctx.register(…)</code>，让它在卸载时自动注销。再用 <code>computed</code> 算出 <code>isActive</code>。</li></ol><p>隐藏再显示“安全”，不能出现重复的按钮。</p>',
+  tpl: TABS_TPL,
+  js: TABS_JS_HEAD + '\n    // TODO 1：provide(TabsKey, { active, register, select })\n' + TABS_JS_MID + '    // TODO 2：注册自己（卸载时注销），再算出 isActive\n    return { isActive: computed(() => false) }\n' + TABS_JS_TAIL,
+  solJs: TABS_JS_HEAD + TABS_PROVIDE + TABS_JS_MID + TABS_TAB_SOL + TABS_JS_TAIL,
+  hints: [
+    '本章“20.5 复合组件”讲了这套写法。Tabs 提供上下文，Tab 注入上下文。所有对状态的修改都经过 Tabs。',
+    'register 返回一个函数，Tab 把这个函数交给 onUnmounted。这个函数里要做两件事：从 tabs 中删除，以及在它是当前标签时改选别的。',
+    '删除时按 name 比较：tabs.value.filter(t => t.name !== tab.name)。tabs.value 里存的是代理对象，不能用 === 和原来的 tab 比较。',
+    'Tabs：provide(TabsKey, { active: readonly(active), register(tab) { tabs.value.push(tab); if (!active.value) active.value = tab.name; return () => { tabs.value = tabs.value.filter(t => t.name !== tab.name); if (active.value === tab.name) active.value = tabs.value.length ? tabs.value[0].name : \'\' } }, select })\nTab：onUnmounted(ctx.register({ name: props.name, title: props.title })); const isActive = computed(() => ctx.active.value === props.name)'
+  ],
+  async check(T) {
+    await nextTick() // 注册发生在子组件渲染时，标签栏要等下一次更新才有按钮
+    const titles = () => T.$$('.tab-btn').map(b => (b.textContent || '').trim())
+    const panels = () => T.$$('.panel').map(p => (p.textContent || '').trim())
+    T.ok(titles().join() === '资料,安全,通知', '三个标签按钮按模板顺序出现：资料、安全、通知（当前：' + titles().join('、') + '）')
+    T.ok(panels().join() === '资料内容', '没有选中任何标签时，第一个注册的标签自动选中，只显示它的面板（当前：' + panels().join('、') + '）')
+    await T.click(T.btn('通知'))
+    T.ok(panels().join() === '通知内容', '点“通知”后，只显示通知面板（当前：' + panels().join('、') + '）')
+    T.ok(T.$$('.tab-btn.on').length === 1 && /通知/.test((T.$('.tab-btn.on') as any)?.textContent || ''), '只有“通知”按钮高亮')
+    await T.click(T.btn('安全'))
+    const box = T.$('input[type=checkbox]')
+    await T.click(box)
+    await nextTick()
+    T.ok(titles().join() === '资料,通知', '隐藏“安全”后，它的按钮消失（Tab 卸载时要注销）。当前：' + titles().join('、'))
+    T.ok(panels().join() === '资料内容', '被删的正是选中的标签，改选第一个剩下的标签“资料”（当前面板：' + (panels().join('、') || '无') + '）')
+    await T.click(box)
+    await nextTick()
+    T.ok(titles().length === 3 && titles().filter(t => t === '安全').length === 1, '再显示“安全”后，它的按钮只出现一次（当前：' + titles().join('、') + '）')
+    await T.click(box); await T.click(box); await nextTick()
+    T.ok(titles().length === 3, '反复隐藏和显示后，按钮数量不增加（当前 ' + titles().length + ' 个）')
+  }
+}
+tabsRegister.wrong = [
+  { js: sub(tabsRegister.solJs, "          tabs.value = tabs.value.filter(t => t.name !== tab.name)\n", ''), why: '注销函数没有把标签从 tabs 中删除。Tab 卸载后，按钮还留在标签栏里。', expectFail: /按钮消失/ },
+  { js: sub(tabsRegister.solJs, "          if (active.value === tab.name) active.value = tabs.value.length ? tabs.value[0].name : ''\n", ''), why: '删除的正是选中的标签时，没有改选别的。active 指向一个不存在的标签，页面上没有任何面板。', expectFail: /改选/ },
+  { js: sub(tabsRegister.solJs, 'onUnmounted(ctx.register({ name: props.name, title: props.title }))', 'ctx.register({ name: props.name, title: props.title })'), why: 'Tab 调用了 register，却没有把返回的注销函数交给 onUnmounted。卸载时没人注销。', expectFail: /按钮消失/ },
+  { js: sub(tabsRegister.solJs, 't => t.name !== tab.name)\n          if', 't => t !== tab)\n          if'), why: '用 !== 比较代理对象和原始对象。tabs.value 里的元素是代理，永远不等于原来的 tab，所以什么也没删掉。按 name 比较。', expectFail: /按钮消失/ }
+]
+tabsRegister.faded = {
+  js: sub(sub(tabsRegister.solJs,
+    "          tabs.value = tabs.value.filter(t => t.name !== tab.name)\n          if (active.value === tab.name) active.value = tabs.value.length ? tabs.value[0].name : ''\n",
+    "          /* ✏️ 把这个标签从 tabs 中删除；若它是当前标签，改选第一个剩下的（没有就设空串） */\n"),
+    TABS_TAB_SOL,
+    "    /* ✏️ 注册自己，让它在卸载时自动注销 */\n    const isActive = computed(() => ctx.active.value === props.name)\n    return { isActive }\n")
+}
+
+// ===================== 20.4 包装组件转发全部插槽 =====================
+const SLOT_JS_HEAD = `const rows = ref([
+  { id: 1, title: '写文档', owner: 'amy', done: true },
+  { id: 2, title: '修 bug', owner: 'bob', done: false }
+])
+
+const TaskTable = {
+  props: ['rows'],
+  template: \`<table>
+    <tr v-for="row in rows" :key="row.id">
+      <td class="c-title"><slot name="cell-title" :row="row">{{ row.title }}</slot></td>
+      <td class="c-owner"><slot name="cell-owner" :row="row">{{ row.owner }}</slot></td>
+      <td class="c-status"><slot name="cell-status" :row="row">-</slot></td>
+    </tr>
+    <tfoot><tr><td colspan="3" class="foot"><slot name="footer"><i>默认页脚</i></slot></td></tr></tfoot>
+  </table>\`
+}
+
+const PagedTable = {
+  props: ['rows'],
+  components: { TaskTable },
+  template: \`<div class="paged">
+    <TaskTable :rows="rows">
+`
+const SLOT_JS_TAIL = `    </TaskTable>
+    <nav class="pager">第 1 页</nav>
+  </div>\`
+}
+
+return { rows, components: { PagedTable } }`
+const SLOT_FWD = `      <template v-for="(_, name) in $slots" #[name]="scope">
+        <slot :name="name" v-bind="scope" />
+      </template>
+`
+
+export const slotForward: Exercise = {
+  title: '包装组件转发全部插槽', ch: 20,
+  task: '<p>PagedTable 包装了 TaskTable，并在下面加一个分页条。使用者给 PagedTable 传的插槽，要原样交给 TaskTable。</p><ol><li>在 PagedTable 模板里的 TODO 处，遍历 <code>$slots</code>，为每个插槽生成一个同名的 <code>&lt;template #[name]&gt;</code>。</li><li>每个 template 里放一个 <code>&lt;slot :name="name"&gt;</code>，把作用域参数也传下去。</li><li>使用者没有写的插槽，TaskTable 要继续显示自己的默认内容。</li></ol><p>不要把插槽名一个个写死：PagedTable 事先不知道使用者会传哪些插槽。</p>',
+  tpl: `<PagedTable :rows="rows">
+  <template #cell-owner="{ row }"><b class="who">@{{ row.owner }}</b></template>
+  <template #cell-status="{ row }"><span class="st">{{ row.done ? '完成' : '进行中' }}</span></template>
+  <template #footer>共 {{ rows.length }} 条</template>
+</PagedTable>`,
+  js: SLOT_JS_HEAD + '      <!-- TODO：把 PagedTable 收到的所有插槽（含作用域参数）交给 TaskTable -->\n' + SLOT_JS_TAIL,
+  solJs: SLOT_JS_HEAD + SLOT_FWD + SLOT_JS_TAIL,
+  hints: [
+    '“20.4 作用域插槽”讲过：$slots 是一个对象，键是插槽名。在模板里可以用 v-for 遍历它。',
+    '动态插槽名写成 #[name]。作用域参数用 #[name]="scope" 接收，再用 v-bind="scope" 传给里面的 <slot>。',
+    '<template v-for="(_, name) in $slots" #[name]="scope">\n  <slot :name="name" v-bind="scope" />\n</template>'
+  ],
+  async check(T) {
+    const texts = (s: string) => T.$$(s).map(x => (x.textContent || '').trim()).join()
+    T.ok(texts('.c-owner .who') === '@amy,@bob', '使用者写的 cell-owner 插槽到达了 TaskTable，并且拿到了作用域里的 row（当前：' + texts('.c-owner') + '）')
+    T.ok(texts('.c-status .st') === '完成,进行中', '使用者写的 cell-status 插槽也到达了 TaskTable（当前：' + texts('.c-status') + '）')
+    T.ok(texts('.foot') === '共 2 条', '没有作用域参数的 footer 插槽也到达了（当前：' + texts('.foot') + '）')
+    T.ok(texts('.c-title') === '写文档,修 bug', '使用者没写 cell-title，TaskTable 继续显示自己的默认内容（当前：' + texts('.c-title') + '）')
+    T.ok(!!T.$('.pager'), '分页条仍然显示')
+  }
+}
+slotForward.wrong = [
+  { js: sub(slotForward.solJs, '#[name]="scope">\n        <slot :name="name" v-bind="scope" />', '#[name]>\n        <slot :name="name" />'), why: '转发了插槽，却没有转发作用域参数。TaskTable 传出的 row 到不了使用者的插槽，使用者读 row.owner 时出错。', expectFail: /代码没有运行/ },
+  { js: sub(slotForward.solJs, SLOT_FWD, '      <template #cell-owner="scope"><slot name="cell-owner" v-bind="scope" /></template>\n      <template #footer><slot name="footer" /></template>\n'), why: '把插槽名写死了，只转发了 cell-owner 和 footer。使用者新加的 cell-status 到不了 TaskTable。包装组件事先不知道会收到哪些插槽。', expectFail: /cell-status/ },
+  { js: sub(slotForward.solJs, SLOT_FWD, '      <slot />\n'), why: '只转发了默认插槽。具名插槽全部丢失。', expectFail: /cell-owner/ }
+]
+slotForward.faded = {
+  js: sub(slotForward.solJs, SLOT_FWD, '      <template v-for="(_, name) in $slots" #[name]="/* ✏️ 接收作用域参数 */">\n        <!-- ✏️ 用同一个插槽名再放一个 slot，并把作用域参数传下去 -->\n      </template>\n')
+}
+
+// ===================== 20.10 受控与非受控 =====================
+const CTRL_JS_TAIL = `
+const Counter = {
+  props: ['modelValue'],
+  emits: ['update:modelValue'],
+  setup(props, { emit }) {
+    // 传 undefined 表示非受控；其他值表示受控
+    const n = useControllable(() => props.modelValue, 0, v => emit('update:modelValue', v))
+    return { n }
+  },
+  template: '<button class="c" @click="n = n + 1">{{ n }}</button>'
+}
+
+const a = ref(5)
+const freeSeen = ref([])
+const lockedSeen = ref([])
+return { a, freeSeen, lockedSeen, components: { Counter } }`
+const CTRL_SOL = `// value：受控时的值，可以是 ref、getter 或普通值。undefined 表示非受控
+function useControllable(value, defaultValue, onChange) {
+  const inner = ref(defaultValue)
+  const isControlled = () => toValue(value) !== undefined
+  return computed({
+    get: () => (isControlled() ? toValue(value) : inner.value),
+    set(v) {
+      if (!isControlled()) inner.value = v
+      onChange?.(v)
+    }
+  })
+}
+`
+export const useControllable: Exercise = {
+  title: '实现受控与非受控的状态', ch: 20,
+  task: '<p>写 <code>useControllable(value, defaultValue, onChange)</code>，返回一个可写的 computed。</p><ol><li><code>toValue(value)</code> 不是 undefined：受控。读到的永远是 <code>toValue(value)</code>。写入时只调用 <code>onChange</code>，不改内部状态。</li><li><code>toValue(value)</code> 是 undefined：非受控。读写内部状态（初值是 <code>defaultValue</code>），写入时也调用 <code>onChange</code>。</li><li>是否受控要在每次读写时重新判断。父组件随时可能改变传入的值。</li></ol>',
+  tpl: `<p>非受控：<Counter class="free" @update:model-value="freeSeen.push($event)" /></p>
+<p>受控：<Counter class="ctrl" v-model="a" />，父组件的 a = <span class="a">{{ a }}</span> <button class="set" @click="a = 10">父组件设为 10</button></p>
+<p>受控，父组件不更新：<Counter class="locked" :model-value="7" @update:model-value="lockedSeen.push($event)" /></p>
+<p class="cap">非受控收到：<span class="fs">{{ freeSeen.join() }}</span>。不更新的那个收到：<span class="ls">{{ lockedSeen.join() }}</span></p>`,
+  js: '// value：受控时的值，可以是 ref、getter 或普通值。undefined 表示非受控\nfunction useControllable(value, defaultValue, onChange) {\n  // TODO\n  return ref(defaultValue)\n}\n' + CTRL_JS_TAIL,
+  solJs: CTRL_SOL + CTRL_JS_TAIL,
+  hints: [
+    '“20.10 受控与非受控”讲了判断规则：值是 undefined 就是非受控。',
+    '内部状态用 ref(defaultValue)。是否受控写成一个函数 () => toValue(value) !== undefined，每次读写时调用。',
+    '返回 computed({ get, set })。get：受控时读 toValue(value)，否则读内部状态。set：非受控时才改内部状态，然后调用 onChange?.(v)。'
+  ],
+  async check(T) {
+    const num = (s: string) => ((T.$(s) as any)?.textContent || '').trim()
+    const btn = (s: string) => T.$(s) as HTMLElement
+    // 非受控
+    T.ok(num('.free') === '0', '非受控的初值是 defaultValue 0（当前：' + num('.free') + '）')
+    await T.click(btn('.free')); await T.click(btn('.free'))
+    T.ok(num('.free') === '2', '非受控：点两次后显示 2，值保存在内部（当前：' + num('.free') + '）')
+    T.ok(num('.fs') === '1,2', '非受控也要调用 onChange，通知父组件（收到：' + num('.fs') + '）')
+    // 受控
+    T.ok(num('.ctrl') === '5', '受控：显示父组件传入的 5（当前：' + num('.ctrl') + '）')
+    await T.click(btn('.ctrl'))
+    T.ok(num('.ctrl') === '6' && num('.a') === '6', '受控：点击后 onChange 通知父组件，父组件更新 a，计数器显示 6（计数器 ' + num('.ctrl') + '，a=' + num('.a') + '）')
+    await T.click(btn('.set'))
+    T.ok(num('.ctrl') === '10', '受控：父组件把 a 改成 10 后，计数器显示 10（当前：' + num('.ctrl') + '）')
+    await T.click(btn('.ctrl'))
+    T.ok(num('.a') === '11' && num('.ctrl') === '11', '受控：父组件改值之后，再点击得到 11')
+    // 受控，父组件不更新
+    T.ok(num('.locked') === '7', '受控但父组件不更新：显示 7')
+    await T.click(btn('.locked')); await T.click(btn('.locked'))
+    T.ok(num('.locked') === '7', '受控：父组件不接受新值，计数器仍显示 7，不能改自己的内部状态（当前：' + num('.locked') + '）')
+    T.ok(num('.ls') === '8,8', '受控：每次写入仍调用 onChange，把想要的新值交给父组件（收到：' + num('.ls') + '）')
+  }
+}
+useControllable.wrong = [
+  { js: sub(sub(sub(useControllable.solJs, 'const inner = ref(defaultValue)', 'const inner = ref(toValue(value) ?? defaultValue)'), 'get: () => (isControlled() ? toValue(value) : inner.value)', 'get: () => inner.value'), '      if (!isControlled()) inner.value = v\n', '      inner.value = v\n'), why: '把传入的值复制到内部状态，之后只读写内部状态。父组件改变传入的值时组件不会跟着变，父组件拒绝新值时组件却自己变了：状态有了两份。受控时，值只来自父组件。', expectFail: /改成 10|不能改自己/ },
+  { js: sub(sub(useControllable.solJs, 'const inner = ref(defaultValue)\n', 'const inner = ref(defaultValue)\n  const first = toValue(value)\n'), 'get: () => (isControlled() ? toValue(value) : inner.value)', 'get: () => (isControlled() ? first : inner.value)'), why: '把受控的值读了一次就存下来，相当于把 prop 复制成本地状态。父组件之后改变这个值，组件不会跟着变。', expectFail: /更新 a|改成 10/ },
+  { js: sub(useControllable.solJs, '      onChange?.(v)\n', '      if (isControlled()) onChange?.(v)\n'), why: '非受控时没有调用 onChange。使用者想在非受控模式下也得知变化（例如记日志），却收不到通知。', expectFail: /非受控也要调用/ }
+]
+useControllable.faded = {
+  js: sub(useControllable.solJs, "  const isControlled = () => toValue(value) !== undefined\n  return computed({\n    get: () => (isControlled() ? toValue(value) : inner.value),\n    set(v) {\n      if (!isControlled()) inner.value = v\n      onChange?.(v)\n    }\n  })\n",
+    "  const isControlled = () => /* ✏️ 怎样判断“受控”？每次读写时都要重新判断 */ false\n  return computed({\n    get: () => /* ✏️ 受控读 toValue(value)，非受控读 inner.value */ inner.value,\n    set(v) {\n      /* ✏️ 只有非受控才修改 inner */\n      onChange?.(v)\n    }\n  })\n")
+}
+
+// ===================== 20.12 实现 useListbox =====================
+const LB_JS_HEAD = `const options = ref([
+  { value: 'apple', label: '苹果' },
+  { value: 'banana', label: '香蕉' },
+  { value: 'cherry', label: '樱桃', disabled: true },
+  { value: 'durian', label: '榴莲' },
+  { value: 'grape', label: '葡萄' }
+])
+
+function useListbox(options) {
+  const selected = ref(null)   // 选中项的 value
+  const active = ref(-1)       // 高亮项的下标，-1 表示没有
+  const uid = useId()
+  const optId = i => uid + '-opt-' + i
+  function select(i) {
+    const o = options.value[i]
+    if (o && !o.disabled) selected.value = o.value
+  }
+
+`
+const LB_SOL_BODY = `  // 从 from 出发，朝 step（1 或 -1）方向找下一个没有 disabled 的下标。到头了就停在 from
+  function move(from, step) {
+    const n = options.value.length
+    let i = from
+    do { i += step } while (i >= 0 && i < n && options.value[i].disabled)
+    return i >= 0 && i < n ? i : from
+  }
+  function onKeydown(e) {
+    if (e.key === 'ArrowDown') active.value = move(active.value, 1)
+    else if (e.key === 'ArrowUp') active.value = move(active.value, -1)
+    else if (e.key === 'Home') active.value = move(-1, 1)
+    else if (e.key === 'End') active.value = move(options.value.length, -1)
+    else if (e.key === 'Enter' || e.key === ' ') select(active.value)
+    else return
+    e.preventDefault()   // 方向键和空格不要让页面滚动
+  }
+
+  const listboxProps = computed(() => ({
+    role: 'listbox',
+    tabindex: 0,
+    'aria-activedescendant': active.value >= 0 ? optId(active.value) : undefined,
+    onKeydown
+  }))
+  function optionProps(i) {
+    const o = options.value[i]
+    return {
+      id: optId(i),
+      role: 'option',
+      'aria-selected': o.value === selected.value,
+      'aria-disabled': o.disabled || undefined,
+      onClick: () => { if (o.disabled) return; active.value = i; select(i) }
+    }
+  }
+`
+const LB_TAIL = `  return { listboxProps, optionProps }
+}
+
+const { listboxProps, optionProps } = useListbox(options)
+return { options, listboxProps, optionProps }`
+const LB_STARTER_BODY = `  // TODO 1：从 from 出发，朝 step（1 或 -1）方向找下一个没有 disabled 的下标。到头了就返回 from
+  function move(from, step) {
+    return from
+  }
+  // TODO 2：ArrowDown / ArrowUp / Home / End 改 active；Enter 和空格调用 select(active.value)
+  function onKeydown(e) {
+  }
+
+  // TODO 3：listboxProps 给列表容器，optionProps(i) 给第 i 个选项
+  const listboxProps = computed(() => ({}))
+  function optionProps(i) {
+    return {}
+  }
+`
+export const useListbox: Exercise = {
+  title: '实现 useListbox', ch: 20,
+  task: '<p>useListbox 只管状态和行为，不管标记。它返回两组绑定对象，使用者用 <code>v-bind</code> 绑在自己的元素上。选项数组里有一项是 disabled。</p><ol><li><code>move(from, step)</code>：朝 step 方向找下一个没有 disabled 的下标。到头就停在原地，不循环。</li><li><code>onKeydown</code>：<code>ArrowDown</code> 和 <code>ArrowUp</code> 移动高亮。<code>Home</code> 和 <code>End</code> 跳到第一个和最后一个可用项。<code>Enter</code> 和空格选中高亮项。处理过的按键调用 <code>preventDefault()</code>，其他按键不处理。</li><li><code>listboxProps</code>：<code>role="listbox"</code>、<code>tabindex</code> 为 0、<code>aria-activedescendant</code> 指向高亮项的 id（没有高亮时不写）、<code>onKeydown</code>。</li><li><code>optionProps(i)</code>：<code>id</code>、<code>role="option"</code>、<code>aria-selected</code>、disabled 项的 <code>aria-disabled</code>，和点击处理（disabled 的项点击无效）。</li></ol><p>键盘焦点始终留在列表容器上，变化的是 aria-activedescendant。</p>',
+  tpl: `<ul class="lb" v-bind="listboxProps">
+  <li v-for="(o, i) in options" :key="o.value" class="opt" v-bind="optionProps(i)">{{ o.label }}</li>
+</ul>`,
+  js: LB_JS_HEAD + LB_STARTER_BODY + LB_TAIL,
+  solJs: LB_JS_HEAD + LB_SOL_BODY + LB_TAIL,
+  hints: [
+    '“20.11 无渲染组件的三层”和“20.12 键盘与焦点：无障碍的最低要求”给出了这些行为的规则。先写 move，再写 onKeydown，最后写绑定对象。',
+    'move 用一个循环：先加 step，遇到 disabled 就继续加。越界就返回 from。Home 相当于从 -1 往后找，End 相当于从 length 往前找。',
+    '用户还没按过方向键时 active 是 -1。这时按 Enter，select(-1) 必须什么也不做（select 已经检查了）。',
+    'aria-selected 写成 o.value === selected.value。aria-disabled 写成 o.disabled || undefined：不是 disabled 时不写这个属性。',
+    '完整答案见参考答案。onKeydown 最后一行的 e.preventDefault() 只对处理过的按键执行，其他按键 return。'
+  ],
+  async check(T) {
+    const ul = T.$('ul.lb') as HTMLElement
+    if (!ul) { T.ok(false, '找到列表容器 ul.lb'); return }
+    const lis = () => T.$$('li.opt') as HTMLElement[]
+    const press = async (k: string) => {
+      const ev = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })
+      ul.dispatchEvent(ev)
+      await nextTick()
+      return ev
+    }
+    const cur = () => {
+      const id = ul.getAttribute('aria-activedescendant')
+      return id ? (lis().find(l => l.id === id)?.textContent || '?') : '无'
+    }
+    const sel = () => lis().filter(l => l.getAttribute('aria-selected') === 'true').map(l => l.textContent).join()
+    T.ok(ul.getAttribute('role') === 'listbox' && ul.getAttribute('tabindex') === '0', '容器有 role="listbox" 和 tabindex="0"，可以用 Tab 键进入')
+    T.ok(lis().every(l => l.getAttribute('role') === 'option' && !!l.id) && new Set(lis().map(l => l.id)).size === 5, '每个选项有 role="option" 和互不相同的 id')
+    T.ok(cur() === '无', '还没按键时没有高亮项（aria-activedescendant 不存在）')
+    await press('Enter')
+    T.ok(sel() === '', '没有高亮项时按 Enter，什么也不选')
+    const steps: [string, string][] = [['ArrowDown', '苹果'], ['ArrowDown', '香蕉'], ['ArrowDown', '榴莲'], ['ArrowDown', '葡萄'], ['ArrowDown', '葡萄'], ['ArrowUp', '榴莲'], ['Home', '苹果'], ['ArrowUp', '苹果'], ['End', '葡萄']]
+    let ev: KeyboardEvent | null = null
+    for (const [k, want] of steps) {
+      ev = await press(k)
+      T.ok(cur() === want, k + ' 之后高亮“' + want + '”（当前：' + cur() + '）' + (want === '榴莲' && k === 'ArrowDown' ? '。第三项“樱桃”是 disabled，要跳过' : ''))
+    }
+    ev = await press('ArrowDown')
+    T.ok(ev.defaultPrevented, '处理过的按键调用了 preventDefault（否则方向键会让页面滚动）')
+    ev = await press('a')
+    T.ok(!ev.defaultPrevented && cur() === '葡萄', '不认识的按键不处理，也不阻止默认行为')
+    await press('Home'); await press('Enter')
+    T.ok(sel() === '苹果', '高亮在“苹果”时按 Enter，选中“苹果”（当前选中：' + (sel() || '无') + '）')
+    await press('ArrowDown'); await press('ArrowDown'); await press(' ')
+    T.ok(sel() === '榴莲', '按空格选中高亮项“榴莲”，同一时刻只有一项 aria-selected 为 true（当前：' + (sel() || '无') + '）')
+    T.ok(lis().filter(l => l.getAttribute('aria-selected') === 'false').length === 4, '未选中的项 aria-selected 是 "false"，不是缺省')
+    const cherry = lis()[2]
+    T.ok(cherry.getAttribute('aria-disabled') === 'true' && lis().filter(l => l.hasAttribute('aria-disabled')).length === 1, '只有 disabled 的“樱桃”有 aria-disabled="true"')
+    await T.click(cherry)
+    T.ok(sel() === '榴莲' && cur() === '榴莲', '点击 disabled 的“樱桃”无效：选中和高亮都不变')
+    await T.click(lis()[4])
+    T.ok(sel() === '葡萄' && cur() === '葡萄', '点击“葡萄”：选中，并且高亮跟到“葡萄”')
+  }
+}
+useListbox.wrong = [
+  { js: sub(useListbox.solJs, 'while (i >= 0 && i < n && options.value[i].disabled)', 'while (false)'), why: 'move 没有跳过 disabled 的项。键盘会停在不能选的“樱桃”上。', expectFail: /disabled|樱桃/ },
+  { js: sub(useListbox.solJs, 'return i >= 0 && i < n ? i : from', 'return (i + n) % n'), why: '到头后循环到另一端。题目要求到头就停在原地（循环是另一种设计，要由使用者选择）。', expectFail: /葡萄/ },
+  { js: sub(useListbox.solJs, '    e.preventDefault()   // 方向键和空格不要让页面滚动\n', ''), why: '没有调用 preventDefault。按方向键和空格时，页面会跟着滚动。', expectFail: /preventDefault/ },
+  { js: sub(useListbox.solJs, "      'aria-selected': o.value === selected.value,\n", ''), why: '选项没有 aria-selected。屏幕阅读器不知道哪一项被选中。', expectFail: /aria-selected|选中/ },
+  { js: sub(useListbox.solJs, 'if (o && !o.disabled) selected.value', 'if (!o.disabled) selected.value'), why: 'select 没有检查下标是否存在。没有高亮项时（active 是 -1）按 Enter，o 是 undefined，读 o.disabled 抛出错误。', expectFail: /运行时发生错误|代码没有运行|Enter/ },
+  { js: sub(useListbox.solJs, "      onClick: () => { if (o.disabled) return; active.value = i; select(i) }", "      onClick: () => { active.value = i; select(i) }"), why: '点击 disabled 的项也移动了高亮。disabled 的项不应该能被点击激活。', expectFail: /点击 disabled/ }
+]
+useListbox.faded = {
+  js: sub(sub(sub(useListbox.solJs,
+    "    do { i += step } while (i >= 0 && i < n && options.value[i].disabled)\n    return i >= 0 && i < n ? i : from\n",
+    "    /* ✏️ 先加 step；遇到 disabled 就继续加；越界就返回 from */\n    return i\n"),
+    "    else if (e.key === 'Home') active.value = move(-1, 1)\n    else if (e.key === 'End') active.value = move(options.value.length, -1)\n",
+    "    /* ✏️ Home 和 End：从哪里出发、朝哪个方向找？ */\n"),
+    "      'aria-selected': o.value === selected.value,\n      'aria-disabled': o.disabled || undefined,\n",
+    "      /* ✏️ aria-selected 和 aria-disabled */\n")
+}

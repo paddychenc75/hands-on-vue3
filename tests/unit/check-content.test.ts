@@ -192,7 +192,7 @@ describe('章节与 frontmatter', () => {
 
 describe('术语', () => {
   it('同名术语在两章里定义文字不同 -> 报错', () => {
-    const inp = editChapter('16-diff', s => s.replace('key\n: v-for 中标识每一项的唯一值。', 'key\n: 判断新旧节点是不是同一个节点的标识。'))
+    const inp = editChapter('18-diff', s => s.replace('key\n: v-for 中标识每一项的唯一值。', 'key\n: 判断新旧节点是不是同一个节点的标识。'))
     expectError(run(inp), /术语“key”\s+在多章的“本章术语”里定义不同/)
   })
 })

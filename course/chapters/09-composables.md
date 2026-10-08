@@ -90,7 +90,7 @@ const { x, y } = useMouse(box)
 <ComposableOwnState />
 </Figure>
 
-在 setup 顶层同步调用组合式函数。onMounted 把钩子注册到“当前组件”。在 setTimeout 回调中，或普通 setup 的 await 之后，没有当前组件，钩子不运行。要在组件之间共享同一份数据，使用 Pinia（[第 19 章](/chapters/19-pinia)）。
+在 setup 顶层同步调用组合式函数。onMounted 把钩子注册到“当前组件”。在 setTimeout 回调中，或普通 setup 的 await 之后，没有当前组件，钩子不运行。要在组件之间共享同一份数据，使用 Pinia（[第 21 章](/chapters/21-pinia)）。
 
 <Exercise id="counterFill" />
 

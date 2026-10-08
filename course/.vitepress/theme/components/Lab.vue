@@ -40,7 +40,7 @@ onBeforeUnmount(() => io?.disconnect())
 
 <template>
   <div ref="root" class="lab" :class="{ gated }">
-    <div class="lab-title">{{ title }} <small v-if="note">{{ note }}</small></div>
+    <div class="lab-title"><span class="pg-badge">LIVE</span><span>{{ title.replace(/^实验台[：:]\s*/, '') }}</span> <small v-if="note">{{ note }}</small></div>
     <slot name="predict" />
     <div class="lab-body" :id="id">
       <ClientOnly><slot v-if="visible" /></ClientOnly>

@@ -1,6 +1,6 @@
 // 跨章学习功能的测试：自测答错的行为、章完成（掌握标准条）、侧边栏和顶栏进度、首页、继续学习、
 // 存储键和旧键迁移、类比/深入块、图片放大。
-// 用法：node tests/site/progress.test.js     （用 course/.vitepress/dist，要先 npm run build）
+// 用法：node tests/site/progress.test.js     （用 course/.vitepress/dist，要先 npm run build；或 COURSE_OUT_DIR=<已构建目录>）
 // 进度都存在单个 localStorage 键 hands-on-vue3-v1（结构见 course/engine/types.ts），
 // 所以大部分用例先 seed 写好进度，再打开页面看结果。
 const { makeReporter, startSite, loadChapters, loadExercises, seed, seedLegacy, read, fullChapter, STORE_KEY } = require('./helpers')
@@ -79,7 +79,7 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
 
     // ---------- 侧边栏和顶栏 ----------
     {
-      const g = R.group('侧边栏按 6 个阶段分组并显示完成数、已完成的章带 ✓；顶栏显示总进度；今日复习和速查表是顶部固定入口；每个阶段末尾有阶段测验')
+      const g = R.group('侧边栏按 6 个阶段分组并显示完成数、已完成的章带 ✓；顶栏显示总进度；今日复习、术语表和速查表是顶部固定入口；每个阶段末尾有阶段测验')
       const p = await site.newPage()
       await seed(p, base, {
         first: fullChapter(byId('first'), { done: true }),
@@ -102,7 +102,7 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       g.ok(await p.locator('.VPSidebar a[href*="03-refs"]').getAttribute('data-state') === 'doing', '答过自测的章是进行中')
       g.ok(await p.locator('.VPSidebar a[href*="04-computed"]').getAttribute('data-state') === 'todo', '别的章没有标记')
       const top = await p.locator('.VPSidebar .VPSidebarItem.level-0').first().locator('a').allInnerTexts()
-      g.ok(top.join('|') === '今日复习|速查表', '顶部固定入口：' + top)
+      g.ok(top.join('|') === '今日复习|术语表|速查表', '顶部固定入口：' + top)
       const lastItems = await p.$$eval('.VPSidebar .VPSidebarItem.level-0', gs => gs.slice(1).map(g => { const a = [...g.querySelectorAll('a')]; return a[a.length - 1].textContent.trim() }))
       g.ok(lastItems.length === 6 && lastItems.every(t => t === '阶段测验'), '每个阶段的章节列表末尾是“阶段测验”：' + lastItems)
       g.ok(/已完成 3\/26/.test(await p.locator('.nav-progress').innerText()), '顶栏：已完成 3/26：' + await p.locator('.nav-progress').innerText())

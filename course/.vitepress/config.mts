@@ -149,14 +149,16 @@ export default defineConfig({
           }
         }
       })
-      // 章的开头自动放“课前热身”：插在一级标题后面（位置：标题 → 热身 → 目标）。只有写了 stage 的章页面有，章的 Markdown 里不用写。
+      // 章头：一级标题后面自动放 <ChapterMeta />（阶段标签、第 N / 26 章、约 N 分钟、一句话说明），所有有 id 的章页面都有（速查表也有）。
+      // 课前热身 <Warmup /> 紧跟在后面，只有写了 stage 的章有。章的 Markdown 里都不用写。
       // 自我解释和掌握标准条在主题布局的 doc-footer-before 插槽里（theme/index.ts）。
       md.core.ruler.push('course_inject_warmup', state => {
-        if (state.env?.frontmatter?.stage == null) return
+        const fm = state.env?.frontmatter
+        if (!fm?.id) return
         const i = state.tokens.findIndex(t => t.type === 'heading_close' && t.tag === 'h1')
         if (i < 0) return
         const t = new state.Token('html_block', '', 0)
-        t.content = '<Warmup />\n'
+        t.content = '<ChapterMeta />\n' + (fm.stage != null ? '<Warmup />\n' : '')
         t.block = true
         state.tokens.splice(i + 1, 0, t)
       })
@@ -190,8 +192,8 @@ export default defineConfig({
     }
   },
   themeConfig: {
-    // 顶部导航只放固定入口。章节都在侧边栏，不要按章往这里加
-    nav: [{ text: '首页', link: '/' }, { text: '课程', link: '/chapters/01-first', activeMatch: '^/chapters/' }],
+    // 顶栏没有导航链接（和 hands-on-react 一致）：站名链接回首页，今日复习、术语表、速查表和各章都在侧边栏
+    nav: [],
     // 侧边栏自动生成：读 chapters/*.md 的 frontmatter（chapter stage title order），见 sidebar.mts
     sidebar: buildSidebar(CHAPTERS_DIR, { only: only.length ? only : undefined }),
     outline: { level: [2, 3], label: '本页目录' },

@@ -22,5 +22,5 @@ const isHidden = computed(() => !sc.answered.value && idx === sc.hidden.value)
     :aria-pressed="sc.locked.value || sc.guessed.value ? (idx === sc.picked.value ? 'true' : 'false') : undefined"
     :aria-disabled="sc.locked.value ? 'true' : undefined"
     @click="sc.pick(idx)"
-  ><slot /></button>
+  ><span class="ol" aria-hidden="true">{{ 'ABCDEFGH'[idx] }}</span><span class="ot"><slot /></span></button>
 </template>

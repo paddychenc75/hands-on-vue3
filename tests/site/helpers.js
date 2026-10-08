@@ -1,7 +1,7 @@
 // 站点测试的公共部分：起 vitepress preview、读章节数据、读练习和题库数据。
 //   progress.test.js  跨章学习功能（进度、自测答错、章完成、侧边栏和顶栏、首页、旧键迁移、图片放大）
 //   mechanics.test.js 学习机制：提示阶梯、热身、自我解释、复习页、阶段测验、手机宽度
-// 都用已经构建好的 course/.vitepress/dist（npm run test:site 会先构建）。
+// 都用已经构建好的站点：默认 course/.vitepress/dist（npm run test:site 会先构建）；设了 COURSE_OUT_DIR 就用那个目录（独立构建，不碰 dist）。
 const { chromium } = require('playwright')
 const { spawn } = require('child_process')
 const esbuild = require('esbuild')
@@ -40,8 +40,9 @@ async function waitUp(url) {
 
 /** 起 preview 和浏览器。返回 { base, browser, newPage(opts), stop() }。newPage 返回带控制台报错收集的页面 */
 async function startSite() {
-  if (!fs.existsSync(path.join(ROOT, 'course/.vitepress/dist/index.html'))) {
-    console.error('没有构建产物。先运行 npm run build，或者用 npm run test:site'); process.exit(2)
+  const dist = process.env.COURSE_OUT_DIR || path.join(ROOT, 'course/.vitepress/dist')
+  if (!fs.existsSync(path.join(dist, 'index.html'))) {
+    console.error('没有构建产物（' + dist + '）。先运行 npm run build，或者用 npm run test:site；也可以设 COURSE_OUT_DIR 指向已构建的目录'); process.exit(2)
   }
   const port = await freePort()
   const srv = spawn(process.execPath, [path.join(ROOT, 'node_modules/vitepress/bin/vitepress.js'), 'preview', 'course', '--port', String(port), '--strictPort'], { cwd: ROOT, stdio: 'ignore' })

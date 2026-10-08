@@ -22,7 +22,7 @@ course/
   AUTHORING.md            本文
   .vitepress/
     config.mts            站点配置、自定义容器、中文粗体修复、并行构建用的环境变量
-    sidebar.mts           从 chapters/*.md 的 frontmatter 生成侧边栏（顶部是今日复习和速查表，下面按 6 个阶段分组，每组末尾是阶段测验）
+    sidebar.mts           从 chapters/*.md 的 frontmatter 生成侧边栏（顶部是今日复习、术语表和速查表，下面按 6 个阶段分组，每组末尾是阶段测验）
     course-data.mts       构建时从 chapters/*.md 抽数据，生成虚拟模块（见第 7 节）
     markdown-cjk.mts      markdown-it 插件：中文标点旁的 **粗体** 也能生效
     theme/
@@ -351,7 +351,7 @@ let count = 0
 
 - `<Flow :steps="['setup', 'onMounted']" />`：一行步骤箭头。
 - `<ChapterHead>`、`<ChapterFoot>`、`<AppEffects>`、`<CourseHome>`：由主题插槽自动放置，章里不要手写。
-- **`<Warmup>`（课前热身）和 `<SelfExplain>`（自我解释）也是自动放置的，章的 Markdown 里不要写，也不要改任何章文件**：热身由 `config.mts` 的 markdown 规则（`course_inject_warmup`）插在每个带 `stage` 的章的一级标题后面（标题 → 热身 → 目标）；自我解释由主题布局的 `doc-footer-before` 插槽放在掌握标准条之前。章里的 `::: summary` 小结块因此默认隐藏（`sx-hidden`），内容在构建时抽出（`virtual:course-summaries`），学习者写够 30 个有效字、点“对照本章要点”后，在自我解释区域里显示。**每章必须有且只有一个 `::: summary`**，它是自我解释的参考要点。
+- **`<Warmup>`（课前热身）和 `<SelfExplain>`（自我解释）也是自动放置的，章的 Markdown 里不要写，也不要改任何章文件**：热身由 `config.mts` 的 markdown 规则（`course_inject_warmup`）插在每个带 `stage` 的章的一级标题后面（标题 → 章头 `ChapterMeta` → 热身 → 目标）。章头（阶段标签、第 N / 26 章、主线用时、`desc` 一句话）也是自动放的，用时取自阅读时间块里的“阅读主线约 N 分钟”；自我解释由主题布局的 `doc-footer-before` 插槽放在掌握标准条之前。章里的 `::: summary` 小结块因此默认隐藏（`sx-hidden`），内容在构建时抽出（`virtual:course-summaries`），学习者写够 30 个有效字、点“对照本章要点”后，在自我解释区域里显示。**每章必须有且只有一个 `::: summary`**，它是自我解释的参考要点。
 - `<Question>`：题目组件（热身、复习页、阶段测验共用），不在章里用。章内自测用 `<Sc>`。
 - `<ReviewPage>`、`<StageCheck :stage="N">`：只在 `review.md` 和 `check/N.md` 里用。
 
@@ -420,6 +420,32 @@ let count = 0
   - `virtual:course-meta`：每章的元数据（id、文件名、标题、阶段（没有阶段的页面是 null）、章号、自测题数、自测正确答案 `scAnswers`、练习 id 列表、阶段测验专用题数 `checkCount`）。很小，章页面都会载入（章完成判定、侧边栏标记、首页、复习题数用）。
   - `virtual:course-selfchecks`：每道自测题的键（`章id:序号`）、正确选项、渲染成 HTML 的题干、选项、解析。很大，所以只在需要时动态载入（`composables/catalog.ts`：课前热身、复习页、阶段测验页），章页面平时不载入它。
   - `virtual:course-summaries`：每章 `::: summary` 小结块的内容，渲染成 HTML（章 id → HTML）。自我解释写够字后在页面里显示它。
+  - `virtual:course-glossary`：全站术语表（见下面“术语表和术语标注”）。
+
+### 术语表和术语标注
+
+`/glossary`（`course/glossary.md`，组件 `GlossaryPage.vue`）是**自动汇总**的，没有手写数据：构建时 `course-data.mts` 的 `collectGlossary` 扫每个带 `stage` 的章里的 `::: terms` 块，合并成 `virtual:course-glossary`。
+
+写术语块要遵守的格式（不对会让构建报错）：
+
+- 用定义列表：第一行是术语，下一行以 `: `（冒号加空格）开头写解释，术语之间空一行。解释写在一行里，可以用行内代码和粗体。
+- 术语写成你希望它在正文里出现的样子，例如 `ref`、`事件（emit）`。术语表和术语标注都按这个文字逐字匹配，所以带括号的术语只有正文里写成完整括号形式才会被标注。
+- 每章只写一个 `::: terms` 块。不带 `stage` 的页面（速查表）不参与汇总。
+
+重名术语的处理：
+
+- 同一个术语（文字完全相同）在多章出现，只留一条：用**章号最小的那一章**里的解释，“出自”列出所有出现过的章，链接回去。
+- 不同章里的解释文字不同时，构建会打印警告“术语“X”在多章里的定义不同”。页面仍用首次出现的解释。这类术语要么改成同一句解释，要么改个名字，避免同一个词两种说法（课程规则：一个概念只用一个说法）。
+- 术语表按首次出现的先后（阶段、章号）排，可以按术语或解释搜索。
+
+术语标注（`composables/terms.ts`，由 `AppEffects.vue` 在每次进入章页时执行）：
+
+- 章正文里出现的术语带虚线下划线，悬停、聚焦（键盘）或点按显示定义和出处章。
+- 只标这一章及更早的章定义的术语，不标还没学到的。
+- 每个术语在每个小节（`h2`/`h3` 之间）只标第一次出现。同一位置多个术语匹配时取最长的。英文术语前后不能紧挨字母数字。
+- 不标：代码块、行内代码、标题、链接、术语块、章头、目标、类比、自测、实验台、练习、热身、自我解释、图。速查表和阶段测验页不标。
+- 不需要在章里做任何事。想让某个词被标注，把它写进本章术语块；不想被标注，别写进术语块。
+- 改规则时同步改 `tests/site/glossary.test.js`。
 - 抽取用正则匹配 `<Sc …>…</Sc>`（跳过带 `predict` 的先猜题），序号规则和 `Sc` 组件一致。题干和解析用 VitePress 的 Markdown 渲染器渲染，所以代码块有高亮。
 - 构建时总是最新的。开发服务器里改了自测题或 `stage` 后，如果数据没有更新，重启 `npm run dev`。
 - 测试 `tests/site/progress.test.js` 的第一项检查：每一章抽出的自测题数、练习 id 和页面上实际渲染的一致。格式写错时它会报出来。

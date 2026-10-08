@@ -3,9 +3,11 @@
 //   1. 侧边栏里已完成/进行中章的标记、阶段测验的通过状态、“今日复习”入口的到期题数（侧边栏是 VitePress 默认主题渲染的，这里按链接地址补上 data-state），
 //      以及每个阶段标题右侧的完成数（data-count，由 CSS 显示）。进度在浏览器里才有，所以挂载后才补，服务端渲染的是空的
 //   2. 阅读位置：进入一章时记下这章；滚动停下后记下读到的小节（引擎进度里的 __last）
+//   2b. 术语标注：章正文里的术语带虚线下划线，悬停或点按显示定义（composables/terms.ts）
 //   3. 带 #锚点 进入一章时，实验台和编辑器晚一点才挂载，会把版面撑高，所以持续补对齐（用户没动过才补）
 import { nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute } from 'vitepress'
+import { bindTermTips, clearTerms, markTerms } from '../composables/terms'
 import { chapterByPath, chapterState, dueCount, ensureReady, getLast, ready, rev, setLast, stageCount, stageCheckStatus, type LastPos } from '../composables/learn'
 
 const route = useRoute()
@@ -103,6 +105,16 @@ function realign() {
   cleanups.push(() => clearInterval(iv))
 }
 
+// ---- 术语标注 ----
+// 标过的页面：同一个页面再次执行是安全的（先还原再标）。只标有阶段的章，不标速查表和别的页面
+function paintTerms() {
+  const c = chapterByPath(route.path)
+  const root = document.querySelector<HTMLElement>('.vp-doc')
+  if (!root) return
+  if (!c || c.stage == null || c.chapter == null) { clearTerms(root); return }
+  markTerms(root, c.chapter)
+}
+
 async function onPage() {
   acted = false
   await nextTick()
@@ -111,11 +123,13 @@ async function onPage() {
     realign()
     watchSidebar()
     schedulePaint()
+    paintTerms()
   }, 60)
 }
 
 onMounted(() => {
   ensureReady()
+  bindTermTips()
   const mark = () => { acted = true }
   const evs = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
   evs.forEach(e => window.addEventListener(e, mark, { passive: true, capture: true }))

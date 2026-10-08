@@ -1,6 +1,6 @@
 // 学习机制的浏览器测试（参考 hands-on-react 的 tests/e2e/mechanics.mjs，每一项都对应 AGENTS 的“学习机制”）：
 //   提示阶梯、课前热身、自我解释、复习页、阶段测验、手机宽度无横向滚动。
-// 用法：node tests/site/mechanics.test.js     （用 course/.vitepress/dist，要先 npm run build）
+// 用法：node tests/site/mechanics.test.js     （用 course/.vitepress/dist，要先 npm run build；或 COURSE_OUT_DIR=<已构建目录>）
 // 时间用 Playwright 的 page.clock.setFixedTime 控制，不真的等几分钟；进度先用 seed 写进单个 localStorage 键。
 const { makeReporter, startSite, loadChapters, loadExercises, loadQuestions, seed, read, STORE_KEY } = require('./helpers')
 
@@ -50,8 +50,10 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       await p.clock.setFixedTime(T0)
       const e = EX.counter
       const box = await openExercise(p, base, '01-first', 'counter')
+      // 现在每道练习都有 faded（validate 强制必填），所以临时去掉它，验证“没有半成品时阶梯只有两级”这条规则
+      await box.evaluate(r => r.__setFaded(undefined))
       const hint = box.locator('[data-a="hint"]'), sol = box.locator('[data-a="sol"]')
-      g.ok(await box.locator('[data-a="faded"]').count() === 0, '没有 faded 的练习没有半成品这一级')
+      g.ok(await box.locator('[data-a="faded"]').count() === 0, '临时去掉 faded：没有半成品这一级')
       g.ok(/先独立尝试。每次改过代码后检查失败，就会多解锁一级帮助：提示 → 参考答案。/.test(await box.locator('.ex-rule').innerText()), '练习说明下有阶梯说明（两级）')
       g.ok(await hint.isDisabled() && /提示（再改代码检查 1 次解锁）/.test(await hint.innerText()), '提示：锁定并写明还差 1 次 ' + await hint.innerText())
       g.ok(await sol.isDisabled() && /参考答案（再改代码检查 3 次解锁）/.test(await sol.innerText()), '参考答案：锁定并写明还差 3 次 ' + await sol.innerText())
@@ -95,7 +97,7 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
 
     // ---------- 半成品一级 ----------
     {
-      const g = R.group('半成品示例（临时给练习加 faded）：失败 2 次且 2 分钟解锁；填入编辑器，原来的代码可以找回')
+      const g = R.group('半成品示例（临时换一份 faded）：失败 2 次且 2 分钟解锁；填入编辑器，原来的代码可以找回')
       const p = await site.newPage()
       await seed(p, base, {})
       await p.clock.setFixedTime(T0)

@@ -311,7 +311,7 @@ onMounted(async () => {
   cmJs = mk(jsHost.value!, js.value, 'js', v => { js.value = v; save() })
   // 给自动化测试用：直接设置两段代码
   ;(root.value as any).__setCode = setCode
-  // 给自动化测试用：临时给这道练习设置半成品（现有练习都还没有 faded 内容）
+  // 给自动化测试用：临时替换这道练习的半成品；传 undefined 表示没有半成品（验证阶梯只有两级）
   ;(root.value as any).__setFaded = (f: { tpl?: string; js?: string } | undefined) => { fadedDef.value = f }
   if (!ex.lazy) run()
   else if (outEl.value) outEl.value.innerHTML = '<p class="cap">点击“只运行”或“运行并检查”，查看运行结果。</p>'
@@ -329,11 +329,12 @@ onBeforeUnmount(() => {
 <template>
   <div v-if="!ex" class="ex"><div class="ex-body"><p class="ex-err">找不到练习：{{ id }}</p></div></div>
   <div v-else-if="!mounted" class="ex ex-ph" :data-ex-ph="id">
-    <div class="ex-head"><b>练习：{{ ex.title }}</b><span class="badge">载入中</span></div>
+    <div class="ex-head"><span class="pg-badge">EXERCISE</span><b>{{ ex.title }}</b><span class="badge">载入中</span></div>
   </div>
   <div v-else ref="root" class="ex" :data-ex="id">
     <div class="ex-head">
-      <b>练习：{{ ex.title }}</b>
+      <span class="pg-badge">EXERCISE</span>
+      <b>{{ ex.title }}</b>
       <span class="badge" :class="{ pass: passed && !help }" :title="badgeTitle">{{ badge }}</span>
     </div>
     <div class="ex-body">

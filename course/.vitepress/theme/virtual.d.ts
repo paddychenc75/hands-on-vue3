@@ -11,3 +11,8 @@ declare module 'virtual:course-summaries' {
   /** 章 id → 小结块渲染成的 HTML */
   export const summaries: Record<string, string>
 }
+declare module 'virtual:course-glossary' {
+  import type { GlossaryEntry } from '../course-data.mts'
+  /** 全站术语表：从各章“本章术语”块汇总，同名合并 */
+  export const glossary: GlossaryEntry[]
+}

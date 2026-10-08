@@ -50,6 +50,8 @@ const resume = computed(() => {
       <h1>动手学 <em>Vue 3</em></h1>
       <p>本课程有 6 个阶段：25 章正文和 1 个综合实战，每个阶段末尾有一次阶段测验。阶段一和阶段二教你使用 Vue：模板、响应式、组件、内置组件、自定义指令、组合式函数、插件和表单。阶段三和阶段四说明 Vue 的内部原理：响应式、更新队列、渲染函数、模板编译、虚拟 DOM 与 diff，以及组件设计模式。阶段五介绍 Pinia、Router、TypeScript、性能优化和工程化。阶段六讲 SSR、自定义渲染器和 Vue 2 迁移，并包含一个完整的小项目。</p>
 
+      <p class="prereq"><b>开始前你需要会：</b>HTML 和 CSS 基础（标签、属性、选择器），JavaScript 基础（变量、函数、箭头函数、数组的 map 和 filter、对象和数组的解构与展开、import 和 export 模块、Promise 与 async/await）。讲工程化的章节还会用到命令行和 npm。还不熟的话，先花一两周补 JavaScript，再回来学会轻松很多。</p>
+
       <div class="resume show" id="resume">
         <span id="resumeTxt">{{ resume.text }}</span>
         <a class="b pri" id="resumeLink" :href="resume.href">继续学习</a>
@@ -110,6 +112,7 @@ const resume = computed(() => {
       <p class="section-sub"><b>掌握学习：</b>一章的自测全部答对、练习全部通过才算完成；一个阶段测验达到 80% 才算掌握。建议每天先清空“今日复习”，再学新章。</p>
 
       <h2 class="section-title" id="path-title">学习路线</h2>
+      <p class="path-sub">六个阶段循序渐进。建议按顺序学习；如果已有基础，可以先做阶段测验，看看自己哪些地方已经掌握。</p>
       <div class="path" id="path">
         <div v-for="c in cards" :key="c.stage" class="stage" :data-stage="c.stage">
           <div class="lv">{{ c.no }} · {{ c.en }}</div>
@@ -137,7 +140,7 @@ const resume = computed(() => {
             <li>说明句不超过 40 个字。操作句不超过 30 个字。代码不计入字数。</li>
             <li>操作步骤使用编号列表。每一步用动词开头。</li>
             <li>使用主动语态。</li>
-            <li>一个术语只表示一个意思。术语见下面的术语表。</li>
+            <li>一个术语只表示一个意思。术语见下面的表，全部术语见<a :href="withBase('/glossary')">术语表</a>。</li>
             <li>“注意”紧跟在它说明的代码之后，在实验台和练习之前。</li>
             <li>正文不使用比喻和口语。</li>
           </ol>

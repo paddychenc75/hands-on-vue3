@@ -30,6 +30,7 @@ export interface ChapterMeta {
   scCount: number // 本章自测题数（不含先猜）
   scAnswers: number[] // 本章自测的正确选项序号，按题号排列（长度 = scCount）
   ex: string[] // 本章练习 id
+  mins?: number // 本章“阅读时间”块（::: rt）里写的阅读主线分钟数，没写是 undefined。章头显示“约 N 分钟”
   checkCount: number // 本章的阶段测验专用题数（题库 checks/questions.ts 里属于这一章的题）。卡片键 `章id#cN` 的 N 小于它才有效
 }
 
@@ -45,6 +46,70 @@ export interface SelfCheckItem {
 const META_ID = 'virtual:course-meta'
 const SC_ID = 'virtual:course-selfchecks'
 const SUM_ID = 'virtual:course-summaries'
+const GLOSS_ID = 'virtual:course-glossary'
+
+/** 术语表里的一个条目：同一个术语在多章出现时合并成一条 */
+export interface GlossaryEntry {
+  term: string
+  def: string // 首次出现的定义，渲染成行内 HTML
+  text: string // 同一定义的纯文字（悬浮提示用）
+  chapters: { id: string; link: string; chapter: number | null; title: string }[] // 出现过这个术语的章，第一项是首次出现的章
+}
+/** 同一术语在不同章里写了不同的定义（只提示作者，不影响页面：页面用首次出现的定义） */
+export interface GlossaryConflict {
+  term: string
+  defs: { file: string; def: string }[]
+}
+
+/** 一章“本章术语”块（::: terms 到下一个 :::）里的 Markdown 原文。没有术语块返回空串 */
+export function parseTermsBlock(md: string): string {
+  const m = /^::: terms[^\n]*\n([\s\S]*?)\n:::[ \t]*$/m.exec(md)
+  return m ? m[1].trim() : ''
+}
+
+/** 把术语块拆成 [术语, 定义原文]。格式是定义列表：第一行术语，下一行以 `: ` 开头写解释，术语之间空一行 */
+export function parseTerms(block: string): { term: string; def: string }[] {
+  const out: { term: string; def: string }[] = []
+  for (const part of block.split(/\n[ \t]*\n/)) {
+    const lines = part.trim().split('\n')
+    const term = lines[0]?.trim()
+    const def = lines.slice(1).map(l => l.replace(/^:\s+/, '').trim()).join(' ').trim()
+    if (!term || !def || !/^:\s/.test(lines[1] ?? '')) throw new Error('本章术语块格式不对（术语一行，下一行以 `: ` 开头写解释）：' + part.slice(0, 50))
+    out.push({ term, def })
+  }
+  return out
+}
+
+/** 汇总全站术语。按章的先后（阶段、章号）扫，同名术语合并：保留首次出现的定义，记录所有出现的章。
+ *  定义文字不同的同名术语记进 conflicts。只看有阶段的章（速查表等没有术语块） */
+export function collectGlossary(chapters: { meta: ChapterMeta; src: string }[]): { entries: { term: string; defSrc: string; chapters: GlossaryEntry['chapters'] }[]; conflicts: GlossaryConflict[] } {
+  const byTerm = new Map<string, { term: string; defSrc: string; chapters: GlossaryEntry['chapters']; defs: { file: string; def: string }[] }>()
+  for (const { meta, src } of chapters) {
+    if (meta.stage == null) continue
+    const block = parseTermsBlock(src)
+    if (!block) continue
+    const ref = { id: meta.id, link: meta.link, chapter: meta.chapter, title: meta.title }
+    for (const { term, def } of parseTerms(block)) {
+      const e = byTerm.get(term)
+      if (!e) byTerm.set(term, { term, defSrc: def, chapters: [ref], defs: [{ file: meta.file, def }] })
+      else {
+        if (!e.chapters.some(c => c.id === meta.id)) e.chapters.push(ref)
+        e.defs.push({ file: meta.file, def })
+      }
+    }
+  }
+  const entries = [...byTerm.values()]
+  const norm = (s: string) => s.replace(/\s+/g, '')
+  const conflicts = entries.filter(e => new Set(e.defs.map(d => norm(d.def))).size > 1).map(e => ({ term: e.term, defs: e.defs }))
+  return { entries: entries.map(({ term, defSrc, chapters }) => ({ term, defSrc, chapters })), conflicts }
+}
+
+/** 渲染成行内 HTML 和纯文字 */
+function renderDef(md: { render(s: string): string }, src: string) {
+  const html = md.render(src).trim().replace(/^<p>([\s\S]*)<\/p>$/, '$1')
+  const text = html.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+  return { html, text }
+}
 
 /** 一章的小结块（::: summary 到下一个 :::）里的 Markdown 原文。没有小结块返回空串 */
 export function parseSummary(md: string): string {
@@ -99,6 +164,7 @@ export function readChapters(chaptersDir: string): { meta: ChapterMeta; src: str
         scCount: selfChecks.length,
         scAnswers: selfChecks.map(x => x.a),
         ex: [...src.matchAll(/<Exercise\s+id="([^"]+)"/g)].map(m => m[1]),
+        mins: /阅读主线约\s*(\d+)\s*分钟/.exec(src)?.[1] ? Number(/阅读主线约\s*(\d+)\s*分钟/.exec(src)![1]) : undefined,
         checkCount: Q.filter(row => row[3] === fm.id).length
       }
     })
@@ -112,16 +178,25 @@ export function courseDataPlugin(courseDir: string): Plugin {
   return {
     name: 'course-data',
     resolveId(id) {
-      if (id === META_ID || id === SC_ID || id === SUM_ID) return '\0' + id
+      if (id === META_ID || id === SC_ID || id === SUM_ID || id === GLOSS_ID) return '\0' + id
     },
     async load(id) {
-      if (id !== '\0' + META_ID && id !== '\0' + SC_ID && id !== '\0' + SUM_ID) return
+      if (id !== '\0' + META_ID && id !== '\0' + SC_ID && id !== '\0' + SUM_ID && id !== '\0' + GLOSS_ID) return
       const chapters = readChapters(chaptersDir)
       for (const c of chapters) this.addWatchFile(path.join(chaptersDir, c.meta.file + '.md'))
       if (id === '\0' + META_ID) {
         return `export const chapters = ${JSON.stringify(chapters.map(c => c.meta))}`
       }
       const md = await createMarkdownRenderer(courseDir, { config: m => cjkFriendlyEmphasis(m) }, '/')
+      if (id === '\0' + GLOSS_ID) {
+        const { entries, conflicts } = collectGlossary(chapters)
+        for (const c of conflicts) this.warn(`术语“${c.term}”在多章里的定义不同：${c.defs.map(d => d.file).join('、')}（术语表用首次出现的定义）`)
+        const glossary: GlossaryEntry[] = entries.map(e => {
+          const { html, text } = renderDef(md, e.defSrc)
+          return { term: e.term, def: html, text, chapters: e.chapters }
+        })
+        return `export const glossary = ${JSON.stringify(glossary)}`
+      }
       if (id === '\0' + SUM_ID) {
         const sums: Record<string, string> = {}
         for (const c of chapters) {

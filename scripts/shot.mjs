@@ -15,8 +15,8 @@
 //    只在目标包含 all 或 pages 时才构建全站，否则只构建列出的章。构建到临时目录，不碰 dist。
 //    每个页面的输出：<输出目录>/<页面>/<主题>-<序号>-<种类>.png，种类有：
 //      head（章头与目标）、lab（实验台，先猜题答完之后）、lab0（先猜题没答时的样子，只在实验台有先猜时才有）、
-//      ex（练习，编辑器加载完成后）、ex-unfold（含折叠只读块的练习，展开折叠块之后）、table、fig（示意图）、sc（自测块，答对一题之后）
-//    手机宽度：<页面>/m-<序号>-lab.png、m-<序号>-ex.png。
+//      ex（练习，编辑器加载完成后）、ex-unfold1（含折叠只读块的练习,只展开第一个折叠块）、ex-unfold（全部折叠块展开之后）、table、fig（示意图）、sc（自测块，答对一题之后）
+//    手机宽度：<页面>/m-<序号>-lab.png、m-<序号>-ex.png(含折叠块的再有 m-<序号>-ex-unfold1.png)。
 //    另外写 <输出目录>/findings.txt：自动发现的问题（残留的字面 ** / ::: / 【待写】 / HTML 实体，手机宽度下横向溢出，
 //    控制台报错，实验台或练习没渲染出来）。图片仍然要用 Read 逐张看：自动检查只能发现“文字层面”的问题。
 import fs from 'node:fs'
@@ -196,9 +196,12 @@ async function shootDesktop(browser, url, dir, scheme, name, note) {
       if (scheme === 'light' && (await ex.locator('p.ex-err').count())) note(name, `练习 ${id} 显示了错误`)
       const k = idx()
       await shotEl(ex, path.join(dir, `${pre}${k}-ex.png`))
-      const folds = ex.locator('.cm-foldPlaceholder')
+      // 折叠块的 widget 是 button.cm-foldBtn[data-fold-kind=block](折叠状态);展开后变成 head/end 标记行
+      const folds = ex.locator('.cm-foldBtn[data-fold-kind="block"]')
       if (await folds.count()) {
-        for (let i = 0; i < 6 && (await folds.count()); i++) { await folds.first().click({ timeout: 1000 }).catch(() => {}); await p.waitForTimeout(100) }
+        await folds.first().click({ timeout: 2000 }).catch(() => {}); await p.waitForTimeout(200)
+        await shotEl(ex, path.join(dir, `${pre}${k}-ex-unfold1.png`))
+        for (let i = 0; i < 12 && (await folds.count()); i++) { await folds.first().click({ timeout: 1000 }).catch(() => {}); await p.waitForTimeout(100) }
         await shotEl(ex, path.join(dir, `${pre}${k}-ex-unfold.png`))
       }
     }
@@ -240,6 +243,11 @@ async function shootMobile(browser, url, dir, name, note) {
       await ex.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {})
       await ex.locator('.cm-editor').first().waitFor({ timeout: 6000 }).catch(() => {})
       await shotEl(ex, path.join(dir, `m-${String(k).padStart(2, '0')}-ex.png`))
+      const mf = ex.locator('.cm-foldBtn[data-fold-kind="block"]')
+      if (await mf.count()) {
+        await mf.first().click({ timeout: 2000 }).catch(() => {}); await p.waitForTimeout(200)
+        await shotEl(ex, path.join(dir, `m-${String(k).padStart(2, '0')}-ex-unfold1.png`))
+      }
     }
   } catch (e) {
     note(name, `手机宽度截图过程出错：${String(e.message).slice(0, 160)}`)

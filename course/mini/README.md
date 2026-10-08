@@ -196,7 +196,7 @@ const g28 = note(PARTS.vnode, 'h', '这是你在第 28 章写的 h')
 
 ### 第 24 章 响应式原理（零件 1）
 
-- **正文展示**：24.2 手写 `reactive` / `effect` / `track` / `trigger`，就是 `src/01-reactivity.ts` 的 `track`、`trigger`、`reactive`、`effect`、`cleanup` 五个区域，逐段引用。24.5–24.6 讲真实 3.5 的 Dep / Link：不展示零件，只用对比表（见 3.1）。24.7 `computed`、24.11 `ref`：引用 `computed`、`ref` 区域。
+- **正文展示**：24.2 手写 `reactive` / `effect` / `track` / `trigger`，就是 `src/01-reactivity.ts` 的 `track`、`trigger`、`reactive`、`effect`、`cleanup` 五个区域，逐段引用。24.5–24.6 讲真实 3.5 的 Dep / Link：不展示零件，只用对比表。24.7 `computed`、24.11 `ref`：引用 `computed`、`ref` 区域。
 - **练习写哪一段**：
   - `miniComputed`：挖空 `computed` 区域（起始代码保留 `effect` 等所有前面的零件，学习者写 `computed`）。
   - `depCleanup`：挖空 `cleanup` 区域，另外把 `effect` 的 `run` 里 `cleanup(e)` 那一行也去掉（起始代码里 `run` 不清理，答案补上）。要这样挖，需要给 `effect` 区域里的 `cleanup(e)` 调用单独加一个子区域 `runCleanup`（见第 10 节「没做完」；目前可以用 `sub(…)` 在答案上替换这一行造起始代码）。

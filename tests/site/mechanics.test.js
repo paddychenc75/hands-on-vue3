@@ -545,6 +545,40 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
       g.end()
     }
+    {
+      // 全部复习卡(章内自测 + 阶段测验专用题)逐题在 390px 下渲染,答前和答后(解析出来)都不能撑宽页面或题目卡片。
+      // 阶段测验每次随机抽题,只靠抽样会等到某次抽到过宽的题才发现;复习页和阶段测验用同一个 Question 组件,这里一次查全。
+      const g = R.group('390px 宽下全部复习卡逐题渲染:题干、选项、解析里的长行内代码和代码块不撑宽页面')
+      const p = await site.newPage({ viewport: { width: 390, height: 844 } })
+      const keys = Object.keys(require('../../course/card-keys.snapshot.json').cards)
+      const srs = {}
+      for (const k of keys) srs[k] = card(1, T0 - DAY, T0 - 3 * DAY)
+      await seed(p, base, { __srs: srs })
+      await p.clock.setFixedTime(T0)
+      const measure = () => p.evaluate(() => {
+        const q = document.querySelector('.review .q'); if (!q) return null
+        const qr = q.getBoundingClientRect()
+        const clipped = el => { for (let a = el.parentElement; a && a !== q; a = a.parentElement) { const o = getComputedStyle(a).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') return true } return false }
+        const out = []
+        q.querySelectorAll('*').forEach(el => { const b = el.getBoundingClientRect(); if (b.width > 0 && b.right > qr.right + 1 && !clipped(el)) out.push(el.tagName.toLowerCase()) })
+        return { key: q.dataset.key, page: document.documentElement.scrollWidth - innerWidth, q: q.scrollWidth - q.clientWidth, out: out.length }
+      })
+      const bad = []; const seen = new Set()
+      await p.goto(base + '/review.html')
+      for (let guard = 0; guard < keys.length + 50; guard++) {
+        await p.waitForSelector('.review .q, .review .done-card', { timeout: 15000 })
+        if (!(await p.$('.review .q'))) { const more = await p.$('[data-a=more]'); if (more) { await more.click(); continue } break }
+        const a = await measure()
+        await p.locator('.review .q .opt').first().click()
+        const b = await measure()
+        seen.add(a.key)
+        for (const [when, m] of [['答前', a], ['答后', b]]) if (m.page > 0 || m.q > 0 || m.out) bad.push(m.key + ' ' + when)
+        const nx = await p.$('[data-a=next]'); if (nx) await nx.click()
+      }
+      g.ok(seen.size === keys.length, '渲染了全部 ' + keys.length + ' 道卡片(实际 ' + seen.size + ')')
+      g.ok(!bad.length, '没有溢出' + (bad.length ? ':' + bad.slice(0, 8).join(', ') : ''))
+      g.end()
+    }
     for (const [title, chapters] of [
       ['第 19、23、29、30、31、32、34、36、40 章', ['29-compiler', '30-diff', '31-runtime', '34-patterns', '19-state-arch', '36-ssr', '32-renderer', '40-perf-clinic', '23-project']],
       ['第 24–28、33、38、39、41 章', ['24-reactivity', '25-scheduler', '28-render', '26-watch-impl', '27-reactivity-pitfalls', '33-builtins-impl', '38-errors', '39-forms-arch', '41-lib']],

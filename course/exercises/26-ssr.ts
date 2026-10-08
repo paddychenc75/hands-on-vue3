@@ -144,7 +144,7 @@ onUnmounted(() => { if (ssrApp) ssrApp.unmount() })
 
 return { host }`,
   hints: [
-    '原因：服务器读不到浏览器的设置，所以用 light 渲染。浏览器第一次渲染时读取了 dark，两边不一致。水合时，Vue 只修正文字，不修正 class。第一次渲染要和服务器一致，浏览器专有的数据要等水合完成后再读取。第 26 章“26.3 修复水合不匹配”的表格和最后的注意事项讲了它。',
+    '原因：服务器读不到浏览器的设置，所以用 light 渲染。浏览器第一次渲染时读取了 dark，两边不一致。水合时，Vue 会改正不匹配的文字，但不改正 class（style 也一样）。这道题里不匹配的是 class。第一次渲染要和服务器一致，浏览器专有的数据要等水合完成后再读取。第 26 章“26.3 修复水合不匹配”的表格和最后的注意事项讲了它。',
     '在 Card 的 setup 中：1. 用服务器的默认值 \'light\' 创建 theme。2. 添加 onMounted(() => { … })，在其中把 theme.value 设为 browserSettings.theme。',
     'const theme = ref(\'light\')\nonMounted(() => {\n  theme.value = browserSettings.theme\n})\nreturn { theme }'
   ],

@@ -402,11 +402,11 @@ function safeHref(url) {
 | `@click.stop` | `onClick: withModifiers(handler, ['stop'])` |
 | `@keyup.enter` | `onKeyup: withKeys(handler, ['enter'])` |
 
-在第 17 章的在线编译实验台中，选择“v-model 与修饰符”示例，可以查看真实的编译结果。
+在第 25 章的在线编译实验台中，选择“v-model 与修饰符”示例，可以查看真实的编译结果。
 :::
 
 ::: deep 自定义指令
-需要直接操作 DOM 时，使用自定义指令。[第 8 章](/chapters/08-directives)讲完整用法。指令对象有和组件相似的钩子：
+需要直接操作 DOM 时，使用自定义指令。[第 9 章](/chapters/09-directives)讲完整用法。指令对象有和组件相似的钩子：
 
 | 钩子 | 运行时间 |
 |---|---|
@@ -461,7 +461,7 @@ function apply(el, { value, arg = 'yellow', modifiers }) {
 :::
 
 ::: pitfalls
-1. 每个 `v-for` 都要写 `:key`，值用数据的 id。原因：Vue 用 key 判断哪个节点可以复用。用 index 时，插入一项后输入框的值会留在错误的行（第 18 章）。
+1. 每个 `v-for` 都要写 `:key`，值用数据的 id。原因：Vue 用 key 判断哪个节点可以复用。用 index 时，插入一项后输入框的值会留在错误的行（第 26 章）。
 2. 要传数据，写 `:value="x"`。原因：没有冒号时，`value="x"` 传的是字符串 "x"。
 3. 元素需要频繁显示和隐藏时，使用 `v-show`。原因：`v-if` 每次都删除并重新创建元素，代价更大。
 :::

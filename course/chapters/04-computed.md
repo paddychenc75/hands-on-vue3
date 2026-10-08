@@ -231,7 +231,7 @@ watchEffect(() => console.log(`当前第 ${page.value} 页`))
 1. 回调只用它自己读取的数据，并且第一次就要运行：用 `watchEffect`。例如把状态写到 `document.title`，或按 url 请求数据。你不用列出数据源。
 2. 需要旧值、需要在数据改变后才运行，或者要精确指定哪个数据改变才触发：用 `watch`。例如只在 `id` 改变时请求，忽略回调里读到的其他数据。
 
-注意：`watchEffect` 只在同步执行期间收集依赖。回调是 async 函数时，`await` 之后读取的响应式数据不会成为依赖。所以第 9 章的 useFetch 把 `toValue(url)` 写在 `await` 之前。
+注意：`watchEffect` 只在同步执行期间收集依赖。回调是 async 函数时，`await` 之后读取的响应式数据不会成为依赖。所以第 7 章的 useFetch 把 `toValue(url)` 写在 `await` 之前。
 
 **场景：筛选条件改变时重新请求任务。**进入页面时也要请求一次，所以设置 `immediate: true`。filters 是 ref 对象，修改内部字段时要触发，所以设置 `deep: true`。
 
@@ -508,7 +508,7 @@ const double = computed(() => count * 2)
 
 <Sc :a="1">
 
-预算以分存储，输入框以元显示。输入框写 `v-model.lazy="budgetYuan"`。用户输入 12.3 后，budgetCents 要变为 1230。set 应该怎样写？
+预算以分存储，输入框以元显示。输入框写 `v-model.lazy="budgetYuan"`。用户输入 20.3 后，budgetCents 要变为 1230。set 应该怎样写？
 
 ```js
 const budgetCents = ref(1999)

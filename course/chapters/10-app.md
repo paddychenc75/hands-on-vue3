@@ -286,7 +286,7 @@ CSS 文件的名字由 Vite 的版本决定。以 dist 目录中实际的文件�
 5. 运行 `npm version patch` 修改版本号。
 6. 运行 `npm publish`。带作用域的包加 `--access public`。
 
-第 3 步的原因：链接的包使用自己目录中的 vue。页面中有两份 Vue 时，响应式会断开，而且没有任何报错。`inject` 和生命周期钩子反而仍然能用（第 35 章讲了原因）。
+第 3 步的原因：链接的包使用自己目录中的 vue。页面中有两份 Vue 时，响应式会断开，而且没有任何报错。`inject` 和生命周期钩子反而仍然能用（第 36 章讲了原因）。
 :::
 
 <Exercise id="pluginOptions" />
@@ -601,7 +601,7 @@ const UI = {
 
 <Sc :a="1">
 
-回顾（第 7 章）：异步组件的加载函数失败了。父组件有 onErrorCaptured，应用也设置了 errorHandler。会发生什么？
+回顾（第 8 章）：异步组件的加载函数失败了。父组件有 onErrorCaptured，应用也设置了 errorHandler。会发生什么？
 
 ```js
 const Chart = defineAsyncComponent({
@@ -616,7 +616,7 @@ const Chart = defineAsyncComponent({
 
 <template #explain>
 
-解析：第 7 章：加载失败时，异步组件显示 errorComponent。同时，Vue 把错误交给错误处理流程。所以父组件的 onErrorCaptured 先收到，然后是 `app.config.errorHandler`。errorComponent 只决定显示什么，不停止传递。要停止传递，在 onErrorCaptured 中返回 false。没有 errorComponent 时，组件的位置才是空的。
+解析：第 8 章：加载失败时，异步组件显示 errorComponent。同时，Vue 把错误交给错误处理流程。所以父组件的 onErrorCaptured 先收到，然后是 `app.config.errorHandler`。errorComponent 只决定显示什么，不停止传递。要停止传递，在 onErrorCaptured 中返回 false。没有 errorComponent 时，组件的位置才是空的。
 
 </template>
 </Sc>

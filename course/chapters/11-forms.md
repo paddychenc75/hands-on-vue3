@@ -544,7 +544,7 @@ const show = f => (touched[f] || submitted.value) && errors.value[f]
 
 <Sc :a="1">
 
-回顾（第 8 章）：表单的第一个输入框写 `<input v-focus>`。v-focus 只有 mounted 钩子，在其中调用 `el.focus()`。用户把焦点移到别的输入框，然后提交失败，表单重新渲染。焦点会回到第一个输入框吗？
+回顾（第 9 章）：表单的第一个输入框写 `<input v-focus>`。v-focus 只有 mounted 钩子，在其中调用 `el.focus()`。用户把焦点移到别的输入框，然后提交失败，表单重新渲染。焦点会回到第一个输入框吗？
 
 <Opt>会，每次重新渲染都运行 mounted</Opt>
 <Opt>不会，mounted 只在元素插入时运行</Opt>
@@ -552,7 +552,7 @@ const show = f => (touched[f] || submitted.value) && errors.value[f]
 
 <template #explain>
 
-解析：第 8 章：mounted 只在元素插入 DOM 后运行一次。组件重新渲染时，Vue 复用元素。这时只运行 beforeUpdate 和 updated，不运行 mounted。所以焦点不回来。指令也不知道表单的错误。提交失败时，用 11.6 节的做法：找到第一个错误字段，调用它的 `focus()`。
+解析：第 9 章：mounted 只在元素插入 DOM 后运行一次。组件重新渲染时，Vue 复用元素。这时只运行 beforeUpdate 和 updated，不运行 mounted。所以焦点不回来。指令也不知道表单的错误。提交失败时，用 11.6 节的做法：找到第一个错误字段，调用它的 `focus()`。
 
 </template>
 </Sc>

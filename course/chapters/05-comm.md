@@ -526,7 +526,7 @@ function inject(key, defaultValue) {
 | `provide / inject` | 祖先组件 → 所有后代组件 | 主题、语言、表单上下文。provide 一个 ref。 |
 | `attrs`（透传） | 父组件 → 子组件的根元素 | `class`、`style`、原生事件、`placeholder` 等没有声明为 props 的属性 |
 | `defineExpose + ref` | 父组件调用子组件 | 聚焦输入框。调用子组件的方法。 |
-| Pinia | 任意组件 | 多个页面共享的数据（第 22 章） |
+| Pinia | 任意组件 | 多个页面共享的数据（第 14 章） |
 
 按下面的规则选择：
 

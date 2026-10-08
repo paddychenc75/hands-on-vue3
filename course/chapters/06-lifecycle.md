@@ -306,7 +306,7 @@ count.value++
 nextTick(() => console.log(el.textContent))
 ```
 
-下面的练习修改数据后读取 DOM。nextTick 为什么能等到 DOM 更新，见[第 13.2 节](/chapters/13-scheduler)。
+下面的练习修改数据后读取 DOM。nextTick 为什么能等到 DOM 更新，见[第 21.2 节](/chapters/21-scheduler)。
 
 <Exercise id="tickReadFill" />
 
@@ -354,7 +354,7 @@ onActivated(() => { list.value.scrollTop = top })   // 恢复时写回
 // 模板：<ul ref="list" class="task-list" @scroll="onScroll">
 ```
 
-注意：不要把首次请求同时写在 setup 和 onActivated 中。onActivated 在第一次挂载时也运行，请求会发送两次。这两个钩子只在 KeepAlive 中的组件上运行。KeepAlive 的 include 和 max 见[第 7 章](/chapters/07-builtins)。
+注意：不要把首次请求同时写在 setup 和 onActivated 中。onActivated 在第一次挂载时也运行，请求会发送两次。这两个钩子只在 KeepAlive 中的组件上运行。KeepAlive 的 include 和 max 见[第 8 章](/chapters/08-builtins)。
 
 下面的实验台显示挂载、更新和卸载的日志。勾选 KeepAlive 后，比较两组日志。
 

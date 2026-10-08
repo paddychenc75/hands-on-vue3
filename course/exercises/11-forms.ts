@@ -160,7 +160,7 @@ export const phenoClip: Exercise = {
 </div>`
   },
   hints: [
-    '原因：弹窗的 DOM 在卡片里面。祖先元素的 overflow: hidden 裁切所有后代。卡片的 transform 还让 position: fixed 相对卡片定位，所以提高 z-index 也没有用。弹窗的 DOM 要放到卡片外面，同时它仍然属于这个组件，可以读写 open。第 7 章 7.3 节讲了它。',
+    '原因：弹窗的 DOM 在卡片里面。祖先元素的 overflow: hidden 裁切所有后代。卡片的 transform 还让 position: fixed 相对卡片定位，所以提高 z-index 也没有用。弹窗的 DOM 要放到卡片外面，同时它仍然属于这个组件，可以读写 open。第 8 章 8.3 节讲了它。',
     '只改模板。用一个内置组件包住整个 .pheno-modal，把它渲染到 body 中。卡片的样式不改。',
     '<Teleport to="body">\n  <div v-if="open" class="pheno-modal" …>\n    …\n  </div>\n</Teleport>'
   ],

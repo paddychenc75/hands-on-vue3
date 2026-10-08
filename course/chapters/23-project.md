@@ -23,7 +23,7 @@ import ProDataFlow from '../figures/23-project/ProDataFlow.vue'
 :::
 
 ::: rt
-阅读主线约 23 分钟，深入内容约 1 分钟（可选）。另外留时间做练习和自测。项目在你的电脑上完成，第一次独立做大约需要 16 到 24 小时。
+阅读主线约 24 分钟，深入内容约 8 分钟（可选，是每个里程碑卡住时才看的参考实现）。另外留时间做练习和自测。项目在你的电脑上完成，第一次独立做大约需要 16 到 24 小时。
 :::
 
 ::: terms
@@ -155,7 +155,7 @@ import type { Plugin, PreviewServer, ViteDevServer } from 'vite'
 
 type Task = { id: number; title: string; status: 'todo' | 'doing' | 'done'; due?: string }
 
-// 假后端：数据放在内存里，服务重启后回到种子数据。
+// 假后端：数据放在内存里，服务重启后回到种子数据。开发服务器和 vite preview 都会装上它。
 export function fakeApi(): Plugin {
   const tasks: Task[] = [
     { id: 1, title: '读完第 14 到 22 章', status: 'doing', due: '2026-11-01' },
@@ -172,13 +172,27 @@ export function fakeApi(): Plugin {
     res.setHeader('Content-Type', 'application/json')
     res.end(body === undefined ? '' : JSON.stringify(body))
   }
+  // 读请求体。不是合法的 JSON 对象时返回 null，由调用方回 400。
+  // 不处理的话，JSON.parse 抛出的异常会让这个请求一直挂着，永远不返回。
   const readBody = (req: IncomingMessage) =>
-    new Promise<Record<string, unknown>>((resolve) => {
+    new Promise<Record<string, unknown> | null>((resolve) => {
       let raw = ''
       req.on('data', (c) => (raw += c))
-      req.on('end', () => resolve(raw ? JSON.parse(raw) : {}))
+      req.on('end', () => {
+        if (!raw) return resolve({})
+        try {
+          const value: unknown = JSON.parse(raw)
+          resolve(value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null)
+        } catch {
+          resolve(null)
+        }
+      })
     })
+  const BAD_BODY = { message: '请求体不是合法的 JSON 对象' }
 
+  // 生成 n 个测试任务（/api/_debug?seed=1000）。规则固定，性能测试和第 42 章都依赖它：
+  // 状态按 id 对 3 取余轮流分配：余 0 待办，余 1 进行中，余 2 已完成；
+  // 每第 4 个任务（id 是 4 的倍数）没有截止日期，其余的日期由 id 算出。
   function seed(n: number) {
     tasks.length = 0
     for (let i = 1; i <= n; i++) {
@@ -217,6 +231,7 @@ export function fakeApi(): Plugin {
     }
     if (req.method === 'POST' && id === undefined) {
       const body = await readBody(req)
+      if (!body) return send(res, 400, BAD_BODY)
       const title = String(body.title ?? '').trim()
       if (!title) return send(res, 400, { message: '标题不能为空', field: 'title' })
       const created: Task = {
@@ -230,6 +245,7 @@ export function fakeApi(): Plugin {
     }
     if (req.method === 'PATCH' && task) {
       const body = await readBody(req)
+      if (!body) return send(res, 400, BAD_BODY)
       if ('title' in body && !String(body.title).trim()) {
         return send(res, 400, { message: '标题不能为空', field: 'title' })
       }
@@ -244,7 +260,10 @@ export function fakeApi(): Plugin {
   }
 
   const install = (server: ViteDevServer | PreviewServer) => {
-    server.middlewares.use('/api', (req, res) => void handle(req, res))
+    server.middlewares.use('/api', (req, res) => {
+      // 兜底:handle 里没想到的异常也要回一个响应，不能让请求挂着
+      handle(req, res).catch(() => send(res, 500, { message: '假后端出错了' }))
+    })
   }
   return { name: 'fake-api', configureServer: install, configurePreviewServer: install }
 }
@@ -259,6 +278,17 @@ curl "http://localhost:5173/api/_debug?delay=2000&failRate=0.5"    # 调慢、�
 ```
 
 `/api/_debug` 是你的测试遥控器：`delay` 是延迟毫秒数，`failRate` 是失败概率，`seed=1000` 把数据换成 1000 个任务。验收清单和性能测试都靠它。
+
+**种子数据和“一千条任务”的生成规则。**服务重启后，假后端里是上面写死的 4 个任务：id 1 在“进行中”，id 2、3 在“待办”，id 4 在“已完成”。`seed=n` 会换成 n 个按固定规则生成的任务，这条规则在本章的性能测试和第 42 章里都要用，所以写死：
+
+| 字段 | 规则 | 例子 |
+|---|---|---|
+| `id` | 1 到 n | |
+| `title` | `任务 ${id}` | `任务 6` |
+| `status` | `['todo', 'doing', 'done'][id % 3]`：id 对 3 的余数是 0 就是待办，1 是进行中，2 是已完成 | id 3、6、9 待办；id 1、4、7 进行中；id 2、5、8 已完成 |
+| `due` | id 是 4 的倍数时没有；否则是 2026 年的 `(id % 12) + 1` 月 `(id % 27) + 1` 日 | id 5 是 `2026-06-06` |
+
+1000 个任务是 333 个待办、334 个进行中、333 个已完成。测试里需要同样的数据时，用同一条规则生成，不要另写一套。要“移动一个任务”时，先确认它**不在**目标列：把任务移到它本来所在的列，什么也不会变，断言就悄悄通过了。
 
 ::: deep 为什么不用 json-server 或 MSW
 json-server 要多开一个进程，还要配代理；MSW 在浏览器里拦截请求，在 Vitest 里又要另一套配置。Vite 插件只有一份文件，开发和预览都能用，故障注入（延迟、失败率）也只要几行。代价是它只在 Vite 的服务里存在：build 出来的静态文件部署到别处，没有 `/api`。所以 R12 的验收停在 `npm run preview`，真正上线需要换成真实后端。
@@ -280,6 +310,8 @@ export interface Task {
   status: Status
   due?: string // 'YYYY-MM-DD'
 }
+// 创建任务时由调用方给出的字段；id 和 status 由服务端决定
+export type NewTask = Pick<Task, 'title' | 'due'>
 // 每个状态的下一列；已完成没有下一列
 export const NEXT: Record<Status, Status | null> = { todo: 'doing', doing: 'done', done: null }
 ```
@@ -317,6 +349,24 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 ```
 
 3. `api/tasks.ts` 写 `listTasks`、`getTask`、`createTask`、`patchTask`、`deleteTask` 五个函数，每个都有明确的返回类型，`listTasks` 和 `getTask` 接受一个可选的 `AbortSignal`。
+
+::: deep 卡住时再看:api/tasks.ts
+读它能回答：五个接口函数的签名怎么写，`AbortSignal` 怎么传下去。
+
+```ts
+import type { NewTask, Task } from '@/types'
+import { request } from './client'
+
+export const listTasks = (signal?: AbortSignal) => request<Task[]>('/tasks', { signal })
+export const getTask = (id: number, signal?: AbortSignal) =>
+  request<Task>(`/tasks/${id}`, { signal })
+export const createTask = (input: NewTask) =>
+  request<Task>('/tasks', { method: 'POST', body: JSON.stringify(input) })
+export const patchTask = (id: number, patch: Partial<Pick<Task, 'title' | 'due' | 'status'>>) =>
+  request<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+export const deleteTask = (id: number) => request<void>(`/tasks/${id}`, { method: 'DELETE' })
+```
+:::
 
 完成标准：`npm run type-check` 零错误；用 curl 能读写任务。
 
@@ -386,6 +436,42 @@ export const useTaskStore = defineStore('tasks', () => {
 
 `add` 把新任务放进 `byId` 并把 id 推进 `ids`；`remove` 要同时改两处。`move` 和 `remove` 失败时把错误抛出去，由看板组件决定怎么显示（提示已经写进 `notice`，组件只需要 `.catch(() => {})`）。
 
+::: deep 卡住时再看:store 里省略的 add、remove、fetchOne、save
+读它能回答：新任务怎样进 `byId` 和 `ids`，`remove` 为什么要改两处，详情页怎样读一个任务。
+
+```ts
+  // 放进 byId；第一次见到这个 id 时，也把它推进 ids
+  function upsert(task: Task) {
+    if (!(task.id in byId.value)) ids.value.push(task.id)
+    byId.value[task.id] = task
+  }
+
+  async function add(input: NewTask): Promise<Task> {
+    const task = await api.createTask(input) // 悲观更新：服务端确认后才进列表
+    upsert(task)
+    return task
+  }
+
+  async function remove(id: number) {
+    await api.deleteTask(id)
+    delete byId.value[id]
+    ids.value = ids.value.filter((x) => x !== id) // byId 和 ids 要一起改，否则 ids 里留着找不到的 id
+  }
+
+  async function fetchOne(id: number, signal?: AbortSignal): Promise<Task> {
+    const task = await api.getTask(id, signal)
+    upsert(task)
+    return task
+  }
+
+  async function save(id: number, patch: Partial<Pick<Task, 'title' | 'due'>>) {
+    upsert(await api.patchTask(id, patch))
+  }
+```
+
+最后把 `upsert` 以外的函数都放进 `return`。
+:::
+
 完成标准：R4 的数据部分、R5、R6 的标准满足。先在页面上练习这一步最关键的片段：
 
 <Exercise id="kanbanStore" />
@@ -395,6 +481,144 @@ export const useTaskStore = defineStore('tasks', () => {
 1. `TaskCard.vue`：`defineProps<{ task: Task }>()`，`defineEmits<{ move: [id: number, to: Status]; remove: [id: number] }>()`。标题是 `RouterLink`，“移到”按钮用 `NEXT` 决定是否显示，删除按钮写 `aria-label="删除 标题"`。
 2. `TaskForm.vue`：标题输入框用 `touched` 控制：离开字段或提交之后才显示错误。提交期间 `pending` 为真，按钮禁用。服务端返回的错误（`ApiError.message`）显示在表单里。
 3. `BoardView.vue`：用 `storeToRefs(store)` 得到 `columns`、`byId`、`loadState`，挂载时 `loadState === 'idle'` 才 `load()`。根据 `loadState` 显示“加载中”、失败和重试按钮、或三列。传给卡片的是 `byId[id]`，不要在模板里复制它。“还剩 N 项”放在 `role="status"` 的元素里。
+
+::: deep 卡住时再看:TaskCard、TaskForm、BoardView
+读它能回答：卡片怎样只靠 props 和事件工作，表单的 `touched` 和 `pending` 怎样配合，看板怎样按 `loadState` 切换显示。
+
+```vue
+<!-- components/TaskCard.vue -->
+<script setup lang="ts">
+import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
+import { NEXT, type Status, type Task } from '@/types'
+
+const props = defineProps<{ task: Task }>()
+const emit = defineEmits<{
+  move: [id: number, to: Status]
+  remove: [id: number]
+}>()
+
+const next = computed(() => NEXT[props.task.status])
+</script>
+
+<template>
+  <li class="card">
+    <RouterLink :to="`/task/${task.id}`">{{ task.title }}</RouterLink>
+    <small v-if="task.due"> 截止 {{ task.due }}</small>
+    <div>
+      <button v-if="next" type="button" @click="emit('move', task.id, next)">
+        移到{{ next === 'doing' ? '进行中' : '已完成' }}
+      </button>
+      <button type="button" :aria-label="`删除 ${task.title}`" @click="emit('remove', task.id)">✕</button>
+    </div>
+  </li>
+</template>
+```
+
+```vue
+<!-- components/TaskForm.vue -->
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { ApiError } from '@/api/client'
+import { useTaskStore } from '@/stores/tasks'
+
+const store = useTaskStore()
+const title = ref('')
+const due = ref('')
+const touched = ref(false) // 离开字段或提交之后才显示校验错误
+const pending = ref(false)
+const serverError = ref('')
+
+const titleError = computed(() => (title.value.trim() ? '' : '标题不能为空'))
+
+async function submit() {
+  touched.value = true
+  if (titleError.value || pending.value) return
+  pending.value = true
+  serverError.value = ''
+  try {
+    await store.add({ title: title.value.trim(), due: due.value || undefined })
+    title.value = ''
+    due.value = ''
+    touched.value = false
+  } catch (e) {
+    serverError.value = e instanceof ApiError ? e.message : '添加失败'
+  } finally {
+    pending.value = false
+  }
+}
+</script>
+
+<template>
+  <form novalidate @submit.prevent="submit">
+    <label>
+      标题
+      <input v-model="title" :aria-invalid="touched && !!titleError" aria-describedby="title-error" @blur="touched = true" />
+    </label>
+    <label>
+      截止日期
+      <input v-model="due" type="date" />
+    </label>
+    <button type="submit" :disabled="pending">{{ pending ? '添加中…' : '添加' }}</button>
+    <p id="title-error" class="error" role="alert">{{ touched ? titleError : '' }}</p>
+    <p v-if="serverError" class="error" role="alert">{{ serverError }}</p>
+  </form>
+</template>
+```
+
+```vue
+<!-- views/BoardView.vue -->
+<script setup lang="ts">
+import { onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
+import TaskCard from '@/components/TaskCard.vue'
+import TaskForm from '@/components/TaskForm.vue'
+import { useTaskStore } from '@/stores/tasks'
+import type { Status } from '@/types'
+
+const store = useTaskStore()
+const { byId, columns, remaining, loadState, loadError, notice } = storeToRefs(store)
+
+const COLUMNS: { key: Status; title: string }[] = [
+  { key: 'todo', title: '待办' },
+  { key: 'doing', title: '进行中' },
+  { key: 'done', title: '已完成' },
+]
+
+onMounted(() => {
+  if (loadState.value === 'idle') store.load()
+})
+
+// 失败已经由 store 写进 notice，这里只需要吞掉重新抛出的错误
+const move = (id: number, to: Status) => store.move(id, to).catch(() => {})
+const remove = (id: number) => store.remove(id).catch(() => {})
+</script>
+
+<template>
+  <h1>任务看板</h1>
+  <TaskForm />
+  <p role="status">还剩 {{ remaining }} 项</p>
+  <p v-if="notice" class="error" role="alert">{{ notice }}</p>
+
+  <p v-if="loadState === 'loading'" role="status">加载中…</p>
+  <div v-else-if="loadState === 'error'" role="alert">
+    <p class="error">加载失败：{{ loadError }}</p>
+    <button type="button" @click="store.load()">重试</button>
+  </div>
+  <div v-else-if="loadState === 'ready'" class="columns">
+    <section v-for="col in COLUMNS" :key="col.key" :aria-label="col.title">
+      <h2>{{ col.title }}</h2>
+      <ul>
+        <TaskCard v-for="id in columns[col.key]" :key="id" :task="byId[id]!" @move="move" @remove="remove" />
+      </ul>
+      <p v-if="columns[col.key].length === 0">没有任务</p>
+    </section>
+  </div>
+</template>
+```
+
+`App.vue` 只有一个 `<RouterView />`。传给 `TaskCard` 的是 `byId[id]!` 本身，不是副本：这一行决定了 M6 的性能测试能不能通过。
+:::
 
 完成标准：R1、R2、R3、R4 的界面部分满足。先练习无障碍的最低要求：
 
@@ -436,6 +660,94 @@ onBeforeRouteUpdate(confirmLeave)
 
 4. 详情页顶部放“返回看板”“上一个”“下一个”三个链接。“上一个”和“下一个”的目标是 `id - 1` 和 `id + 1`，不用查 store，所以直接打开详情页也能用；目标不存在时，详情页显示“任务不存在”。“下一个”让你能手动制造请求竞态。
 
+::: deep 卡住时再看:路由表和详情页的完整代码
+读它能回答：路由表里的数字参数和 404 怎么写，详情页的几个状态怎样切换，保存按钮什么时候可用。
+
+```ts
+// router/index.ts
+import { createRouter, createWebHistory } from 'vue-router'
+import BoardView from '@/views/BoardView.vue'
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    { path: '/', name: 'board', component: BoardView },
+    {
+      path: '/task/:id(\\d+)', // 只匹配数字；/task/abc 落到下面的 404
+      name: 'task',
+      component: () => import('@/views/TaskDetailView.vue'),
+      props: (route) => ({ id: Number(route.params.id) }),
+    },
+    { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFoundView.vue') },
+  ],
+})
+
+export default router
+```
+
+`main.ts` 里 `app.use(createPinia())` 和 `app.use(router)` 之后再 `mount`。详情页（`views/TaskDetailView.vue`）把上面的 `watch`、`dirty` 和两个离开守卫放在一起：
+
+```vue
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
+import { ApiError } from '@/api/client'
+import { useTaskStore } from '@/stores/tasks'
+
+const props = defineProps<{ id: number }>()
+const store = useTaskStore()
+
+type State = 'loading' | 'ready' | 'missing' | 'error'
+const state = ref<State>('loading')
+const title = ref('') // 草稿
+const due = ref('')
+const saveError = ref('')
+const task = computed(() => store.byId[props.id])
+
+// （这里是上面的 watch，取消上一次请求、404 变成 missing）
+
+const dirty = computed(
+  () =>
+    state.value === 'ready' &&
+    !!task.value &&
+    (title.value !== task.value.title || due.value !== (task.value.due ?? '')),
+)
+
+async function save() {
+  saveError.value = ''
+  try {
+    await store.save(props.id, { title: title.value, due: due.value || undefined })
+  } catch (e) {
+    saveError.value = e instanceof ApiError ? e.message : '保存失败'
+  }
+}
+
+const confirmLeave = () => !dirty.value || window.confirm('有未保存的修改，确定离开？')
+onBeforeRouteLeave(confirmLeave)
+onBeforeRouteUpdate(confirmLeave)
+</script>
+
+<template>
+  <nav>
+    <RouterLink to="/">返回看板</RouterLink>
+    <RouterLink v-if="id > 1" :to="`/task/${id - 1}`">上一个</RouterLink>
+    <RouterLink :to="`/task/${id + 1}`">下一个</RouterLink>
+  </nav>
+  <p v-if="state === 'loading'" role="status">加载中…</p>
+  <p v-else-if="state === 'missing'">任务不存在</p>
+  <p v-else-if="state === 'error'" class="error" role="alert">加载失败</p>
+  <form v-else @submit.prevent="save">
+    <label>标题 <input v-model="title" /></label>
+    <label>截止日期 <input v-model="due" type="date" /></label>
+    <button type="submit" :disabled="!dirty">保存</button>
+    <p v-if="saveError" class="error" role="alert">{{ saveError }}</p>
+  </form>
+</template>
+```
+
+404 页（`NotFoundView.vue`）只有一个标题、一句话和回看板的链接。
+:::
+
 完成标准：R3、R7 满足；直接打开 `/task/999` 显示“任务不存在”。
 
 <Exercise id="kanbanRoute" />
@@ -470,15 +782,91 @@ it('回滚前任务又被移走：不覆盖后来的移动', async () => {
 3. TaskCard 的组件测试：用 `RouterLinkStub` 替换 `RouterLink`，检查显示标题、点击发出 `move` 和正确的参数、已完成的卡片没有“移到”按钮、删除按钮有名称。
 4. 故意改坏一处实现（去掉排序、去掉 `loadToken` 判断、把 `emit('move', …)` 改成别的名字），确认至少有一个测试变红，再改回来。
 
+::: deep 卡住时再看:store 测试的准备和 TaskCard 的组件测试
+读它能回答：每个测试怎样得到干净的 pinia 和接口替身，`RouterLinkStub` 怎么用。
+
+store 测试的开头（上面的 `deferred` 和竞态测试接在后面）：
+
+```ts
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import * as api from '@/api/tasks'
+import { useTaskStore } from '../tasks'
+import type { Task } from '@/types'
+
+vi.mock('@/api/tasks')
+const mocked = vi.mocked(api)
+
+const seed: Task[] = [
+  { id: 1, title: '无日期', status: 'todo' },
+  { id: 2, title: '晚', status: 'todo', due: '2026-12-01' },
+  { id: 3, title: '早', status: 'todo', due: '2026-01-01' },
+]
+
+beforeEach(() => {
+  setActivePinia(createPinia()) // 每个测试一个新 pinia
+  vi.resetAllMocks()
+  mocked.listTasks.mockResolvedValue(seed.map((t) => ({ ...t }))) // 拷贝，测试之间不共用对象
+})
+
+it('成功后每一列按截止日期升序，没有日期的排最后', async () => {
+  const s = useTaskStore()
+  await s.load()
+  expect(s.columns.todo.map((id) => s.byId[id]?.title)).toEqual(['早', '晚', '无日期'])
+})
+```
+
+TaskCard 的组件测试：
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { mount, RouterLinkStub } from '@vue/test-utils'
+import TaskCard from '../TaskCard.vue'
+import type { Task } from '@/types'
+
+const mountCard = (task: Task) =>
+  mount(TaskCard, { props: { task }, global: { stubs: { RouterLink: RouterLinkStub } } })
+
+describe('TaskCard', () => {
+  const task: Task = { id: 7, title: '写测试', status: 'todo', due: '2026-11-01' }
+
+  it('点“移到进行中”发出 move，带上 id 和目标列', async () => {
+    const w = mountCard(task)
+    await w.get('button').trigger('click')
+    expect(w.emitted('move')?.[0]).toEqual([7, 'doing'])
+  })
+
+  it('已完成的卡片没有“移到”按钮', () => {
+    expect(mountCard({ ...task, status: 'done' }).text()).not.toContain('移到')
+  })
+
+  it('删除按钮有名称，点击发出 remove', async () => {
+    const w = mountCard(task)
+    await w.get('[aria-label="删除 写测试"]').trigger('click')
+    expect(w.emitted('remove')?.[0]).toEqual([7])
+  })
+})
+```
+:::
+
 完成标准：R8、R9 满足。先在页面上练习“测试要能抓住缺陷”：
 
 <Exercise id="projStoreTest" />
 
 **M6：性能、无障碍复查和交付（R10、R11、R12）**
 
-1. 写一个性能测试：用 `vi.mock` 让 `listTasks` 返回 1000 个任务，挂载 `BoardView`，移动一个，断言卡片更新 0 次。用全局 mixin 在 `updated` 里计数，并按组件名过滤。`__name` 是 `<script setup>` 的组件根据文件名生成的名字：
+1. 写一个性能测试：用 `vi.mock` 让 `listTasks` 返回 1000 个任务（状态按 23.4 的规则轮流分配），挂载 `BoardView`，把一个待办任务移到进行中，断言卡片更新 0 次。用全局 mixin 在 `updated` 里计数，并按组件名过滤。`__name` 是 `<script setup>` 的组件根据文件名生成的名字：
 
 ```ts
+const STATUSES: Status[] = ['todo', 'doing', 'done']
+const tasks: Task[] = Array.from({ length: 1000 }, (_, i) => ({
+  id: i + 1,
+  title: `任务 ${i + 1}`,
+  status: STATUSES[(i + 1) % 3]!, // 和假后端 seed(1000) 同一条规则：id 498 余 0，在待办列
+}))
+vi.mocked(api.listTasks).mockResolvedValue(tasks)
+vi.mocked(api.patchTask).mockResolvedValue({ ...tasks[497]!, status: 'doing' })
+
 let updates = 0
 mount(BoardView, {
   global: {
@@ -489,12 +877,70 @@ mount(BoardView, {
 })
 await flushPromises()
 updates = 0
-await useTaskStore().move(500, 'doing')
+const store = useTaskStore()
+expect(store.byId[498]?.status).toBe('todo') // 先确认它真的在待办列
+await store.move(498, 'doing')
 await flushPromises()
+expect(store.byId[498]?.status).toBe('doing') // 确实移动了，下面的 0 才有意义
 expect(updates).toBe(0)
 ```
 
 我们用 1000 个任务验证过：移动一个任务，卡片更新 0 次；把模板里的 `:task="byId[id]!"` 改成 `:task="{ ...byId[id]! }"`，更新次数变成 999。数字更大时，先查传给卡片的 props 是否稳定（第 21 章）。更系统的诊断详见第 40 章，收尾项目（第 42 章）会让你在这个项目上做一次。
+
+::: deep 卡住时再看:性能测试的完整文件
+读它能回答：测试文件的 import 和 pinia 怎样准备，这段测试放在哪里。
+
+放在 `src/views/__tests__/BoardView.perf.spec.ts`：
+
+```ts
+import { expect, it, vi } from 'vitest'
+import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import * as api from '@/api/tasks'
+import { useTaskStore } from '@/stores/tasks'
+import BoardView from '../BoardView.vue'
+import type { Status, Task } from '@/types'
+
+vi.mock('@/api/tasks')
+
+it('1000 个任务下，移动一个任务，其他卡片更新 0 次', async () => {
+  const STATUSES: Status[] = ['todo', 'doing', 'done']
+  const tasks: Task[] = Array.from({ length: 1000 }, (_, i) => ({
+    id: i + 1,
+    title: `任务 ${i + 1}`,
+    status: STATUSES[(i + 1) % 3]!,
+  }))
+  vi.mocked(api.listTasks).mockResolvedValue(tasks)
+  vi.mocked(api.patchTask).mockResolvedValue({ ...tasks[497]!, status: 'doing' })
+
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  let updates = 0
+  mount(BoardView, {
+    global: {
+      plugins: [pinia],
+      stubs: { RouterLink: RouterLinkStub },
+      mixins: [
+        {
+          updated() {
+            if ((this.$options as { __name?: string }).__name === 'TaskCard') updates++
+          },
+        },
+      ],
+    },
+  })
+  await flushPromises()
+  updates = 0
+
+  const store = useTaskStore()
+  expect(store.byId[498]?.status).toBe('todo')
+  await store.move(498, 'doing')
+  await flushPromises()
+  expect(store.byId[498]?.status).toBe('doing')
+  expect(updates).toBe(0)
+})
+```
+:::
 
 2. 运行 `npm run build`，看每个文件的大小。详情页和 404 页应该是单独的文件。我们的参考实现入口 JS 约 102 kB，gzip 后约 40 kB，所以 60 kB 的预算留了余量；超过时先查是哪个依赖变大了。
 3. 拔掉鼠标，只用 Tab、空格和 Enter 完成添加、移动、删除，并确认能看见焦点。

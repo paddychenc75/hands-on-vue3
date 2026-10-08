@@ -10,7 +10,8 @@ desc: 回到第 23 章的看板 Pro，用错误处理、性能诊断、组件分
 
 ::: goals
 <Goal checks="sc:0,ex:capRequest">写出规范化失败、只重试安全请求的请求层，并说明懒加载失败由哪个钩子接住。</Goal>
-<Goal checks="sc:1,ex:capBoardUpdates">按诊断流程找出并修掉重渲染问题，并解释更新次数为什么变化。</Goal>
+<Goal checks="ex:capBoardUpdates">按诊断流程找出并修掉重渲染问题，并解释更新次数为什么变化。</Goal>
+<Goal checks="sc:1">按三层把卡片的键盘操作做出来（只有一个停靠点，监听放在容器上），并解释停靠点变化时为什么有一张卡片会更新一次。</Goal>
 <Goal checks="sc:2">说明水合不匹配的成因，并让一个只读页面在服务端渲染后没有警告。</Goal>
 
 :::
@@ -61,7 +62,11 @@ npm run build          # 构建成功，详情页是单独的文件
 const reports: unknown[] = []   // 放在 fakeApi() 里，和 tasks 并列
 // handle 里，在延迟之前：
 if (url.pathname === '/_report') {
-  if (req.method === 'POST') reports.push(await readBody(req))
+  if (req.method === 'POST') {
+    const body = await readBody(req)
+    if (!body) return send(res, 400, BAD_BODY)   // 第 23 章的 readBody：不是合法 JSON 对象时返回 null
+    reports.push(body)
+  }
   return send(res, 200, reports)   // 浏览器里打开 /api/_report 就能看到所有上报
 }
 ```
@@ -183,12 +188,15 @@ function column(status: Status) {
 
 <Exercise id="capBoardUpdates" />
 
-回到项目，把第 23 章的性能测试改成“按列计数”，并换一个会被渲染出来的任务（只显示前 50 张，id 500 不在页面上）：
+回到项目，把第 23 章的性能测试改成“按列计数”，并换一个会被渲染出来的任务。每列只显示前 50 张，第 23 章移动的 id 498 排在待办列第 166 位，不在页面上，移动它不会让任何卡片更新，测试会永远通过。1000 个任务的状态沿用 23.4 的规则（id 对 3 余 0 是待办），测试数据没有截止日期，待办列按 id 排：前三张是 id 3、6、9，都已渲染：
 
 ```ts
-// 1000 个任务，id 按 todo、doing、done 轮流分配（id 1、4、7……是待办）；id 4 在待办列且已渲染
-await useTaskStore().move(4, 'doing')
+// 数据生成和第 23 章一样：STATUSES[(i + 1) % 3]
+const store = useTaskStore()
+expect(store.byId[6]?.status).toBe('todo')   // 先确认 id 6 在待办列；它不是第一张（第一张是 id 3）
+await store.move(6, 'doing')
 await flushPromises()
+expect(store.byId[6]?.status).toBe('doing')  // 确实移动了，下面的计数才有意义
 expect(updates.TaskCard).toBe(0)
 expect(updates.BoardColumn).toBe(2)   // 待办和进行中更新，已完成不更新
 ```

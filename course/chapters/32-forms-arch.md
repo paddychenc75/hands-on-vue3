@@ -370,7 +370,7 @@ watch(value, () => {                                             // 值变了：
 
 订单的商品行、联系人列表：数量可变，可以增删和排序。三个设计要求：
 
-**每一项要有稳定的 id，用它做 `v-for` 的 key。**下标做 key 时，删掉第一项，原来的第二个输入框 DOM 元素被留在第二个位置，改成显示第三项的数据；用 id 做 key，第二项的元素跟着它移到第一个位置（实测：删掉第 1 项后，用 id 做 key，第 3 项原来的输入框元素被保留；用下标做 key，被保留的是第 1 个位置的元素，它改成显示第 2 项的数据）。光标、输入法组合状态、过渡动画这些只存在于 DOM 元素上的东西，会留在错误的项上（[第 18 章](/chapters/18-diff)的 18.4 节）。
+**每一项要有稳定的 id，用它做 `v-for` 的 key。**下标做 key 时，删掉第一项，原来的第二个输入框 DOM 元素被留在第二个位置，改成显示第三项的数据；用 id 做 key，第二项的元素跟着它移到第一个位置（实测：删掉第 1 项后，用 id 做 key，第 3 项原来的输入框元素被保留；用下标做 key，被保留的是第 1 个位置的元素，它改成显示第 2 项的数据）。光标、输入法组合状态、过渡动画这些只存在于 DOM 元素上的东西，会留在错误的项上（[第 18 章](/chapters/18-diff)的 18.4 节）。注意：移动被聚焦的那一项（上移、拖动排序）时，浏览器会让被移动的输入框失去焦点，哪怕 key 是稳定的 id。移动之后要在 `nextTick` 里自己调用 `focus()`。删除和在它前面插入不受影响。
 
 **不要把状态关联到下标上，除非你负责搬运。**同步错误是算出来的，项一搬家，组件拿到新路径，它自己重新算，自动正确。需要搬运的是按路径存的那几份：`touched`、`asyncErrors`、`serverErrors`。这就是 32.1 节“存与算”的代价。
 
@@ -535,7 +535,7 @@ const visible = (f, values) => !f.showIf || values[f.showIf.field] === f.showIf.
 | 问题 | 本章 | VeeValidate | FormKit | TanStack Form（`@tanstack/vue-form`） |
 |---|---|---|---|---|
 | 字段怎样接入 | `useField` 或 `FormField` | `useField`、`<Field>`、`defineField` | 一个 `<FormKit>` 组件，自动汇入所属表单的节点树 | `useForm({ defaultValues, onSubmit })`，字段用 `form.Field`（作用域插槽） |
-| 校验怎样声明 | 字段规则 + 表单级 schema | 字段规则，或用 `toTypedSchema` 包一层 Zod、Yup、Valibot 的 schema | 规则字符串，如 `validation="required\|email"` | 字段上的 validators；直接接受实现了 Standard Schema 的库（文档列出 Zod、Valibot、ArkType） |
+| 校验怎样声明 | 字段规则 + 表单级 schema | 字段规则，或用 `toTypedSchema` 包一层 Zod、Yup、Valibot 的 schema（当前稳定版 4.x 需要它；v5 测试版起直接接受 Standard Schema，不再需要） | 规则字符串，如 `validation="required\|email"` | 字段上的 validators；直接接受实现了 Standard Schema 的库（文档列出 Zod、Valibot、ArkType） |
 
 对照文档能看到几个差别：TanStack Form 的 validators 区分触发时机（`onChange`、`onBlur`、`onSubmit` 和对应的异步版本），并有内置的防抖选项，本章把“何时校验”和“何时显示”拆开，思路不同但回答的是同一个问题。FormKit 提供 JSON 可序列化的 schema，用来生成表单（32.9 节）。VeeValidate 的文档列出了数组字段、异步校验和后端错误的支持。
 

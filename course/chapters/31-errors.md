@@ -123,7 +123,7 @@ function callWithAsyncErrorHandling(fn, instance, type, args) {
 | `setTimeout` 回调 | 只有 `window` 的 `error` |
 | 原生 `addEventListener` 的监听函数 | 只有 `window` 的 `error` |
 | `nextTick(cb)` 的回调 | 只有 `unhandledrejection` |
-| 第三方库自己调用的回调 | 取决于它怎么调用：不经过 Vue，就接不住 |
+| 第三方库自己调用的回调 | 取决于库怎么调用：在你的 `setup` 或事件处理函数的调用栈上同步调用，Vue 接得住；库在 `setTimeout`、自己的事件、自己的 Promise 里调用，只到 `window` |
 
 下面的实验台把这些情况放进同一棵树。先猜，再运行。
 
@@ -314,9 +314,12 @@ router.onError((error, to) => {
   }
   report(error, null, 'router', { to: to.fullPath })
 })
+router.afterEach((to, from, failure) => {
+  if (!failure) sessionStorage.removeItem('chunk-reloaded')   // 导航成功后清除标记，下次部署还能再刷新一次
+})
 ```
 
-各浏览器的错误信息措辞不同，所以用正则匹配多个。Vite 还提供了更直接的事件：构建产物里的动态导入失败时，会先派发可取消的 `vite:preloadError`（`event.payload` 是错误），没人 `preventDefault()` 才继续抛出。
+各浏览器的错误信息措辞不同，所以用正则匹配多个。Chrome 是 `Failed to fetch dynamically imported module`，Safari 是 `Importing a module script failed`，这两条我们在真实浏览器里实测过。Firefox 的措辞来自社区报告，含有 `dynamically imported module`，也能匹配，但我们没有在 Firefox 里实测。`Loading chunk` 是 webpack 的措辞，Vite 项目不会出现。Vite 还提供了更直接的事件：构建产物里的动态导入失败时，会先派发可取消的 `vite:preloadError`（`event.payload` 是错误），没人 `preventDefault()` 才继续抛出。
 
 **Pinia。**action 抛错（同步或 `async`）时，`$onAction` 的 `onError` 会收到，**同时错误仍然抛给调用者**。`onError` 只是旁观，不吞掉错误。所以在插件里统一上报很方便：
 
@@ -338,7 +341,7 @@ pinia.use(({ store }) => {
 | 出错的组件和父链 | `errorHandler` 的第二个参数 |
 | 来源 | `info`（生产版是码），或你自己标的入口名 |
 | 路由 | `location`、`router.currentRoute` |
-| 版本号 | 构建时注入，用来找对应的 source map |
+| 版本号 | 用来定位是哪次部署出的错。构建时注入：在 `vite.config` 的 `define` 里配置，例如 `define: { __APP_VERSION__: JSON.stringify(版本号) }`，代码里就能读到 `__APP_VERSION__`。它不是 Vite 内置的 |
 | 用户操作面包屑 | 最近几次点击、导航、请求 |
 
 **组件名链。**`errorHandler` 收到的 `instance` 是组件的公开实例。沿 `$parent` 往上走：
@@ -377,8 +380,8 @@ export function report(err, inst, info, extra) {
 **生产环境的压缩代码。**线上的栈是 `at a (app.3f2c.js:1:20483)`，没法读。需要 source map：
 
 1. 构建时设置 `build.sourcemap: 'hidden'`。Vite 照常生成 `.map` 文件，但产物里不写 `//# sourceMappingURL` 注释，浏览器和用户不会下载它。
-2. 构建流水线把 `.map` 文件上传给监控服务，上传时带版本号（`release`），然后从发布目录里删除它们。
-3. 上报时带同一个版本号，监控服务用“版本号 加 文件名”找到对应的 map，把压缩栈还原成源码位置。
+2. 构建流水线把 `.map` 文件上传给监控服务，然后从发布目录里删除它们。Sentry 推荐用它的 Vite 插件（或 Sentry Wizard、`sentry-cli`），插件会给压缩后的 JS 和对应的 map 注入同一个 Debug ID，上传后还能自动删除 map。
+3. 上报时，Sentry SDK 把压缩文件里的 Debug ID 随错误一起发出，监控服务用它找到对应的 map，把压缩栈还原成源码位置。较老的做法是按版本号（`release`）加文件名匹配，但文件路径一变就会失效，新项目不用它。其他监控服务的机制不同，以各自文档为准。
 
 `.map` 文件会暴露源码，所以不对外公开。
 

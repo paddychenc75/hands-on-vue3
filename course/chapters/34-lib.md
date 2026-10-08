@@ -139,7 +139,7 @@ export default defineConfig({
 
 - `build.lib` 把 Vite 从“构建应用”切换到“构建库”：入口是 `src/index.ts`，不是 `index.html`。
 - Vite 8 的底层是 Rolldown，所以选项叫 `rolldownOptions`。旧名字 `rollupOptions` 还能用，但类型里标记为已弃用。
-- `formats: ['es']`：只出 ESM。判断要不要 CJS：使用者都用打包器或现代 Node 时，ESM 就够了。Node 的 `require()` 现在可以加载 ESM（在 Node 25.6 上实测可用，前提是 `exports` 里有 `default` 条件，见 34.3 节）。只有要给 CDN 用 `<script>` 标签时，才加 `umd` 或 `iife`，并配 `output.globals: { vue: 'Vue' }`、`lib.name`。我们实测过 UMD 的产物，开头是 `t(e.MiniUI={},e.Vue)`，`vue` 通过全局变量 `Vue` 取得。
+- `formats: ['es']`：只出 ESM。判断要不要 CJS：使用者都用打包器或现代 Node 时，ESM 就够了。Node 的 `require()` 现在可以加载 ESM：Node 22.12 和 20.19 起默认可用，更老的版本会抛 `ERR_REQUIRE_ESM`。限制是被加载的模块图里不能有顶层 `await`，否则抛 `ERR_REQUIRE_ASYNC_MODULE`。我们在 Node 25.6 上实测可用，前提是 `exports` 里有 `default` 条件，见 34.3 节。只有要给 CDN 用 `<script>` 标签时，才加 `umd` 或 `iife`，并配 `output.globals: { vue: 'Vue' }`、`lib.name`。我们实测过 UMD 的产物，开头是 `t(e.MiniUI={},e.Vue)`，`vue` 通过全局变量 `Vue` 取得。
 - `minify: false`：库的产物交给使用者的构建去压缩。我们第一次构建时没有关，ES 产物里的变量名被改成了 `e`、`t`、`n`，使用者看到的报错栈无法阅读。
 - `preserveModules`：每个源文件对应一个产物文件。单文件打包（去掉 `output` 那一行）更简单，产物只有 `index.js` 加 `style.css`。我们对比过：应用只导入 `MiniButton` 时，两种产物打包后都是 61.78 kB，tree-shaking 效果相同。选择 `preserveModules` 的理由是：`sideEffects` 可以精确到文件，使用者的调试器能对应到源文件，将来也能加深层导入的子路径。
 
@@ -381,9 +381,9 @@ export function useWidth() {
 
 预发布版本用 `npm version 0.2.0-beta.0` 和 `npm publish --tag beta`：只有明确 `npm i mini-ui@beta` 的人才会拿到它，`latest` 不受影响。先用 `npm publish --dry-run` 看一遍，我们实测它会列出文件并提示需要登录，不会真的发布。
 
-供应链措施简单提一下：npm 支持在发布时附带**来源证明**（provenance），证明这个包是从哪个仓库的哪次构建发布出来的。官方文档要求 npm 9.5.0 或更高，在 GitHub Actions 或 GitLab CI 的云端运行器上执行 `npm publish --provenance`（或在 `publishConfig` 里设置 `provenance: true`）；使用 npm 的 trusted publishing（OIDC）时会自动生成。我们没有真的发布，这一条按官方文档陈述。
+供应链措施简单提一下：npm 支持在发布时附带**来源证明**（provenance），证明这个包是从哪个仓库的哪次构建发布出来的。官方文档要求 npm 9.5.0 或更高，在 GitHub Actions 或 GitLab CI 的云端运行器上执行 `npm publish --provenance`（或在 `publishConfig` 里设置 `provenance: true`）；使用 npm 的 trusted publishing（OIDC）时会自动生成（仅限公开仓库里发布的公开包）。我们没有真的发布，这一条按官方文档陈述。
 
-组件库和文档站通常放进同一个仓库：一个 workspace 里 `packages/ui` 是库，`docs` 是文档站，文档站用 `workspace:*` 依赖本地的库。本课程就是用 VitePress 写的，Markdown 里可以直接使用 Vue 组件（本页的自测题和实验台都是组件），所以文档里的示例是真的运行，不是截图。
+组件库和文档站通常放进同一个仓库：一个 workspace 里 `packages/ui` 是库，`docs` 是文档站，文档站依赖本地的库：pnpm 和 Yarn 2 及以上写 `"mini-ui": "workspace:*"`；npm 不认 `workspace:` 协议，写 `"mini-ui": "*"`，workspaces 会自动链接到本地包。本课程就是用 VitePress 写的，Markdown 里可以直接使用 Vue 组件（本页的自测题和实验台都是组件），所以文档里的示例是真的运行，不是截图。
 
 ### 34.9 测试和发布前清单
 

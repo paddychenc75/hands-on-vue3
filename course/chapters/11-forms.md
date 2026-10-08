@@ -356,7 +356,7 @@ const onSubmit = handleSubmit(async values => {          // 校验通过后才�
 // 模板：<input v-model="email" v-bind="emailAttrs"> <p>{{ errors.email }}</p>
 ```
 
-schema 可以同时用于前端和 Node.js 后端。两端的规则保持一致。
+schema 可以同时用于前端和 Node.js 后端。两端的规则保持一致。上面的 `toTypedSchema` 是 VeeValidate 当前稳定版 4.x 的写法；v5 测试版起直接接受 Standard Schema，把 schema 传给 `validationSchema` 即可，不再需要它。
 
 FormKit 是另一种选择。它提供带标签、校验和错误信息的输入组件：
 

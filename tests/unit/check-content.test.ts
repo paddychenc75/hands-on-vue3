@@ -190,6 +190,13 @@ describe('章节与 frontmatter', () => {
   })
 })
 
+describe('术语', () => {
+  it('同名术语在两章里定义文字不同 -> 报错', () => {
+    const inp = editChapter('16-diff', s => s.replace('key\n: v-for 中标识每一项的唯一值。', 'key\n: 判断新旧节点是不是同一个节点的标识。'))
+    expectError(run(inp), /术语“key”\s+在多章的“本章术语”里定义不同/)
+  })
+})
+
 describe('站内引用', () => {
   it('不存在的第 99 章', () => {
     expectError(run(editChapter('01-first', s => s + '\n详见第 99 章。\n')), /引用了第 99 章，但课程只有 \d+ 章/)
@@ -272,14 +279,14 @@ describe('非章页面（首页、术语表、今日复习、阶段测验页）�
 })
 
 describe('首页写作规则表（course/writing-terms.mjs）和术语表', () => {
-  it('找不到的术语被报出来（真实的三条由 known-issues 豁免）', () => {
+  it('找不到的术语被报出来', () => {
     const wt = [...base.writingTerms, { label: '不存在', terms: ['根本没有这个术语'], meaning: 'm', avoid: 'a' }]
     expectError(run({ ...base, writingTerms: wt }), /术语“根本没有这个术语”在术语表里找不到/)
   })
-  it('真实仓库：未豁免的术语都能找到；豁免的是 组件/父组件/子组件', () => {
+  it('真实仓库：写作规则表里的术语都能找到（组件、父组件、子组件已补进术语块），没有靠豁免', () => {
     const res = validate(base)
-    const missing = res.errors.filter((e: any) => e.key.startsWith('wterm-missing:')).map((e: any) => e.key.split(':')[1]).sort()
-    expect(missing).toEqual(['子组件', '组件', '父组件'].sort())
+    expect(res.errors.filter((e: any) => e.key.startsWith('wterm-missing:'))).toEqual([])
+    expect(KNOWN_ISSUES).toEqual([])
   })
   it('缺字段 / 重复', () => {
     expectError(run({ ...base, writingTerms: [{ label: 'x', terms: [], meaning: 'm', avoid: 'a' }] }), /label、terms/)

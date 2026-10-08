@@ -288,7 +288,11 @@ export function validate(inp, opts = {}) {
     for (const m of metas) {
       try { collectGlossary([m]); safe.push(m); } catch (e) { fail(`terms-format:${m.meta.file}`, CH(m.meta.file), String(e.message), '术语块里每个术语：一行术语，下一行以 `: ` 开头写解释，术语之间空一行'); }
     }
-    for (const e of collectGlossary(safe).entries) glossaryTerms.add(e.term);
+    const gl = collectGlossary(safe);
+    for (const e of gl.entries) glossaryTerms.add(e.term);
+    // 同名术语在多章里定义文字必须一样（构建时的警告在这里升级为错误；需要更深的解释放进正文）
+    for (const c of gl.conflicts)
+      fail(`term-conflict:${c.term}`, `术语“${c.term}”`, `在多章的“本章术语”里定义不同：${c.defs.map(d => `${d.file}（${d.def}）`).join('；')}`, '后出现的章沿用首次出现的定义文字，更深的解释放进正文');
   }
   if (inp.writingTerms) {
     const seenTerm = new Map();

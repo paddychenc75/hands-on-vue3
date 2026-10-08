@@ -38,7 +38,7 @@ import QueueDemo from '../labs/13-scheduler/QueueDemo.vue'
 : 当前同步代码结束后立即运行的任务。
 
 nextTick
-: 返回当前这次刷新的 Promise。已经安排的更新完成后，它完成。
+: 等待 Vue 完成已经安排的 DOM 更新。
 
 批量更新
 : 多次修改数据，组件只渲染一次。

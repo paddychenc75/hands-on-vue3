@@ -1,4 +1,4 @@
-// 第 23 章的实验台测试数据。
+// 第 24 章的实验台测试数据。
 module.exports = [
   {
     id: 'demo-tool-scoped', name: '默认情况：Inner 根元素有 Card 的 data-v 属性；.inner 不生效，:deep 生效；改模板后重新渲染', pick: 0,

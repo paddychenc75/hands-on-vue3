@@ -2,13 +2,13 @@
 title: 综合实战
 id: project
 stage: 6
-chapter: 27
+chapter: 29
 desc: 五步完成一个任务看板
 ---
 
 <script setup>
-import TaskAppDataFlow from '../figures/27-project/TaskAppDataFlow.vue'
-import TaskBoard from '../labs/27-project/TaskBoard.vue'
+import TaskAppDataFlow from '../figures/29-project/TaskAppDataFlow.vue'
+import TaskBoard from '../labs/29-project/TaskBoard.vue'
 </script>
 
 # 综合实战：任务看板
@@ -129,11 +129,11 @@ const left = computed(() => tasks.value.filter(t => !t.done).length)
    - 打开不存在的 id 时，页面显示“任务不存在”，控制台没有错误。
 
    <Exercise id="kanbanRoute" />
-4. 用 TypeScript 为 Task 定义接口。（第 21 章）在本地项目里完成，页面上没有练习框。<br>验收标准：
+4. 用 TypeScript 为 Task 定义接口。（第 22 章）在本地项目里完成，页面上没有练习框。<br>验收标准：
    - Task 接口有 id、text、done 三个字段。它们的类型是 number、string、boolean。
    - TaskItem 用 `defineProps<{ task: Task }>()` 声明 props，并为 toggle 事件声明参数类型。
    - 运行 `vue-tsc --noEmit` 时没有错误。传入缺少 text 的对象时，编辑器报错。
-5. 用 Vitest 为 TaskItem 写一个组件测试。（第 23 章）在本地项目里完成，页面上没有练习框。<br>验收标准：
+5. 用 Vitest 为 TaskItem 写一个组件测试。（第 24 章）在本地项目里完成，页面上没有练习框。<br>验收标准：
    - 测试挂载 TaskItem 后，检查页面显示任务的文字。
    - 测试点击复选框后，检查组件发出 toggle 事件，参数是任务的 id。
    - 运行 `npx vitest run` 时测试通过。把 emit 的事件名改错后，测试失败。

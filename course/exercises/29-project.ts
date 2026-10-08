@@ -3,7 +3,7 @@ import { sub } from './types'
 import { nextTick } from 'vue'
 
 export const kanbanItem: Exercise = {
-  title: '拆出 TaskItem 组件：props 向下，事件向上', ch: 27,
+  title: '拆出 TaskItem 组件：props 向下，事件向上', ch: 29,
   task: '<p>下面的看板已经拆成父组件和 TaskItem。父组件有数据和 toggle、remove 两个方法。TaskItem 还没写完。</p><ol><li>TODO 1：声明 props。<code>task</code> 是对象，必填。</li><li>TODO 2：声明两个事件：<code>toggle</code> 和 <code>remove</code>。</li><li>TODO 3：点击复选框时，发出 <code>toggle</code>，参数是任务的 id。点击“删除”时，发出 <code>remove</code>，参数是任务的 id。</li></ol><p>TaskItem 不修改 <code>task</code>。修改数据是父组件的事。页面下方的计数显示父组件收到了几次事件。</p>',
   tpl: '<ul>\n  <TaskItem v-for="t in tasks" :key="t.id" :task="t" @toggle="toggle" @remove="remove" />\n</ul>\n<p class="log">父组件收到：toggle {{ log.toggle }} 次，remove {{ log.remove }} 次</p>',
   js: `// ---------- 父组件的数据和方法。不要修改。 ----------
@@ -179,7 +179,7 @@ return { tasks, log, toggle, remove, components: { TaskItem } }`,
 }
 
 export const kanbanSave: Exercise = {
-  title: '补上 remove，并把任务保存到 localStorage', ch: 27,
+  title: '补上 remove，并把任务保存到 localStorage', ch: 29,
   task: '<p>下面是第 5 步的 useTasks 和看板组件。“删除”按钮没有作用。刷新后，任务恢复为示例数据。</p><ol><li>补上 remove。点击“删除”后，任务从列表中消失。</li><li>useTasks 创建 tasks 时，先从 localStorage 读取。没有数据时，用 seed()。</li><li>tasks 改变时，写入 localStorage。勾选复选框也要保存。</li></ol><p>只修改 useTasks 函数。不要修改 key。点击“模拟刷新”检查结果。原因：模拟刷新会重新创建看板，useTasks 重新运行，和刷新页面相同。</p>',
   tpl: '<TaskBoard :key="reloads" />\n<button @click="reloads++">模拟刷新</button>',
   js: `const seed = () => [
@@ -283,7 +283,7 @@ const TaskBoard = {
 const reloads = ref(0)
 return { reloads, components: { TaskBoard } }`,
   hints: [
-    '删除：生成一个不含这一项的新数组，赋给 tasks.value。持久化分两半：创建 tasks 时读取，tasks 改变时写入。第 27 章第 5 步和第一道自测讲了它。勾选只修改 done 属性，所以 watch 要加 { deep: true }。否则勾选不会保存。',
+    '删除：生成一个不含这一项的新数组，赋给 tasks.value。持久化分两半：创建 tasks 时读取，tasks 改变时写入。第 29 章第 5 步和第一道自测讲了它。勾选只修改 done 属性，所以 watch 要加 { deep: true }。否则勾选不会保存。',
     '在 useTasks 中改三处：1. remove 中，把 tasks.value.filter(…) 的结果赋给 tasks.value。2. ref 的初值：先读 localStorage.getItem(key)。结果是 null 时用 seed()，否则用 JSON.parse。3. 在 ref 下面写 watch(tasks, 回调, { deep: true })。回调中调用 localStorage.setItem 和 JSON.stringify。',
     'function remove(id) { tasks.value = tasks.value.filter(t => t.id !== id) }\n\nconst saved = localStorage.getItem(key)\nconst tasks = ref(saved ? JSON.parse(saved) : seed())\nwatch(tasks, v => localStorage.setItem(key, JSON.stringify(v)), { deep: true })'
   ],
@@ -312,7 +312,7 @@ return { reloads, components: { TaskBoard } }`,
 }
 
 export const kanbanDue: Exercise = {
-  title: '延伸练习 1：按截止日期排序', ch: 27,
+  title: '延伸练习 1：按截止日期排序', ch: 29,
   task: '<p>每个任务有截止日期 due。due 是“2026-06-01”格式的字符串。没有日期时，due 是空字符串。</p><ol><li>在模板中，没有日期的任务显示“无”。</li><li>用 computed 定义 sorted：按日期从早到晚排列。没有日期的任务排在最后。</li><li>在输入框中修改日期。列表立即重新排序。</li></ol>',
   tpl: '<ul>\n  <li v-for="t in sorted" :key="t.id">\n    <span class="text">{{ t.text }}</span>\n    截止：<span class="due">{{ t.due }}</span>\n    <input type="date" v-model="t.due">\n  </li>\n</ul>',
   js: `const tasks = ref([
@@ -366,7 +366,7 @@ return { tasks, sorted }`,
 }
 
 export const kanbanStore: Exercise = {
-  title: '延伸练习 2：把任务放入 store', ch: 27,
+  title: '延伸练习 2：把任务放入 store', ch: 29,
   task: '<p>练习台没有 Pinia。脚本开头的 defineStore 和 storeToRefs 是简化版，行为和 Pinia 相同：</p><ul><li>第一次调用 useTaskStore() 时，运行 setup 函数。以后每次调用，都返回同一个 store。</li><li>store 是 reactive 对象。直接解构 state，只得到当前值。</li></ul><ol><li>把 App 中的 tasks、add、toggle、remove 移到 store 中。App 不再保存任务数组。</li><li>App 用 storeToRefs 取出 tasks，从 store 取出 add、toggle、remove。</li><li>LeftCount 用 storeToRefs 解构 left。添加或勾选任务后，“还剩”立即改变。</li></ol><p>不需要修改模板。持久化已在上一道练习中完成，本题不检查。</p>',
   tpl: '<input v-model="draft" @keyup.enter="submit" placeholder="新任务">\n<button @click="submit">添加</button>\n<ul>\n  <li v-for="t in tasks" :key="t.id">\n    <input type="checkbox" :checked="t.done" @change="toggle(t.id)">\n    <span>{{ t.text }}</span>\n    <button @click="remove(t.id)">删除</button>\n  </li>\n</ul>\n<LeftCount />',
   js: `// 简化版 defineStore 和 storeToRefs。不要修改。
@@ -493,7 +493,7 @@ return { draft, submit, tasks, toggle, remove, components: { LeftCount } }`,
 }
 
 export const kanbanRoute: Exercise = {
-  title: '延伸练习 3：/task/:id 详情页', ch: 27,
+  title: '延伸练习 3：/task/:id 详情页', ch: 29,
   task: '<p>练习台没有 Vue Router。脚本中的 route 和 push 是简化版。和真实的路由一样，route.params 中的值总是字符串。</p><ol><li>在模板中，点击任务标题时，调用 push(\'/task/\' + t.id)。</li><li>修复 task 的 computed。现在打开 /task/1，页面显示“任务不存在”。</li><li>确认打开 /task/99 时，页面显示“任务不存在”，没有错误。</li></ol><p>“/task/1”和“/task/99”两个按钮模拟在地址栏直接打开地址。</p>',
   tpl: '<p class="addr">地址：{{ route.path }}</p>\n<ul v-if="route.path === \'/\'">\n  <li v-for="t in tasks" :key="t.id">\n    <!-- TODO 1：点击标题时打开详情页 -->\n    <a href="#" class="title" @click.prevent>{{ t.text }}</a>\n  </li>\n</ul>\n<div v-else>\n  <h4 v-if="task">任务 {{ task.id }}：{{ task.text }}</h4>\n  <p v-else class="none">任务不存在</p>\n  <button @click="push(\'/\')">返回列表</button>\n</div>\n<p>直接打开：\n  <button @click="push(\'/task/1\')">/task/1</button>\n  <button @click="push(\'/task/99\')">/task/99</button>\n</p>',
   js: `// 简化版 route 和 push。不要修改。
@@ -533,7 +533,7 @@ const task = computed(() => tasks.value.find(t => t.id === Number(route.params.i
 
 return { route, push, tasks, task }`,
   hints: [
-    '路由参数总是字符串（第 20 章）。t.id 是数字。\'1\' === 1 为假，所以 find 找不到任务。第 27 章自测第 4 题讲了它。',
+    '路由参数总是字符串（第 20 章）。t.id 是数字。\'1\' === 1 为假，所以 find 找不到任务。第 29 章自测第 4 题讲了它。',
     '1. 模板：在 <a> 的 @click.prevent 后写 ="push(…)"，参数是 \'/task/\' 加 t.id。2. 脚本：比较前，用 Number() 把 route.params.id 转为数字。',
     '<a href="#" class="title" @click.prevent="push(\'/task/\' + t.id)">{{ t.text }}</a>\n\nconst task = computed(() => tasks.value.find(t => t.id === Number(route.params.id)))'
   ],

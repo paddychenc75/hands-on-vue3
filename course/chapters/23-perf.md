@@ -2,16 +2,16 @@
 title: 性能优化
 id: perf
 stage: 5
-chapter: 22
+chapter: 23
 desc: 虚拟列表、props 稳定性、懒加载
 ---
 
 <script setup>
-import VirtualListWindow from '../figures/22-perf/VirtualListWindow.vue'
-import UnstablePropsRerender from '../figures/22-perf/UnstablePropsRerender.vue'
-import VirtualList from '../labs/22-perf/VirtualList.vue'
-import PropsStable from '../labs/22-perf/PropsStable.vue'
-import VMemoLab from '../labs/22-perf/VMemoLab.vue'
+import VirtualListWindow from '../figures/23-perf/VirtualListWindow.vue'
+import UnstablePropsRerender from '../figures/23-perf/UnstablePropsRerender.vue'
+import VirtualList from '../labs/23-perf/VirtualList.vue'
+import PropsStable from '../labs/23-perf/PropsStable.vue'
+import VMemoLab from '../labs/23-perf/VMemoLab.vue'
 </script>
 
 # 性能优化
@@ -55,7 +55,7 @@ v-memo
 
 优化之前，先测量。测量方法和选择方法的总表见 21.7。
 
-### 22.1 用虚拟列表显示大列表
+### 23.1 用虚拟列表显示大列表
 
 虚拟列表只渲染可见区域中的行。滚动时，它替换这些行的内容。DOM 节点的数量不随数据量增加。
 
@@ -118,7 +118,7 @@ const visible = computed(() => {
 
 实际项目中，使用 vue-virtual-scroller 或 @tanstack/vue-virtual。它们还处理行高不固定和横向滚动。
 
-### 22.2 传递稳定的 props
+### 23.2 传递稳定的 props
 
 父组件更新时，Vue 比较每个子组件的新旧 props。props 相同时，Vue 不更新子组件。下图说明这个比较。
 
@@ -173,7 +173,7 @@ const stats = computed(oldValue => {
 ```
 :::
 
-### 22.3 用 v-memo 和 v-once 跳过不变的模板
+### 23.3 用 v-memo 和 v-once 跳过不变的模板
 
 `v-memo` 接收一个数组。重新渲染时，Vue 比较数组中的每个值。所有值都和上次相同时，Vue 复用上次的虚拟节点。这个子树不重新创建，也不比较。
 
@@ -228,7 +228,7 @@ Vapor Mode 是一种不使用虚拟 DOM 的编译模式。编译器直接生成�
 它是可选功能，默认不启用。只支持 `<script setup>` 组件。在单文件组件中用 `<script setup vapor>` 启用。在生产环境使用前，阅读官方文档中的当前状态。
 :::
 
-### 22.4 减少响应式的开销
+### 23.4 减少响应式的开销
 
 reactive 只在读取嵌套对象时创建代理。但是遍历一个大数组时，每个元素都会被代理，并收集依赖。对于大数据，按下表选择。shallowRef、triggerRef 和 markRaw 的完整用法见 [第 3 章](/chapters/03-refs)。
 
@@ -244,7 +244,7 @@ reactive 只在读取嵌套对象时创建代理。但是遍历一个大数组�
 
 <Exercise id="fbPerf" />
 
-### 22.5 用 defineAsyncComponent 减少首次加载的代码
+### 23.5 用 defineAsyncComponent 减少首次加载的代码
 
 首次加载的 JS 文件太大时，页面显示得慢。把不是马上需要的组件拆为单独的文件。需要时才下载。
 
@@ -307,7 +307,7 @@ const loadReport = () => import('./views/Report.vue')
 首屏中最大的图片不要使用 `loading="lazy"`。它影响 LCP 指标。
 :::
 
-### 22.6 减少请求和事件处理的次数
+### 23.6 减少请求和事件处理的次数
 
 输入框每输入一个字就发请求时，请求太多。用防抖等用户停止输入。滚动事件触发太频繁时，用节流限制次数。
 
@@ -350,7 +350,7 @@ export function useCachedFetch(url) {
 实际项目中，使用 TanStack Query 或 Pinia Colada。它们还处理重复请求、过期时间和失效。
 :::
 
-### 22.7 测量，然后选择方法
+### 23.7 测量，然后选择方法
 
 没有测量结果时，不要优化。你可能优化了不慢的代码，还让代码更难读。按下面的步骤找到慢的部分：
 

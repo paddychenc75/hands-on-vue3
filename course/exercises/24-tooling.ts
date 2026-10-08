@@ -2,7 +2,7 @@ import type { Exercise } from './types'
 import { sub } from './types'
 
 export const testAwait: Exercise = {
-  title: '修复：组件没有错误，测试却失败', ch: 23,
+  title: '修复：组件没有错误，测试却失败', ch: 24,
   task: '<p>说明：练习台不能运行 Vitest。脚本中有一个迷你的 mount 和 expect，它们模仿 @vue/test-utils 和 Vitest。trigger 和真实的版本一样，返回一个 Promise。</p><ol><li>阅读测试 testCounter。Counter 组件没有错误，但是测试失败。</li><li>只修改 testCounter，让测试通过。不要修改 expect 的期望值。</li><li>脚本用同一个测试检查两个组件：Counter 正确，BrokenCounter 点击后不变。修好后 Counter 应通过，BrokenCounter 应失败。</li></ol>',
   tpl: '<p class="result">测试 Counter：{{ result }}</p>\n<p class="broken">测试 BrokenCounter：{{ broken }}</p>',
   js: `// ===== 已给出：迷你的 mount 和 expect（不用修改） =====
@@ -113,7 +113,7 @@ run(Counter, result)
 run(BrokenCounter, broken)
 return { result, broken }`,
   hints: [
-    '原因：点击后，Vue 没有立即更新 DOM。测试在下一行就读取文字，读到的是点击之前的结果。组件没有错误，是测试检查得太早。测试要等 DOM 更新完成，再检查结果。第 23 章“23.6 测试组件”后面的注意事项讲了它。',
+    '原因：点击后，Vue 没有立即更新 DOM。测试在下一行就读取文字，读到的是点击之前的结果。组件没有错误，是测试检查得太早。测试要等 DOM 更新完成，再检查结果。第 24 章“24.6 测试组件”后面的注意事项讲了它。',
     '只改 trigger 这一行。在这一行前面加一个关键字，等待 trigger 返回的 Promise。testCounter 已经是 async 函数。',
     'await wrapper.find(\'button\').trigger(\'click\')'
   ],
@@ -128,7 +128,7 @@ return { result, broken }`,
 }
 
 export const fbTooling: Exercise = {
-  title: '补全：让测试能发现错误', ch: 23,
+  title: '补全：让测试能发现错误', ch: 24,
   task: '<p>说明：练习台不能运行 Vitest。脚本中有一个迷你的 mount 和 expect，它们模仿 @vue/test-utils 和 Vitest。</p><p>testToggle 测试一个开关组件。脚本用同一个测试检查两个组件：Toggle 正确，BrokenToggle 点击后不变。现在两个都“通过”。原因：测试点击后没有断言。没有断言的测试总是通过。</p><ol><li>只补全 testToggle 中的一行 TODO：断言点击后文字包含“开”。</li><li>确认 Toggle 通过，BrokenToggle 失败。</li></ol>',
   tpl: '<p class="good">测试 Toggle：{{ good }}</p>\n<p class="broken">测试 BrokenToggle：{{ broken }}</p>',
   js: `// ===== 已给出：迷你的 mount 和 expect（不用修改） =====
@@ -242,7 +242,7 @@ runTest(Toggle, good)
 runTest(BrokenToggle, broken)
 return { good, broken }`,
   hints: [
-    '组件测试分三步：挂载，触发事件，断言结果。没有断言时，测试函数不抛出错误，所以总是通过。第 23 章“23.6 测试组件”的 Counter.spec.js 示例讲了它。',
+    '组件测试分三步：挂载，触发事件，断言结果。没有断言时，测试函数不抛出错误，所以总是通过。第 24 章“24.6 测试组件”的 Counter.spec.js 示例讲了它。',
     '只改 TODO 这一行。照抄上面检查“关”的那一行，把期望的文字改为“开”。',
     "expect(wrapper.text()).toContain('开')"
   ],

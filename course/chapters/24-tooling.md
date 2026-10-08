@@ -2,15 +2,15 @@
 title: 工程化与测试
 id: tooling
 stage: 5
-chapter: 23
+chapter: 24
 desc: Vite、环境变量、scoped CSS、ESLint、部署、Vitest
 ---
 
 <script setup>
-import DevVsBuild from '../figures/23-tooling/DevVsBuild.vue'
-import ScopedStyleAttribute from '../figures/23-tooling/ScopedStyleAttribute.vue'
-import ScopedRewrite from '../labs/23-tooling/ScopedRewrite.vue'
-import CssVars from '../labs/23-tooling/CssVars.vue'
+import DevVsBuild from '../figures/24-tooling/DevVsBuild.vue'
+import ScopedStyleAttribute from '../figures/24-tooling/ScopedStyleAttribute.vue'
+import ScopedRewrite from '../labs/24-tooling/ScopedRewrite.vue'
+import CssVars from '../labs/24-tooling/CssVars.vue'
 </script>
 
 # 工程化与测试
@@ -56,7 +56,7 @@ Vitest
 本章的工具自动完成这些工作。Vite 编译和打包，ESLint 检查代码，Vitest 运行测试。
 :::
 
-### 23.1 创建项目
+### 24.1 创建项目
 
 按下面的步骤创建项目：
 
@@ -147,7 +147,7 @@ export default defineConfig({
 团队成员多的项目，可以只自动导入组件库，自己的代码仍然写 import。
 :::
 
-### 23.2 配置编辑器和代码检查
+### 24.2 配置编辑器和代码检查
 
 编辑器扩展在你写代码时提示错误。ESLint 和 vue-tsc 在提交和构建前检查全部代码。按下面的步骤配置：
 
@@ -179,7 +179,7 @@ Vue DevTools 有浏览器扩展和 Vite 插件（`vite-plugin-vue-devtools`）�
 生产构建默认关闭 DevTools。
 :::
 
-### 23.3 配置开发代理和环境变量
+### 24.3 配置开发代理和环境变量
 
 前端和后端在不同的端口上运行时，浏览器会阻止跨域请求。开发时，用 `server.proxy` 把请求转发到后端：
 
@@ -222,7 +222,7 @@ import.meta.env.BASE_URL        // vite.config 中的 base
 
 只有 `VITE_` 开头的变量进入客户端代码。构建时，Vite 把它们直接替换为字符串。所以打包后的文件包含这些值。不要把密钥写入 VITE\_ 变量。
 
-### 23.4 写组件的样式
+### 24.4 写组件的样式
 
 `<style scoped>` 让样式只作用于当前组件。编译器给每个选择器加上组件的属性，例如 `[data-v-7ba5bd90]`。渲染时，Vue 给组件的元素加上这个属性。下图说明属性加在哪些元素上。
 
@@ -364,10 +364,10 @@ const color = ref('red')
 3. 渲染器创建元素时，读取当前组件的 \_\_scopeId，并调用 `setAttribute`。
 4. 子组件的根元素也得到父组件的属性。子组件内部的元素没有。所以父组件的 scoped 样式只能影响子组件的根元素。
 
-23.4 节表格中的编译结果来自 `@vue/compiler-sfc` 3.5 的真实输出。
+24.4 节表格中的编译结果来自 `@vue/compiler-sfc` 3.5 的真实输出。
 :::
 
-### 23.5 构建和部署
+### 24.5 构建和部署
 
 运行 `npm run build`。Vite 把结果输出到 `dist/`。按下面的步骤部署：
 
@@ -386,7 +386,7 @@ location /admin/assets/ {
 }
 ```
 
-### 23.6 测试组件
+### 24.6 测试组件
 
 测试分为三层：
 
@@ -454,7 +454,7 @@ expect(wrapper.findComponent({ name: 'TaskChart' }).exists()).toBe(true)
 
 <Exercise id="fbTooling" />
 
-### 23.7 测试组合式函数、store 和完整流程
+### 24.7 测试组合式函数、store 和完整流程
 
 没有使用生命周期钩子或 inject 的组合式函数，可以直接调用并测试。使用了它们时，要在组件中运行。写一个辅助函数：
 
@@ -627,7 +627,7 @@ logo.png 要在构建后使用带哈希的文件名，这样浏览器可以长�
 
 <Sc :a="1">
 
-回顾（第 21 章）：子组件写 `defineProps<{ size?: 'sm' | 'lg' }>()`。父组件传 `size="xl"`。运行 npm run dev 时，会发生什么？
+回顾（第 22 章）：子组件写 `defineProps<{ size?: 'sm' | 'lg' }>()`。父组件传 `size="xl"`。运行 npm run dev 时，会发生什么？
 
 <Opt>Vite 编译失败，显示类型错误</Opt>
 <Opt>页面正常运行，控制台没有警告</Opt>
@@ -635,7 +635,7 @@ logo.png 要在构建后使用带哈希的文件名，这样浏览器可以长�
 
 <template #explain>
 
-解析：第 21 章：编译器把这个类型转换为 `{ type: String, required: false }`。'xl' 是字符串，所以运行时检查通过，没有警告。Vite 只删除类型，不做类型检查，所以编译不会失败。这个错误只有 vue-tsc 或编辑器能发现。所以构建脚本中要运行 vue-tsc。
+解析：第 22 章：编译器把这个类型转换为 `{ type: String, required: false }`。'xl' 是字符串，所以运行时检查通过，没有警告。Vite 只删除类型，不做类型检查，所以编译不会失败。这个错误只有 vue-tsc 或编辑器能发现。所以构建脚本中要运行 vue-tsc。
 
 </template>
 </Sc>

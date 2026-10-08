@@ -3,7 +3,7 @@ import { sub } from './types'
 import { isReactive, nextTick } from 'vue'
 
 export const shallowBig: Exercise = {
-  title: '用 shallowRef 保存大数组', ch: 22,
+  title: '用 shallowRef 保存大数组', ch: 23,
   task: '<p>items 有 20000 条数据。页面只整体替换这些数据。ref 会为读取到的每个元素创建响应式代理。</p><ol><li>把 <code>ref</code> 改为 <code>shallowRef</code>。</li><li>修改 refresh：不修改数组元素，而是创建新数组，然后赋值给 <code>items.value</code>。</li><li>点击“刷新”，确认第一条更新。</li></ol>',
   tpl: '<p>共 {{ items.length }} 条</p>\n<p>第一条：{{ items[0].name }}</p>\n<button @click="refresh">刷新</button>',
   js: `const list = Array.from({ length: 20000 }, (_, i) => ({ id: i, name: '商品 ' + i }))
@@ -29,7 +29,7 @@ function refresh() {
 
 return { items, refresh }`,
   hints: [
-    'shallowRef 只跟踪 .value 的替换，不代理元素。所以要替换整个数组才能触发更新。第 22 章“22.4 减少响应式的开销”的表格讲了它。',
+    'shallowRef 只跟踪 .value 的替换，不代理元素。所以要替换整个数组才能触发更新。第 23 章“23.4 减少响应式的开销”的表格讲了它。',
     '1. 把 ref(list) 改为 shallowRef(list)。2. 在 refresh 中：复制数组，替换第 0 项为新对象，然后把新数组赋给 items.value。',
     'const items = shallowRef(list)\n\nfunction refresh() {\n  version++\n  const next = items.value.slice()\n  next[0] = { ...next[0], name: \'商品 0（第 \' + version + \' 次刷新）\' }\n  items.value = next\n}'
   ]
@@ -53,7 +53,7 @@ return { items, refresh }`,
 }
 
 export const fbPerf: Exercise = {
-  title: '补全：shallowRef 数组的追加', ch: 22,
+  title: '补全：shallowRef 数组的追加', ch: 23,
   task: '<p>items 有 20000 条数据。页面只整体替换这个数组。所以 items 应该用 shallowRef：它只跟踪 .value，不为每个元素创建代理。</p><ol><li>TODO 1：把 ref 改为 shallowRef。</li><li>TODO 2：在 add 中，把已经建好的新数组 next 赋值给 items.value。原因：shallowRef 只在 .value 被替换时触发更新。</li><li>点击“添加一条”，确认数量和最后一条更新。</li></ol>',
   tpl: '<p>共 {{ items.length }} 条</p>\n<p>最后一条：{{ items[items.length - 1].name }}</p>\n<button @click="add">添加一条</button>',
   js: `const list = Array.from({ length: 20000 }, (_, i) => ({ id: i, name: '商品 ' + i }))
@@ -77,7 +77,7 @@ function add() {
 
 return { items, add }`,
   hints: [
-    'shallowRef 只跟踪 .value 本身。替换 .value 时触发更新。修改数组内部时不触发。第 22 章“22.4 减少响应式的开销”讲了它。',
+    'shallowRef 只跟踪 .value 本身。替换 .value 时触发更新。修改数组内部时不触发。第 23 章“23.4 减少响应式的开销”讲了它。',
     'TODO 1：把 ref(list) 改为 shallowRef(list)。TODO 2：在 add 的最后写一个赋值语句，左边是 items.value。',
     'const items = shallowRef(list)\n\nitems.value = next'
   ],
@@ -101,7 +101,7 @@ return { items, add }`,
 }
 
 export const phenoReuse: Exercise = {
-  title: '看现象：切换任务后，详情仍是上一个任务', ch: 22,
+  title: '看现象：切换任务后，详情仍是上一个任务', ch: 23,
   task: '<p>TaskDetail 根据 prop id 加载并显示任务。地址从 /task/2 变为 /task/3 时，情况和这里相同。</p><ol><li>页面显示任务 2 的详情。</li><li>点击“任务 3”。“当前 id”变为 3，详情仍是任务 2。</li></ol><p>期望：id 改变后，详情加载并显示新的任务。只修改 TaskDetail 的 setup。</p>',
   tpl: '<button @click="cur = 2">任务 2</button>\n<button @click="cur = 3">任务 3</button>\n<p class="cur">当前 id：{{ cur }}</p>\n<TaskDetail :id="cur" />',
   js: `// ===== 已给出：模拟请求 =====
@@ -201,7 +201,7 @@ return { cur, components: { TaskDetail } }`, why: '组件被复用，没有重�
 }
 
 export const phenoDebounce: Exercise = {
-  title: '看现象：每输入一个字就发一次请求', ch: 22,
+  title: '看现象：每输入一个字就发一次请求', ch: 23,
   task: '<p>搜索框的内容改变时，代码发送搜索请求。下面的列表记录每个请求。</p><ol><li>在搜索框中快速输入 vue3。列表中有 4 个请求：v、vu、vue、vue3。</li></ol><p>期望：用户停止输入 200 毫秒后，才发送一个请求，内容是最后的关键词。只修改脚本。</p>',
   tpl: '<input class="kw" v-model="keyword" placeholder="搜索">\n<p class="count">请求次数：{{ requests.length }}</p>\n<ul>\n  <li v-for="(q, i) in requests" :key="i">搜索 {{ q }}</li>\n</ul>',
   js: `const keyword = ref('')
@@ -224,7 +224,7 @@ watch(keyword, (q, _old, onCleanup) => {
 
 return { keyword, requests }`,
   hints: [
-    '原因：侦听器在每次输入后立即运行。要等用户停下来：每次输入都把发送推迟一段时间，并且取消上一次还没有发送的那一次。只有最后一次推迟不会被取消。第 22 章 22.6 节讲了这个思路。第 4 章 4.4 节讲了怎样在下一次运行前取消上一次。',
+    '原因：侦听器在每次输入后立即运行。要等用户停下来：每次输入都把发送推迟一段时间，并且取消上一次还没有发送的那一次。只有最后一次推迟不会被取消。第 23 章 23.6 节讲了这个思路。第 4 章 4.4 节讲了怎样在下一次运行前取消上一次。',
     '在侦听器回调中，用 setTimeout 推迟 200 毫秒调用 search(q)。用回调的第三个参数注册一个清理函数，在其中调用 clearTimeout。',
     'watch(keyword, (q, _old, onCleanup) => {\n  const timer = setTimeout(() => search(q), 200)\n  onCleanup(() => clearTimeout(timer))\n})'
   ],

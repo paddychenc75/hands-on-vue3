@@ -1,4 +1,4 @@
-// 第 22 章的实验台测试数据。格式见 tests/site/exercises.test.js 的 loadLabs。
+// 第 23 章的实验台测试数据。格式见 tests/site/exercises.test.js 的 loadLabs。
 module.exports = [
   {
     id: 'demo-vlist', name: '虚拟列表 DOM 行数很少，切换到全量后有 10000 行', pick: 0,

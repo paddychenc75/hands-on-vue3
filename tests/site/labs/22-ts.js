@@ -1,4 +1,4 @@
-// 第 21 章的实验台测试数据。格式见 tests/site/labs/02-template.js
+// 第 22 章的实验台测试数据。格式见 tests/site/labs/02-template.js
 module.exports = [
   {
     id: 'demo-macro', name: '五个标签页都能切换，左右两侧代码随之变化', pick: 0,

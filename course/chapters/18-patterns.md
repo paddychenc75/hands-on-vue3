@@ -455,7 +455,7 @@ defineSlots<{ item(props: { item: T }): any }>()
 </SelectList>
 ```
 
-`T extends { id: … }` 只是约束：T 至少要有 id。T 的其他字段都保留。props、事件和插槽的类型写法见[第 21 章](/chapters/21-ts)。
+`T extends { id: … }` 只是约束：T 至少要有 id。T 的其他字段都保留。props、事件和插槽的类型写法见[第 22 章](/chapters/22-ts)。
 
 ### 18.8 选择组合式函数还是组件
 

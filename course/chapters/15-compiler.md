@@ -179,7 +179,7 @@ function patchElement(n1, n2) {
 所以 `dynamicChildren` 里有三类节点：
 
 - 带 PatchFlag 的元素。
-- 所有组件。组件 vnode 没有 PatchFlag，也一定被收集。父组件更新时，Vue 对每个子组件都会比较一次新旧 props，再决定要不要更新它（第 22 章）。
+- 所有组件。组件 vnode 没有 PatchFlag，也一定被收集。父组件更新时，Vue 对每个子组件都会比较一次新旧 props，再决定要不要更新它（第 23 章）。
 - 嵌套的子 Block，例如 `v-if` 的分支和 `v-for` 的 Fragment。子 Block 内部的节点在它自己的 `dynamicChildren` 里，不平铺到外层。
 
 更新时，Vue 只比较 `dynamicChildren`，不遍历整棵树。下图显示一个 Block 怎样收集动态节点。

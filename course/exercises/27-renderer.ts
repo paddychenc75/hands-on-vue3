@@ -2,7 +2,7 @@ import type { Exercise } from './types'
 import { sub } from './types'
 
 export const rendererInsert: Exercise = {
-  title: '修复：插入 B 后，顺序是 A C B', ch: 26,
+  title: '修复：插入 B 后，顺序是 A C B', ch: 27,
   task: '<p>脚本用 createRenderer 把组件渲染到一棵普通的 JavaScript 对象树。页面上的文字是这棵树中 item 的顺序。</p><p>现在点击“插入 B”后，顺序是 A C B。原因：diff 挂载 B 时传入 anchor（C），要求插在 C 前面。insert 忽略了 anchor。</p><ol><li>只修改 nodeOps.insert。</li><li>有 anchor 时，把 child 插到 anchor 前面。没有 anchor 时，放到最后。</li></ol>',
   tpl: '<p class="tree">对象树：{{ dump }}</p>\n<button @click="insertB">插入 B</button>\n<button @click="moveC">把 C 移到最前</button>',
   js: `const { createRenderer, h } = Vue   // 从全局 Vue 中取出
@@ -120,7 +120,7 @@ async function moveC() {
 
 return { dump, insertB, moveC }`,
   hints: [
-    '原因：B 应该在 C 前面。diff 挂载 B 时，用第三个参数 anchor 告诉 insert：“插在 C 前面”。现在的 insert 忽略了这个参数，总是把节点放到最后。第 26 章“实验台的工作过程”和第 16 章的 diff 步骤讲了它。',
+    '原因：B 应该在 C 前面。diff 挂载 B 时，用第三个参数 anchor 告诉 insert：“插在 C 前面”。现在的 insert 忽略了这个参数，总是把节点放到最后。第 27 章“实验台的工作过程”和第 16 章的 diff 步骤讲了它。',
     '只改 insert。detach 之后：在 parent.children 中找到 anchor 的下标。找到时，用 splice 把 child 放在这个下标；找不到时，用 push。',
     'insert(child, parent, anchor) {\n  detach(child)\n  const list = parent.children\n  const i = anchor ? list.indexOf(anchor) : -1\n  if (i === -1) list.push(child)\n  else list.splice(i, 0, child)\n  child.parent = parent\n}'
   ],
@@ -137,7 +137,7 @@ return { dump, insertB, moveC }`,
 }
 
 export const fbRenderer: Exercise = {
-  title: '补全：自定义渲染器的 patchProp 和 remove', ch: 26,
+  title: '补全：自定义渲染器的 patchProp 和 remove', ch: 27,
   task: '<p>脚本用 createRenderer 把组件渲染到一棵普通的 JavaScript 对象树。页面上的文字是树中每个 item 的 name 属性。nodeOps 只差两个函数。</p><ol><li>TODO 1：remove 把节点从父节点中移除。用已给出的 detach。</li><li>TODO 2：patchProp 把新值 next 写到 el.props[key]。</li><li>确认初始显示 A B C，改名后是 A B2 C，删除 B 后是 A C。</li></ol>',
   tpl: '<p class="tree">对象树：{{ dump }}</p>\n<button @click="rename">把 B 改为 B2</button>\n<button @click="removeB">删除 B</button>',
   js: `const { createRenderer, h } = Vue   // 从全局 Vue 中取出
@@ -259,7 +259,7 @@ async function removeB() {
 
 return { dump, rename, removeB }`,
   hints: [
-    'runtime-core 不直接操作 DOM。它调用 nodeOps：挂载和修改属性时调用 patchProp，卸载节点时调用 remove。第 26 章开头的分层图和 createRenderer 示例讲了它。',
+    'runtime-core 不直接操作 DOM。它调用 nodeOps：挂载和修改属性时调用 patchProp，卸载节点时调用 remove。第 27 章开头的分层图和 createRenderer 示例讲了它。',
     'TODO 1：在 remove 中调用 detach，参数是 node。TODO 2：在 patchProp 中写一个赋值语句，左边是 el.props[key]。',
     'remove(node) {\n  detach(node)\n},\npatchProp(el, key, prev, next) {\n  el.props[key] = next\n}'
   ],

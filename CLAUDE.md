@@ -37,7 +37,7 @@ node scripts/shot.mjs 03-refs       # 截图自查
 
 ## 进度存储
 
-只存在浏览器 `localStorage`，键前缀 `vue3deep:`。读写只经过 `theme/composables/store.ts`。键：`sc`（自测答案）、`guess`（先猜）、`ex` / `exSol` / `ex:<id>`（练习）、`quiz3`（综合测验）、`done` / `doneAt`（完成的章）、`revAt` / `revLast`（间隔复习）、`last`（上次阅读位置）、`analogy` / `deepOpen`（显示开关）。每个键的结构和规则见 `course/AUTHORING.md` 第 6 节。
+只存在浏览器 `localStorage`，键前缀 `vue3deep:`。读写只经过 `theme/composables/store.ts`。键：`sc`（自测答案）、`guess`（先猜）、`ex` / `exSol` / `ex:<id>`（练习）、`quiz3`（综合测验）、`done` / `doneAt`（完成的章）、`revAt` / `revLast`（间隔复习）、`last`（上次阅读位置）。每个键的结构和规则见 `course/AUTHORING.md` 第 6 节。
 
 ## 必须遵守
 

@@ -1,11 +1,9 @@
-// 跨章的学习进度：完成状态、间隔复习、阅读位置、显示开关。全部存在 localStorage（经 store），键名沿用旧版：
+// 跨章的学习进度：完成状态、间隔复习、阅读位置。全部存在 localStorage（经 store），键名沿用旧版：
 //   done     { <章id>: true }        已完成的章（自动或手动标记）
 //   doneAt   { <章id>: 毫秒时间 }    第一次标记完成的时间，复习间隔从它算起
 //   revAt    { <章id>: { t, n } }    最近一次复习的时间 t，已连续复习成功的次数 n
 //   revLast  [题目 id, …]            上一次复习出过的题，下次优先换别的题
 //   last     { path, anchor, h, t }  上次阅读：章路径、小节锚点（标题的 id）、小节标题、时间。旧版结构更复杂，这里简化了
-//   analogy  布尔，默认 true         是否显示“类比”块
-//   deepOpen 布尔，默认 false        是否展开全部“深入”块
 // sc（自测答案）、ex（练习通过状态）、quiz3（综合测验）由各自的组件写，这里只读。
 import { chapters } from 'virtual:course-meta'
 import { store } from './store'
@@ -125,8 +123,3 @@ export function agoText(t: number, now = Date.now()) {
   const m = Math.round((now - t) / 60000)
   return m < 1 ? '刚才' : m < 60 ? m + ' 分钟前' : m < 1440 ? Math.round(m / 60) + ' 小时前' : Math.round(m / 1440) + ' 天前'
 }
-
-// ---------------- 显示开关 ----------------
-
-export const showAnalogy = () => store.get<boolean>('analogy', true) !== false
-export const deepOpen = () => !!store.get<boolean>('deepOpen', false)

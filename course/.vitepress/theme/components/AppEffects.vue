@@ -1,28 +1,18 @@
 <script setup lang="ts">
 // 不显示任何东西，只做几件全站的事（挂在布局的 layout-bottom 插槽里，整个站点只有一个实例）：
-//   1. 类比开关：给 <html> 加或去掉 no-analogy
-//   2. 深入开关：打开或折叠当前页所有 details.deep；换页后仍按开关状态展开
-//   3. 侧边栏里已完成/进行中章的标记（侧边栏是 VitePress 默认主题渲染的，这里按链接地址补上 data-state）
-//   4. 阅读位置：进入一章时记下这章；滚动停下后记下读到的小节（键 last）
-//   5. 带 #锚点 进入一章时，实验台和编辑器晚一点才挂载，会把版面撑高，所以持续补对齐（用户没动过才补）
+//   1. 侧边栏里已完成/进行中章的标记（侧边栏是 VitePress 默认主题渲染的，这里按链接地址补上 data-state）
+//   2. 阅读位置：进入一章时记下这章；滚动停下后记下读到的小节（键 last）
+//   3. 带 #锚点 进入一章时，实验台和编辑器晚一点才挂载，会把版面撑高，所以持续补对齐（用户没动过才补）
 import { nextTick, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute } from 'vitepress'
 import { markStoreReady, store, storeRev } from '../composables/store'
-import { chapterByPath, chapterState, deepOpen, showAnalogy, type LastPos } from '../composables/progress'
+import { chapterByPath, chapterState, type LastPos } from '../composables/progress'
 
 const route = useRoute()
 let acted = false // 用户在这个页面上动过（滚轮、触摸、按键、点击）
 let cleanups: (() => void)[] = []
 
-// ---- 1、2：显示开关 ----
-function applyAnalogy() {
-  document.documentElement.classList.toggle('no-analogy', !showAnalogy())
-}
-function setDeep(open: boolean) {
-  document.querySelectorAll<HTMLDetailsElement>('.vp-doc details.deep').forEach(d => { d.open = open })
-}
-
-// ---- 3：侧边栏标记 ----
+// ---- 1：侧边栏标记 ----
 let paintRaf = 0
 function paintSidebar() {
   paintRaf = 0
@@ -94,7 +84,6 @@ async function onPage() {
   acted = false
   await nextTick()
   setTimeout(() => {
-    if (deepOpen()) setDeep(true)
     enterChapter()
     realign()
     watchSidebar()
@@ -104,7 +93,6 @@ async function onPage() {
 
 onMounted(() => {
   markStoreReady()
-  applyAnalogy()
   const mark = () => { acted = true }
   const evs = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
   evs.forEach(e => window.addEventListener(e, mark, { passive: true, capture: true }))
@@ -127,9 +115,8 @@ onMounted(() => {
 onBeforeUnmount(() => { cleanups.forEach(f => f()); cleanups = [] })
 
 watch(() => route.path, onPage)
-// 开关或进度变化（包括别的标签页改的）：重新应用
-watch(storeRev, () => { applyAnalogy(); schedulePaint() })
-watch(deepOpen, v => setDeep(v))
+// 进度变化（包括别的标签页改的）：重新应用
+watch(storeRev, () => { schedulePaint() })
 </script>
 
 <template><span hidden /></template>

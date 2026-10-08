@@ -339,11 +339,7 @@
 .vp-doc .lab-todo { border: 2px dashed var(--bad); border-radius: 8px; padding: 10px 14px; color: var(--bad); font-size: 14px; background: var(--bad-soft); }
 .vp-doc .fig figcaption p { margin: 0; line-height: inherit; }
 
-/* ---- 跨章功能：开关、完成标记、章末状态 ---- */
-.no-analogy .vp-doc .analogy { display: none; }
-.view-toggles { display: flex; flex-direction: column; gap: 6px; padding: 4px 0 12px; margin-bottom: 8px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
-.view-toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; min-height: 28px; }
-.view-toggles input { width: 16px; height: 16px; accent-color: var(--accent); }
+/* ---- 跨章功能：完成标记、章末状态 ---- */
 .VPSidebar a[data-state="done"] .text::after { content: " ✓"; color: var(--accent); font-weight: 700; }
 .VPSidebar a[data-state="doing"] .text::after { content: " ·"; color: var(--accent); font-weight: 700; }
 

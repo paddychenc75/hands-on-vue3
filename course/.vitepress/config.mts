@@ -45,8 +45,6 @@ export default defineConfig({
   ignoreDeadLinks: only.length > 0,
   description: 'Vue3 互动课程：每章有讲解、练习和自测',
   lang: 'zh-CN',
-  // 页面渲染前先读“隐藏类比”的选择，避免刷新时类比块闪一下
-  head: [['script', {}, "try{if(JSON.parse(localStorage.getItem('vue3deep:analogy'))===false)document.documentElement.classList.add('no-analogy')}catch(e){}"]],
   srcExclude: ['AUTHORING.md', ...excluded],
   outDir: process.env.COURSE_OUT_DIR || undefined,
   cacheDir: process.env.COURSE_CACHE_DIR || undefined,
@@ -86,13 +84,13 @@ export default defineConfig({
             : '</div></div>\n'
       })
 
-      // ::: deep 标题  深入（默认折叠）
+      // ::: deep 标题  深入（默认展开，在渲染阶段加 open，学习者仍可手动收起）
       md.use(container, 'deep', {
         render(tokens: any[], idx: number) {
           const t = tokens[idx]
           if (t.nesting !== 1) return '</details>\n'
           const title = t.info.trim().slice('deep'.length).trim()
-          return `<details class="deep"><summary><span class="step">深入</span>${md.renderInline(title)}<span class="opt">可选</span></summary>\n`
+          return `<details class="deep" open><summary><span class="step">深入</span>${md.renderInline(title)}<span class="opt">可选</span></summary>\n`
         }
       })
 

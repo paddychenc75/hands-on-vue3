@@ -13,7 +13,7 @@ const STAGES: Record<number, { lv: string; title: string; aim: string }> = {
   1: { lv: '阶段一 · 入门', title: '使用 Vue', aim: '模板、指令、响应式基础' },
   2: { lv: '阶段二 · 基础', title: '编写组件', aim: '组件、内置组件、指令、组合式函数、插件、表单' },
   3: { lv: '阶段三 · 原理', title: '内部原理', aim: '响应式、更新队列、渲染函数、编译、diff' },
-  4: { lv: '阶段四 · 专家', title: '生态和工程', aim: '设计模式、Pinia、Router、TS、性能、工程化、SSR' }
+  4: { lv: '阶段四 · 进阶', title: '生态和工程', aim: '设计模式、Pinia、Router、TS、性能、工程化、SSR' }
 }
 const cheat = chapters.find(c => c.chapter == null)
 
@@ -61,8 +61,8 @@ const review = computed(() => {
 <template>
   <div class="home">
     <header class="hero">
-      <div class="eyebrow">VUE 3.5 · 按 ASD-STE100 规则编写</div>
-      <h1>Vue3 <em>从零到专家</em></h1>
+      <div class="eyebrow">VUE 3.5 · 中文互动课程</div>
+      <h1>动手学 <em>Vue 3</em></h1>
       <p>本课程有 4 个阶段：25 章正文、1 个综合实战和一套综合测验。阶段一和阶段二教你使用 Vue：组件、内置组件、自定义指令、插件和表单。阶段三说明 Vue 的内部原理。阶段四介绍组件设计模式、Pinia、Router、TypeScript、性能、工程化、SSR 和迁移，并包含一个完整的小项目。</p>
 
       <div class="resume show" id="resume">
@@ -97,9 +97,9 @@ const review = computed(() => {
       </div>
 
       <details class="ste">
-        <summary>本课程的写作规则（ASD-STE100）</summary>
+        <summary>本课程的写作规则</summary>
         <div>
-          <p>本课程约 80% 的文字使用 ASD-STE100 简化技术英语的规则。我们把这些规则用于中文：</p>
+          <p>本课程的正文按下面的规则编写：</p>
           <ol>
             <li>一个句子只说一件事。</li>
             <li>说明句不超过 40 个字。操作句不超过 30 个字。代码不计入字数。</li>
@@ -109,7 +109,7 @@ const review = computed(() => {
             <li>“注意”紧跟在它说明的代码之后，在实验台和练习之前。</li>
             <li>正文不使用比喻和口语。</li>
           </ol>
-          <p>其余约 20% 是“类比”框。类比框不使用这些规则。类比框帮助初学者理解概念。使用左侧的“显示类比”开关隐藏类比框。</p>
+          <p>正文之外有“类比”框。类比框不使用这些规则。类比框帮助初学者理解概念。</p>
           <div class="tbl-wrap"><table class="t" id="glossary">
             <tbody>
               <tr><th>术语</th><th>意思</th><th>不使用的同义词</th></tr>

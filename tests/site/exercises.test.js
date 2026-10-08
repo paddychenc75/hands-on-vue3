@@ -77,9 +77,9 @@ async function runLabs(browser, base, ch) {
     try {
       await p.goto(base + '/chapters/' + ch + '.html')
       const box = p.locator('.lab', { has: p.locator('#' + lab.id) })
-      // 实验台在“深入”折叠块里时，先展开
+      // 实验台在“深入”折叠块里时，没展开才点开（默认已展开）
       const deep = box.locator('xpath=ancestor::details[1]')
-      if (await deep.count()) await deep.locator('> summary').click()
+      if (await deep.count() && !(await deep.evaluate(d => d.open))) await deep.locator('> summary').click()
       await box.scrollIntoViewIfNeeded()
       await box.locator('.sc.predict .sc-o').first().waitFor({ timeout: 10000 })
       ok(await box.evaluate(e => e.classList.contains('gated')), '答题前实验台是关着的')

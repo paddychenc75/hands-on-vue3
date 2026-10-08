@@ -130,7 +130,7 @@ export interface SelfCheckData {
   explain: string
 }
 
-/** 综合测验题库的一行（labs/27-quiz/questions.ts 的 Q）：[题目, 选项（第一个是正确答案）, 解析, 章 id, 代码（可选）]。
+/** 阶段测验专用题库的一行（checks/questions.ts 的 Q）：[题目, 选项（第一个是正确答案）, 解析, 章 id, 代码（可选）]。
     不存阶段号：题的阶段看它所属章的 stage */
 export type QuizBankRow = readonly [string, readonly string[], string, string] | readonly [string, readonly string[], string, string, string]
 
@@ -147,10 +147,10 @@ export interface CardItem {
   /** 正确选项在 options 里的下标 */
   answer: number
   explain: string
-  /** 'html'：已渲染的 HTML（章内自测）；'text'：纯文本（综合测验题库） */
+  /** 'html'：已渲染的 HTML（章内自测）；'text'：纯文本（阶段测验专用题库） */
   format: 'html' | 'text'
-  /** 题目附带的代码（只有综合测验题库有） */
+  /** 题目附带的代码（只有阶段测验专用题库有） */
   code?: string
-  /** 阶段 1 到 6（只有综合测验题库有，由所属章的阶段推出；章内自测的阶段看所属章） */
+  /** 阶段 1 到 6（只有阶段测验专用题库有，由所属章的阶段推出；章内自测的阶段看所属章） */
   stage?: number
 }

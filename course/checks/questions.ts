@@ -1,4 +1,4 @@
-// 综合测验的题库（从旧版 vue3-course.html（已删除，取回见提交 a2fe105） 逐字搬来，不改题干、选项、解析）。
+// 阶段测验的题库（从旧版 vue3-course.html（已删除，取回见提交 a2fe105） 逐字搬来，不改题干、选项、解析）。
 // 每题：[题目, 选项（第一个总是正确答案，显示时按题号打乱顺序）, 解析, 章节 id, 代码（可选）]
 // 题目属于哪个阶段，由它所属章的 stage 决定（course/stages.ts、章的 frontmatter），这里不存阶段号。
 export type QuizItem = [string, string[], string, string] | [string, string[], string, string, string]

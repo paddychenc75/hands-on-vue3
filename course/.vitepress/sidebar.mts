@@ -1,6 +1,6 @@
 // 侧边栏：从 chapters/*.md 的 frontmatter 自动生成。新增章节不用改任何共享文件。
 //   chapter  章号（数字，可省略）。有章号的页面按章号排在阶段内最前
-//   stage    阶段 1 到 6（定义见 course/stages.ts）。不写 stage 的页面（速查表、综合测验）是固定入口，排在侧边栏最上面，不属于任何阶段
+//   stage    阶段 1 到 6（定义见 course/stages.ts）。不写 stage 的页面（速查表）是固定入口，排在侧边栏最上面，不属于任何阶段
 //   title    侧边栏、上一章/下一章用的短名（旧版 data-title）
 //   order    没有章号的页面（速查表等）在阶段内的先后，小的在前，默认 1000
 import fs from 'node:fs'

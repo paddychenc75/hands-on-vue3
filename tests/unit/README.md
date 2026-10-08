@@ -26,6 +26,11 @@
 | 失败计数按练习 id 存（Vue 新增，React 一课一道） | `exerciseState > 失败计数按练习 id 存储…` |
 | 自我解释：至少 30 个有效字；去空白和标点；连续重复字折叠；不同字少于 10 个压到最多 9 | `selfExplain`（8 条，照搬） |
 | 阶段测验：12 题 = 8 新 + 4 常规；新题优先没见过的 | `stageCheck > 抽题`；`cards > 阶段题池 > 每个阶段的可用题数`、`阶段 1 到 6 都能抽满 12 题`（适配：6 个阶段；新题是 `章id#cN` 专用题，不够 8 道时用章内自测补足，如阶段 4 只有 6 道） |
+| 阶段测验的状态（侧边栏、首页）、答到一半的记录、需要加强的章去重、通过天数 | `stageCheck > 阶段测验的状态`、`中途离开时留下的记录`、`需要加强的章`、`通过多少天了`（Vue 新增，纯逻辑从界面里抽出来） |
+| 今日复习的队列（到期卡最多 20 道）、10 道混合练习、下次到期的说法 | `review`（Vue 新增，`logic/review.ts`） |
+| 填入半成品或答案前存下自己的代码、可以找回；重置清掉它 | `exerciseState > 填入半成品或参考答案之前先存下自己的代码`（Vue 新增） |
+| 阶梯按钮的状态和失败后的说明（已解锁哪一级、还要等几分钟） | `exerciseState > 阶梯状态和失败后的说明`（Vue 新增，`ladderStatus`、`unlockNote`） |
+| 自我解释区域的状态（还差几个字、是否展开） | `selfExplain > 自我解释区域的状态`（Vue 新增，`selfExplainState`） |
 | 交卷后才显示解析 | 界面行为，不在本层 |
 | 80% 通过（12 题对 10 题） | `stageCheck > 及格判定：80%` |
 | 中途离开算未通过 | `stageCheck > 中途离开算未通过` |
@@ -33,7 +38,7 @@
 | 以最近一次为准；通过后清掉 `weak` | `stageCheck > 交卷后的记录（以最近一次为准）` |
 | 35 天后提示复测 | `stageCheck > 35 天后提示复测` |
 | 一课的完成标准：测验全对 + 练习通过 | `completion > 一章的完成标准`（适配：一章多道练习，全部通过；速查表不参与） |
-| 卡片键 `课id#N` / `课id#cN` 不能变（快照） | `cards > 卡片键规则`、`60 道综合测验题…`（用每章题数锁住分组；没有 React 那种指纹快照脚本） |
+| 卡片键 `课id#N` / `课id#cN` 不能变（快照） | `cards > 卡片键规则`、`60 道阶段测验专用题…`（用每章题数锁住分组；没有 React 那种指纹快照脚本） |
 | `logic/` 不碰 DOM / localStorage / `Date.now()` | `purity` |
 | 不允许循环依赖 | `cycles` |
 | 进度存单个 localStorage 键、SSR 安全、发变化事件 | `store`（适配：键 `hands-on-vue3-v1`，事件 `hov-progress`） |
@@ -41,5 +46,5 @@
 
 其余工具：`random`（洗牌和种子随机）、`text`（`esc`、`fmtOpt`）照搬 React 的同名测试。
 
-`cards.test.ts` 会读 `course/chapters/*.md` 的 frontmatter 和 `<Sc>` 数量，以及 `course/checks/questions.ts`，
+`cards.test.ts` 会读 `course/chapters/*.md` 的 frontmatter 和 `<Sc>` 数量（没有 `id` 的页面，如旧地址 27-quiz 的跳转页，不算章），以及 `course/checks/questions.ts`，
 所以增删章或自测题时它会提醒你确认卡片键没有错位。

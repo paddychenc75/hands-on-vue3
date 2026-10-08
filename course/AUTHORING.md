@@ -13,21 +13,23 @@ course/
   figures/NN-id/*.vue     示意图，每张一个 SFC，只含 template
   labs/NN-id/*.vue        实验台，每个一个 SFC（多标签页的每页再拆一个小 SFC）
   labs/_shared/           各章实验台共用的辅助函数（domLog、dLogBuf、useMouse、useDebounced）
-  labs/27-quiz/           综合测验：Quiz.vue（界面，目前是最小版本，答案只在内存里）、questions.ts（60 道题，不存阶段号）
+  checks/questions.ts     阶段测验专用题库（60 道题，不存阶段号，由所属章决定阶段）
+  review.md               今日复习页（内容是组件 ReviewPage）
+  check/1.md … 6.md       6 个阶段测验页（内容是组件 StageCheck）
   stages.ts               6 个阶段的唯一定义（编号、名称、英文副标题、说明）
   engine/                 学习机制：types.ts（进度结构）、store.ts（单键存储、旧键迁移）、cards.ts（复习卡片）、logic/（纯逻辑，有单元测试，见 tests/unit/README.md）
   exercises/NN-id.ts      该章的练习（自动汇总到 exercises/index.ts）；types.ts 是类型
   AUTHORING.md            本文
   .vitepress/
     config.mts            站点配置、自定义容器、中文粗体修复、并行构建用的环境变量
-    sidebar.mts           从 chapters/*.md 的 frontmatter 生成侧边栏（按 6 个阶段分组，顶部是速查表和综合测验）
+    sidebar.mts           从 chapters/*.md 的 frontmatter 生成侧边栏（顶部是今日复习和速查表，下面按 6 个阶段分组，每组末尾是阶段测验）
     course-data.mts       构建时从 chapters/*.md 抽数据，生成虚拟模块（见第 7 节）
     markdown-cjk.mts      markdown-it 插件：中文标点旁的 **粗体** 也能生效
     theme/
       index.ts            主题入口：布局插槽、全局注册 components/*.vue
       style.css           全部样式（含深色模式）
       components/*.vue    通用组件（全局注册，组件名 = 文件名）
-      composables/        learn.ts（界面读写进度的唯一入口，封装 engine/）、keys.ts、highlight.ts
+      composables/        learn.ts（界面读写进度的唯一入口，封装 engine/）、catalog.ts（按需载入复习卡片目录）、keys.ts、highlight.ts
 editor/entry.js           练习编辑器（CodeMirror 6）的封装，被 Exercise 组件直接导入
 scripts/shot.mjs          给一章截浅色和深色整页图
 tests/site/               Playwright 测试（见第 8 节）
@@ -48,9 +50,9 @@ desc: ref、reactive、toRefs
 - `title`：短名。侧边栏、上一章/下一章、首页、页面标题都用它。**不要求等于一级标题**：一级标题 `# …` 可以更长（例如“响应式基础：ref 和 reactive”）。
 - `id`：章的稳定编号（英文单词）。**进度存储（自测答案、练习、完成状态）的键都用它，创建后不能改。**
 - `stage`：这一章属于第几个阶段，1 到 6。**阶段的名称、编号、说明只定义在 `course/stages.ts`**，侧边栏、首页、测验、引擎都从那里取，不要在别处再写一份。`desc`：一句话说明。值里有 `: ` 之类 YAML 特殊字符时加双引号。
-- `chapter`：章号。决定侧边栏里的先后和页面上的“第 N 章”小字。第 26 章是综合实战，第 27 章是综合测验。
+- `chapter`：章号。决定侧边栏里的先后和页面上的“第 N 章”小字。第 26 章是综合实战。
 - **只有写了 `stage` 的页面计入学习进度**（现在是第 1 到 26 章，总数显示为“N/26”）。有章号的正文章必须写 `stage`，否则构建会报错；`stage` 不在 1 到 6 之间也会报错。
-- 不写 `stage` 的页面（速查表 `cheat.md`、综合测验 `27-quiz.md`）是侧边栏顶部的固定入口，不属于任何阶段，不计入进度，页面底部没有“掌握标准”条。速查表不带章号，写 `order: 100`；固定入口之间按 `order` 排序（没写的排在后面）。
+- 不写 `stage` 的页面（速查表 `cheat.md`）是侧边栏顶部的固定入口，不属于任何阶段，不计入进度，页面底部没有“掌握标准”条、自我解释和课前热身。速查表不带章号，写 `order: 100`；固定入口之间按 `order` 排序（没写的排在后面）。侧边栏最上面还有“今日复习”（`review.md`，不在 `chapters/` 里）。`chapters/27-quiz.md` 只是旧地址的跳转页（没有 `id`，不是章）。
 
 ### 怎样给一章指定阶段
 
@@ -65,8 +67,8 @@ desc: ref、reactive、toRefs
 | 5 | 生态与实战 | 18 到 22 |
 | 6 | 深入 | 23 到 26 |
 
-新增一章时：在它的 frontmatter 写 `stage: N`。侧边栏分组、首页卡片、阶段完成数、总进度都会自动更新，不用改别处。要改阶段的名称或说明，只改 `course/stages.ts`。要把一章换到别的阶段，只改这一章的 `stage`；综合测验题的阶段由所属章推出，不用改题库。
-- 章内用到的示意图和实验台在章开头的 `<script setup>` 里导入。通用组件（`Sc` `Opt` `Goal` `Lab` `LabCode` `Figure` `Exercise` `Flow` `TabbedLab`）不用导入。
+新增一章时：在它的 frontmatter 写 `stage: N`。侧边栏分组、首页卡片、阶段完成数、总进度都会自动更新，不用改别处。要改阶段的名称或说明，只改 `course/stages.ts`。要把一章换到别的阶段，只改这一章的 `stage`；阶段测验专用题的阶段由所属章推出，不用改题库。
+- 章内用到的示意图和实验台在章开头的 `<script setup>` 里导入。通用组件（`Sc` `Opt` `Goal` `Lab` `LabCode` `Figure` `Exercise` `Flow` `TabbedLab`）不用导入。课前热身和自我解释不用写，见 4.13。
 
 ## 3. 写作规则
 
@@ -250,6 +252,7 @@ export const counter: Exercise = {
   js: 'const count = ref(0)\n\nreturn { count }',
   solTpl: '<button @click="count++">点了 {{ count }} 次</button>',
   hints: ['提示 1', '提示 2', '答案'],
+  faded: { tpl: '<button @click="___">点了 {{ ___ }} 次</button>' },   // 可选：半成品，见下面
   async check(T) { /* 用 T.$ T.btn T.click T.ok 检查 */ },
   wrong: [{ tpl: '…', why: '…', expectFail: /失败信息里的关键字/ }]
 }
@@ -263,6 +266,8 @@ export const counter: Exercise = {
 - 在参考答案上做替换造错解，用 `types.ts` 导出的 `sub(src, from, to)`：替换串里的 `$` 当字面文字；找不到 `from` 时不抛错，而是返回以 `WRONG_SUB_FAILED` 开头的文字，测试会报告出来（抛错会让整个练习模块加载失败，站点所有练习都不能用）。
 - 起始代码本身有 TODO 而报错是正常的。想让进入页面时不自动运行，设 `lazy: true`。
 - 章完成标准：章内自测**全部答对** + 本章练习**全部通过**，达到后自动标记完成（没有手动按钮）。借助答案通过的练习也算通过，但章末的“掌握标准”条会单独标注。
+- **提示阶梯**（规则见第 10 节）：练习下面的按钮分三级，没解锁时是锁定状态并写明条件。`hints` 是**一整级**：第一级解锁后，多条提示用“下一级提示”逐条展开。参考答案是 `solTpl`/`solJs`（省略的那段用 `tpl`/`js`）。点参考答案时，编辑器里原来的代码会先存下来，可以点“找回我的代码”。
+- **半成品 `faded`（可选）**：参考答案的“半成品”，关键处挖空，让学习者补全，比直接看答案学得多。写法：`faded: { tpl?, js? }`，只写有改动的那一段，没写的那段用起始代码补上。挖空处用 `___` 或 `// TODO` 标出，其余照参考答案写，**不要写成能通过检查的完整答案**（那就是第二个参考答案）。没有 `faded` 字段的练习，阶梯自动只有“提示”和“参考答案”两级。现有练习都还没有 `faded`，以后逐章补。测试里想临时给练习加半成品，用练习根元素上的 `__setFaded({ tpl, js })`（见 `tests/site/mechanics.test.js`）。
 
 ### 4.11 自测题
 
@@ -346,6 +351,9 @@ let count = 0
 
 - `<Flow :steps="['setup', 'onMounted']" />`：一行步骤箭头。
 - `<ChapterHead>`、`<ChapterFoot>`、`<AppEffects>`、`<CourseHome>`：由主题插槽自动放置，章里不要手写。
+- **`<Warmup>`（课前热身）和 `<SelfExplain>`（自我解释）也是自动放置的，章的 Markdown 里不要写，也不要改任何章文件**：热身由 `config.mts` 的 markdown 规则（`course_inject_warmup`）插在每个带 `stage` 的章的一级标题后面（标题 → 热身 → 目标）；自我解释由主题布局的 `doc-footer-before` 插槽放在掌握标准条之前。章里的 `::: summary` 小结块因此默认隐藏（`sx-hidden`），内容在构建时抽出（`virtual:course-summaries`），学习者写够 30 个有效字、点“对照本章要点”后，在自我解释区域里显示。**每章必须有且只有一个 `::: summary`**，它是自我解释的参考要点。
+- `<Question>`：题目组件（热身、复习页、阶段测验共用），不在章里用。章内自测用 `<Sc>`。
+- `<ReviewPage>`、`<StageCheck :stage="N">`：只在 `review.md` 和 `check/N.md` 里用。
 
 ## 5. 新增内容的步骤
 
@@ -364,9 +372,9 @@ let count = 0
 
 只能在这一章已有自测题的**末尾**追加（4.11），不能插在中间。追加后，如果有目标要覆盖它，在 `<Goal checks>` 里加 `sc:N`。不用改别的：复习题库在构建时重新抽取。
 
-### 新增综合测验题
+### 新增阶段测验专用题
 
-在 `labs/27-quiz/questions.ts` 的 `Q` 末尾追加一项：`[题目, 选项（第一个是正确答案，显示时按题号固定打乱）, 解析, 章 id, 代码（可选）]`。题目属于哪个阶段，由它的章 id 对应那一章的 `stage` 决定，题库里不存阶段号。键（`章id#cN`，N 是这一章的第几道专用题）按出现顺序编号，所以只能在末尾追加。
+在 `course/checks/questions.ts` 的 `Q` 末尾追加一项：`[题目, 选项（第一个是正确答案，显示时按题号固定打乱）, 解析, 章 id, 代码（可选）]`。题目属于哪个阶段，由它的章 id 对应那一章的 `stage` 决定，题库里不存阶段号。键（`章id#cN`，N 是这一章的第几道专用题）按出现顺序编号，所以只能在末尾追加。
 
 ## 6. 进度和存储
 
@@ -382,12 +390,13 @@ let count = 0
     "sc":    { "<题号>": 选中的选项序号 },    章内自测，答错的选项也会记（用来还原“答错等待重试”的样子）
     "tried": { "<题号>": true },              答过的题。只有第一次作答计入复习卡片和首答记录
     "first": { "<题号>": 首答是否答对 },
-    "ex":    { "<练习id>": { passed, code: {tpl, js}（草稿）, sawSol（看过答案）, help（借助答案的标记）, ... } },
-    "done": true, "doneAt": 毫秒时间
+    "ex":    { "<练习id>": { passed, code: {tpl, js}（草稿）, fails / firstFail / lastFail（提示阶梯的失败记录）, sawSol（看过答案）, rewrite（看过答案后点了重置）, stash（填入半成品或答案前自己的代码）, help（借助答案的标记：'solution' 或 'rewrite'）} },
+    "done": true, "doneAt": 毫秒时间,
+    "note": "自我解释写的文字", "sx": true（点过“对照本章要点”）
   },
   "__pred": { "<实验台id>": { pick, checked } },   先猜
   "__srs":  { "<章id>#N 或 <章id>#cN": 复习卡片 },   间隔复习卡片（Leitner 盒子）
-  "__stage": { "<阶段号 1 到 6>": 阶段测验记录 },
+  "__stage": { "<阶段号 1 到 6>": 阶段测验记录（passed、last、best、failedAt、passedAt、weak、答到一半的 pending） },
   "__last": { path, anchor, h, t }                上次阅读位置
 }
 ```
@@ -397,19 +406,20 @@ let count = 0
 - **章内自测**：答对 → 标出正确项并显示解析；答错 → 不亮正确答案、不显示解析，提示再试，点“再答一次”后隐藏上次选错的那一项（`Sc` / `Opt` 组件）。只有第一次作答计入复习卡片和首答记录（`answerSelfCheck`）。
 - **章完成**：章内自测全部答对 + 本章练习全部通过（`shouldAutoComplete`）。在答题或练习通过的那一刻检查，达标就标记完成并记 `doneAt`。没有手动“标记完成/取消”按钮。没有自测题也没有练习的页面不参与。
 - **掌握标准条**（`ChapterFoot`，章末）：列出还差哪几道自测没答对、哪几道练习没通过（`completionNeeds`）；全部达成显示“已完成”；借助答案通过的练习单独标注（`helpedExercises`）。
-- **练习**：通过、草稿、是否看过答案都在 `ex[练习id]`，用 `exerciseState.ts` 的 `recordPass`、`saveDraft`、`viewSolution`、`resetExercise` 改。练习类型有可选字段 `faded`（半成品，先不填）。
+- **练习**：通过、草稿、失败次数、是否看过答案都在 `ex[练习id]`，用 `exerciseState.ts` 的 `recordFailure`、`recordPass`、`saveDraft`、`viewSolution`、`resetExercise`、`stashCode`、`restoreStash` 改。练习类型有可选字段 `faded`（半成品，见 4.10）。
 - **目标勾选**：`<Goal checks="sc:0,ex:counter">` 里自测要**答对**才算，练习要通过才算。
 - **阅读位置**：进入一章时记下这一章；用户滚动停下后记下读到的小节。首页“继续学习”按钮回到那里。带锚点进入一章时，编辑器和实验台陆续挂载会把版面撑高，`AppEffects` 在 5 秒内持续把目标拉回顶栏下方（用户一动就停）。
-- **侧边栏和顶栏**：侧边栏按 6 个阶段分组，标题形如 `01 入门`，右侧显示这个阶段的完成数（`AppEffects` 写 `data-count`，样式在 `style.css`），已完成的章带 ✓。顶栏右侧（`NavProgress`）显示总进度条和“已完成 N/26”。
+- **侧边栏和顶栏**：侧边栏最上面是“今日复习”（右侧徽标是今天到期的题数，`AppEffects` 写 `data-badge`）和速查表；下面按 6 个阶段分组，标题形如 `01 入门`，右侧显示这个阶段的完成数（`AppEffects` 写 `data-count`，样式在 `style.css`），已完成的章带 ✓；每组末尾是“阶段测验”，右边显示通过状态（`data-check`：通过 ✓、该复测、未通过）。顶栏右侧（`NavProgress`）显示总进度条和“已完成 N/26”。
 - **水合**：页面挂载后才读 localStorage（组件的 `onMounted` 调用 `ensureReady()`，之前 `ready` 为假），服务端渲染和首次渲染一律用空进度，避免水合不一致。引擎的进度对象是原地修改的：**不要把 `cpOf()` 的结果缓存在 `computed` 里**（引用不变，下游不会重算），要在每个 `computed` 里直接调用。
 
 ## 7. 自测题数据怎么传到别的页面
 
-复习卡片要用各章自测题的题干、选项、解析，进度功能要知道每章的阶段、有几道自测和它们的正确答案、哪些练习。这些信息只存在于各章 `.md`，所以在**构建时**抽取：
+复习卡片要用各章自测题的题干、选项、解析，自我解释要用各章的小结，进度功能要知道每章的阶段、有几道自测和它们的正确答案、哪些练习。这些信息只存在于各章 `.md`，所以在**构建时**抽取：
 
-- `.vitepress/course-data.mts` 是一个 Vite 插件，提供两个虚拟模块：
-  - `virtual:course-meta`：每章的元数据（id、文件名、标题、阶段（没有阶段的页面是 null）、章号、自测题数、自测正确答案 `scAnswers`、练习 id 列表）。很小，章页面都会载入（章完成判定、侧边栏标记、首页用）。
-  - `virtual:course-selfchecks`：每道自测题的键（`章id:序号`）、正确选项、渲染成 HTML 的题干、选项、解析。给复习卡片用（还没有页面载入它）。
+- `.vitepress/course-data.mts` 是一个 Vite 插件，提供三个虚拟模块：
+  - `virtual:course-meta`：每章的元数据（id、文件名、标题、阶段（没有阶段的页面是 null）、章号、自测题数、自测正确答案 `scAnswers`、练习 id 列表、阶段测验专用题数 `checkCount`）。很小，章页面都会载入（章完成判定、侧边栏标记、首页、复习题数用）。
+  - `virtual:course-selfchecks`：每道自测题的键（`章id:序号`）、正确选项、渲染成 HTML 的题干、选项、解析。很大，所以只在需要时动态载入（`composables/catalog.ts`：课前热身、复习页、阶段测验页），章页面平时不载入它。
+  - `virtual:course-summaries`：每章 `::: summary` 小结块的内容，渲染成 HTML（章 id → HTML）。自我解释写够字后在页面里显示它。
 - 抽取用正则匹配 `<Sc …>…</Sc>`（跳过带 `predict` 的先猜题），序号规则和 `Sc` 组件一致。题干和解析用 VitePress 的 Markdown 渲染器渲染，所以代码块有高亮。
 - 构建时总是最新的。开发服务器里改了自测题或 `stage` 后，如果数据没有更新，重启 `npm run dev`。
 - 测试 `tests/site/progress.test.js` 的第一项检查：每一章抽出的自测题数、练习 id 和页面上实际渲染的一致。格式写错时它会报出来。
@@ -418,24 +428,24 @@ let count = 0
 
 ```bash
 npm run build                 # 构建全站（输出 course/.vitepress/dist）
-npm test                      # = npm run test:unit 再 npm run test:site（先构建，再依次跑下面三个文件，约 6 分钟）
+npm test                      # = npm run test:unit 再 npm run test:site（先构建，再依次跑下面三个文件，约 7 分钟）
 npm run test:unit             # 学习机制的单元测试（vitest，不需要浏览器，几百毫秒）
 npm run check                 # 目前只跑 test:unit，以后内容校验会加进来
 
 node tests/site/exercises.test.js 03-refs 04-computed   # 只测指定章：自己构建这些章到临时目录，端口自动选
 node tests/site/exercises.test.js                        # 全部章，用已构建的 dist
 node tests/site/progress.test.js                         # 跨章功能，用已构建的 dist
-node tests/site/quiz.test.js                             # 综合测验，用已构建的 dist
+node tests/site/mechanics.test.js                        # 学习机制，用已构建的 dist
 node scripts/shot.mjs 03-refs                            # 截这一章的浅色和深色整页图（展开所有折叠块），打印图片路径
 ```
 
 本机 shell 如果设了 HTTP 代理，访问 localhost 的命令前加 `NO_PROXY=localhost,127.0.0.1`。
 
-三个测试文件：
+三个浏览器测试文件：
 
 - `exercises.test.js`（逐章）：每道练习（初始不通过、答案通过、每个 `wrong` 不通过）；编辑器能输入；自测答错不显示解析、刷新后仍是答错状态、重试隐藏上次选项、答对才显示解析、目标打勾；每个实验台（先猜之前关着，选完后打开，做一次有代表性的操作并断言）；章里每个 `<Lab id>` 都有测试数据；控制台无报错；练习 id 不重复。
-- `progress.test.js`：章元数据和页面一致；首页（路线说明、6 个阶段、26 章、状态、没有复习入口）；侧边栏 6 个阶段和完成数、✓、顶栏总进度；自测答错的行为（不亮答案、不显示解析、重试隐藏上次选项、只有第一次计入复习）；掌握标准条和自动完成（自测答对 + 练习通过、借助答案的标注、没有手动按钮）；目标勾选；继续学习；存储只有单键；旧键迁移；类比和深入开关；390px 无横向滚动；示意图放大。
-- `quiz.test.js`：综合测验页（最小版本）：60 题、按 6 个阶段筛选、点选出解析、答案只在内存里（刷新后清空）、只看错题、重新作答。
+- `progress.test.js`：章元数据和页面一致；首页（路线说明、6 个阶段、26 章、状态、阶段测验入口、怎样用这套课程）；侧边栏 6 个阶段和完成数、✓、每个阶段末尾的阶段测验、顶栏总进度、旧地址 27-quiz 的跳转；自测答错的行为（不亮答案、不显示解析、重试隐藏上次选项、只有第一次计入复习）；掌握标准条和自动完成（自测答对 + 练习通过、借助答案的标注、没有手动按钮）；目标勾选；继续学习；存储只有单键；旧键迁移；类比和深入开关；390px 无横向滚动；示意图放大。
+- `mechanics.test.js`：学习机制（规则对照见第 10 节）：提示阶梯三级的解锁条件、代码没改不计失败、粘贴答案原文不通过、重置重写、半成品、课前热身出题和记录、自我解释 30 字门槛、复习页（到期卡、答对升级、答错明天再出、没到期答对不改记录）、首页复习入口、阶段测验（12 题、交卷前不显示答案、80% 通过、中途离开冷却、通过后的状态、35 天复测）、390px 无横向滚动。时间用 Playwright 的 `page.clock.setFixedTime` 控制，不真的等。
 
 ### 实验台测试数据 `tests/site/labs/NN-id.js`
 
@@ -481,3 +491,30 @@ module.exports = [
 12. **带锚点进入页面后版面会变。** 编辑器和实验台晚挂载会撑高上方内容，标题被挤下去。`AppEffects` 已处理；写测试时要等 3 秒左右再断言位置。
 13. **中文搜索**用的是 VitePress 本地搜索，对没有空格的中文分词一般。
 14. 本机 4173 端口可能被别的项目占用。测试和截图脚本自己选空闲端口。手动预览时用 `npm run preview -- --port 4791`。
+
+## 10. 学习机制（不要破坏）
+
+课程按学习科学设计，用户明确要求保留，和 hands-on-react 共用同一套规则（那边叫“课”，这边叫“章”）。完整的规则文字在 `CLAUDE.md` 的“学习机制（不要破坏）”一节。下表是每条规则对应的实现位置和测试。单元测试的细表见 `tests/unit/README.md`；浏览器测试在 `tests/site/mechanics.test.js`，括号里是测试组的开头几个字。
+
+| 规则 | 实现 | 测试 |
+|---|---|---|
+| 先预测再运行：预测前隐藏说明 | `Lab.vue`、`Sc.vue`（predict） | `exercises.test.js`（实验台：先猜之前关着，选完后打开） |
+| 到期才升级的门：答对没到期不改记录，答错回盒子 0（热身、混合练习、阶段测验共用） | `logic/srs.ts` 的 `shouldRecord`/`gatedNextCard`，`cards.ts` 的 `srsRecordGated`；界面 `Warmup.vue`、`ReviewPage.vue`、`StageCheck.vue` | `srs.test.ts > 只有到期的卡片才提升复习间隔`、`cards.test.ts > srsRecordGated`；mechanics：热身作答、没有到期的（混合练习）、今日复习 |
+| 间隔序列 0/1/3/7/16/35 天，答错明天再出 | `logic/srs.ts` 的 `SRS_DAYS`、`nextCard` | `srs.test.ts > 间隔序列`；mechanics：今日复习（答错回盒子 0，明天再出） |
+| 今日复习只出到期卡，最多 20 道；没到期时有 10 道混合练习 | `logic/review.ts`，`ReviewPage.vue` | `review.test.ts`；mechanics：今日复习、没有到期的 |
+| 12 小时内答过的不再出：只适用于热身 | `logic/srs.ts` 的 `warmupPool`；`Warmup.vue` | `srs.test.ts > 热身题库`；mechanics：热身（12 小时内答过的卡不出） |
+| 热身选 2 题：先到期、再上一章 | `logic/srs.ts` 的 `pickWarmup`；`Warmup.vue`；`config.mts` 自动插入 | `srs.test.ts > pickWarmup`；mechanics：课前热身 |
+| 章内自测和热身答错不亮正确答案，重试时隐藏上次选的项；只有第一次作答计入复习 | `Sc.vue`、`Question.vue`（retry）；`cards.ts` 的 `answerSelfCheck` | `progress.test.js`（自测答错）、`exercises.test.js`；mechanics：热身作答；`cards.test.ts > 章内自测作答` |
+| 提示阶梯三级：提示（失败 1 次）、半成品（2 次且 2 分钟）、参考答案（3 次且 5 分钟）；没有 `faded` 时跳过半成品 | `logic/ladder.ts` 的 `LADDER`、`ladderStatus`、`unlockNote`；`Exercise.vue` | `ladder.test.ts > 提示阶梯`、`exerciseState.test.ts > 阶梯状态和失败后的说明`；mechanics：提示阶梯、半成品示例 |
+| 只有代码真的改了才算一次失败（和起始代码、上一次失败都不同） | `logic/ladder.ts` 的 `isAttempt`；`logic/exerciseState.ts` 的 `recordFailure` | `ladder.test.ts > 代码是否真的改了`、`isAttempt`；mechanics：提示阶梯（没改代码、只加分号、来回切换） |
+| 粘贴参考答案原文不能通过，除非看过答案后按了“重置”；借助答案单独标记（`solution` / `rewrite`） | `logic/ladder.ts` 的 `isPastedSolution`；`logic/exerciseState.ts` 的 `recordPass`、`resetExercise`；`Exercise.vue`、`ChapterFoot.vue` | `ladder.test.ts > 粘贴参考答案原文不能通过`、`exerciseState.test.ts > 借助答案的标记`；mechanics：参考答案、看答案后点重置 |
+| 填入半成品或答案前，自己的代码能找回 | `logic/exerciseState.ts` 的 `stashCode`、`restoreStash` | `exerciseState.test.ts > 填入半成品…先存下自己的代码`；mechanics：半成品示例 |
+| 自我解释至少 30 个有效字才展示参考要点（小结块默认隐藏） | `logic/selfExplain.ts`；`SelfExplain.vue`；`config.mts`（`sx-hidden`）；`course-data.mts`（`virtual:course-summaries`） | `selfExplain.test.ts`；mechanics：自我解释 |
+| 阶段测验：12 题（8 新 + 4 常规）、交卷后才显示解析、80% 通过 | `logic/stageCheck.ts` 的 `pickStageQuestions`、`isPass`；`StageCheck.vue`、`Question.vue`（defer） | `stageCheck.test.ts > 抽题`、`及格判定`；`cards.test.ts > 阶段题池`；mechanics：阶段测验 12 题、6 个阶段测验页 |
+| 中途离开算未通过；未通过冷却 30 分钟；以最近一次为准；通过后清掉 `weak`；35 天后提示复测 | `logic/stageCheck.ts` 的 `settlePending`、`cooldownLeft`、`settleResult`、`needsRetest`、`stageStatus` | `stageCheck.test.ts`（中途离开、冷却、交卷后的记录、35 天、状态）；mechanics：中途离开、答对 10 题通过、答对 9 题不通过 |
+| 章完成 = 自测全部答对 + 练习全部通过，自动标记 | `logic/completion.ts`，`learn.ts` 的 `completeIfMet`；`ChapterFoot.vue` | `completion.test.ts`；`progress.test.js`（掌握标准条和自动完成） |
+| 卡片键 `章id#N` / `章id#cN` 不能变 | `cards.ts`（`scKey`、`checkKey`、`buildCatalog`） | `cards.test.ts > 卡片键规则`、`60 道阶段测验专用题…` |
+| `logic/` 不碰 DOM、localStorage、`Date.now()`；不允许循环依赖 | `course/engine/logic/` | `purity.test.ts`、`cycles.test.ts` |
+| 手机宽度无横向滚动 | `style.css` | mechanics：390px 宽下没有横向滚动 |
+
+改规则时：先改 `CLAUDE.md` 这一节，再写会失败的测试，最后改实现。行为和规则文字不一致时，不要悄悄改其中一边，先搞清楚哪个是用户要的。

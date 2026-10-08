@@ -1,7 +1,7 @@
 /* 间隔复习卡片：卡片键 -> 题目的查找，以及读写进度里的 __srs。纯逻辑在 logic/srs.ts。
    卡片键规则（和 hands-on-react 一致，"课"换成"章"）：
      章内自测第 N 题（N 从 0 起，即它在本章自测块里的序号，和 sc 的序号一致）：`章id#N`
-     阶段测验专用题第 N 题：`章id#cN`。来源是综合测验题库（labs/27-quiz/questions.ts 的 Q）：
+     阶段测验专用题第 N 题：`章id#cN`。来源是阶段测验专用题库（checks/questions.ts 的 Q）：
        按每题所属的章分组，组内按它在题库里的出现顺序编号 N
    键一旦发布就不能变：题库和自测题都只能在末尾追加。
    "先猜"题不进复习卡片（单独记在进度的 __pred）。
@@ -33,7 +33,7 @@ export interface Catalog {
   checkCards(chapterId: string): CardItem[]
 }
 
-/** 用自测题数据和综合测验题库建卡片目录。
+/** 用自测题数据和阶段测验专用题库建卡片目录。
     selfchecks 的 key 是 `章id:序号`；序号用 key 里的，不看数组位置，所以数组顺序打乱也不会错位。
     stageOf 给出一章所属的阶段（1 到 6），专用题的 stage 由它推出；省略时专用题没有 stage。 */
 export function buildCatalog(selfchecks: readonly SelfCheckData[], quiz: readonly QuizBankRow[], stageOf?: (chapterId: string) => number | null | undefined): Catalog {

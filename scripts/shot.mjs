@@ -220,7 +220,7 @@ async function shootDesktop(browser, url, dir, scheme, name, note) {
 
 /** 用真实的鼠标点折叠块(locator.click 会为了“滚进视野”把编辑器横向滚几个像素,截图里每行的开头会被裁掉) */
 async function clickFold(p, loc) {
-  await loc.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest' })).catch(() => {})
+  await loc.evaluate(el => { const r = el.getBoundingClientRect(); window.scrollBy(0, r.top - innerHeight / 2) }).catch(() => {})   // 只滚页面,不动编辑器自己的横向滚动
   const b = await loc.boundingBox({ timeout: 2000 }).catch(() => null)
   if (b) await p.mouse.click(b.x + Math.min(40, b.width / 2), b.y + b.height / 2)
 }

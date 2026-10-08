@@ -1,4 +1,4 @@
-// 第 24 章的实验台测试数据。格式见 tests/site/labs/02-template.js
+// 第 25 章的实验台测试数据。格式见 tests/site/labs/02-template.js
 module.exports = [
   {
     id: 'demo-renderer', name: '添加、删除柱子后 nodeOps 日志和对象树随之变化，画布有内容', pick: 0,

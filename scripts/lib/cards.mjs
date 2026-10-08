@@ -53,12 +53,16 @@ export function compareSnapshot(snap, current) {
   return { problems, added, addedPred };
 }
 
-/** 生成要写进文件的快照对象。force 为真时已有键也用新指纹；否则只追加新键 */
+/**
+ * 生成要写进文件的快照对象。force 为真时已有键也用新指纹；否则只追加新键。
+ * 键的顺序保持快照里原来的顺序，新键追加在后面：移动章的位置时，git diff 里已有条目不会跟着挪动，只看得到新增。
+ */
 export function nextSnapshot(snap, current, { force = false } = {}) {
   const old = snap?.cards || {};
-  const merged = force ? current.cards : { ...old, ...Object.fromEntries(Object.keys(current.cards).filter(k => !(k in old)).map(k => [k, current.cards[k]])) };
-  const cards = Object.fromEntries(Object.keys(current.cards).filter(k => k in merged).map(k => [k, merged[k]]));
-  const oldPred = snap?.predictions || [];
-  const predictions = force ? current.predictions : [...oldPred, ...current.predictions.filter(p => !oldPred.includes(p))];
+  const keep = Object.keys(old).filter(k => k in current.cards);
+  const fresh = Object.keys(current.cards).filter(k => !(k in old));
+  const cards = Object.fromEntries([...keep, ...fresh].map(k => [k, force || !(k in old) ? current.cards[k] : old[k]]));
+  const oldPred = (snap?.predictions || []).filter(p => !force || current.predictions.includes(p));
+  const predictions = [...oldPred, ...current.predictions.filter(p => !oldPred.includes(p))];
   return { 说明: SNAPSHOT_NOTE, cards, predictions };
 }

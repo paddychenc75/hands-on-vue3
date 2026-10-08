@@ -2,14 +2,14 @@
 title: SSR 与水合
 id: ssr
 stage: 6
-chapter: 23
+chapter: 24
 desc: renderToString、水合、不匹配
 ---
 
 <script setup>
-import SsrTimeline from '../figures/23-ssr/SsrTimeline.vue'
-import HydrationMatching from '../figures/23-ssr/HydrationMatching.vue'
-import HydrationDemo from '../labs/23-ssr/HydrationDemo.vue'
+import SsrTimeline from '../figures/24-ssr/SsrTimeline.vue'
+import HydrationMatching from '../figures/24-ssr/HydrationMatching.vue'
+import HydrationDemo from '../labs/24-ssr/HydrationDemo.vue'
 </script>
 
 # SSR 与水合
@@ -51,7 +51,7 @@ SSR 像**先寄来一张房子的照片**，让你马上看到样子；水合就
 本章用 SSR 在服务器上生成 HTML。浏览器收到后立即显示内容，然后进行水合。
 :::
 
-### 23.1 用 renderToString 和 createSSRApp 渲染页面
+### 24.1 用 renderToString 和 createSSRApp 渲染页面
 
 下图按时间顺序显示 SSR 的过程。
 
@@ -96,7 +96,7 @@ setup 也在服务器上运行。服务器上没有 window 和 document。浏览
 水合时，Vue 按 `<!--[-->` 和 `<!--]-->` 对齐这些节点。所以你自己写服务器 HTML 去对照时，不要漏掉这对注释。
 :::
 
-### 23.2 理解水合
+### 24.2 理解水合
 
 水合不创建新的 DOM。Vue 遍历虚拟节点，同时遍历已有的 DOM 节点。下图说明水合怎样比较节点。
 
@@ -137,7 +137,7 @@ setup 也在服务器上运行。服务器上没有 window 和 document。浏览
 <HydrationDemo />
 </Lab>
 
-### 23.3 修复水合不匹配
+### 24.3 修复水合不匹配
 
 服务器和浏览器渲染的结果不同时，就产生水合不匹配。常见的原因和修复方法如下：
 
@@ -222,7 +222,7 @@ export default defineConfig({
 
 <Exercise id="ssrMismatch" />
 
-### 23.4 在服务器上获取数据，并传给浏览器
+### 24.4 在服务器上获取数据，并传给浏览器
 
 `onServerPrefetch(fn)` 只在服务器上运行。fn 返回 Promise 时，renderToString 等待它完成，然后渲染这个组件。
 
@@ -262,7 +262,7 @@ app.mount('#app')
 
 不要直接用 JSON.stringify 写入 HTML。数据中的 `</script>` 会结束脚本标签，造成 XSS。使用 devalue 或 serialize-javascript。
 
-### 23.5 用流式渲染和延迟水合加快页面
+### 24.5 用流式渲染和延迟水合加快页面
 
 `renderToString` 等待整个页面渲染完成。流式渲染一边渲染一边发送 HTML。浏览器可以更早开始显示。
 
@@ -299,7 +299,7 @@ SSR 有代价：要运行 Node 服务器，所有组件代码要在服务器上�
 | 内容很少变化 | 考虑静态生成：构建时渲染成 HTML |
 | 团队没有 Node 服务器可用 | 不用，或选静态生成 |
 
-### 23.6 实际项目：使用 Nuxt
+### 24.6 实际项目：使用 Nuxt
 
 自己搭建 SSR 需要处理很多问题：服务器、路由、数据预取、状态传输和构建。实际项目中，使用 Nuxt。Nuxt 提供下面这些功能：
 

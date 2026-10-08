@@ -282,6 +282,15 @@ describe('卡片键快照（纯函数）', () => {
     expect(next.cards).toEqual({ 'a#0': 'old', 'a#1': 'x2' })
     expect(nextSnapshot(snap, cur, { force: true }).cards).toEqual(cur.cards)
   })
+  it('移动章的位置后，快照里已有键的顺序不变，新键追加在后面', () => {
+    const snap = { cards: { 'b#0': 'b0', 'a#0': 'a0' }, predictions: ['lab-b', 'lab-a'] }
+    const moved = { cards: { 'a#0': 'a0', 'n#0': 'n0', 'b#0': 'b0' }, predictions: ['lab-a', 'lab-n', 'lab-b'] }
+    for (const force of [false, true]) {
+      const next = nextSnapshot(snap, moved, { force })
+      expect(Object.keys(next.cards)).toEqual(['b#0', 'a#0', 'n#0'])
+      expect(next.predictions).toEqual(['lab-b', 'lab-a', 'lab-n'])
+    }
+  })
   it('指纹对首尾空白不敏感，对文字敏感', () => {
     expect(fingerprint(' 题干 ')).toBe(fingerprint('题干'))
     expect(fingerprint('题干')).not.toBe(fingerprint('题干。'))

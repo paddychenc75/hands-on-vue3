@@ -1,14 +1,14 @@
 ---
 title: 选项式 API 与 Vue 2 迁移
 id: migrate
-stage: 6
-chapter: 25
+stage: 5
+chapter: 23
 desc: 选项式 ↔ 组合式对照、破坏性变化、@vue/compat
 ---
 
 <script setup>
-import OptionsVsCompositionLayout from '../figures/25-migrate/OptionsVsCompositionLayout.vue'
-import MigCounterLab from '../labs/25-migrate/MigCounterLab.vue'
+import OptionsVsCompositionLayout from '../figures/23-migrate/OptionsVsCompositionLayout.vue'
+import MigCounterLab from '../labs/23-migrate/MigCounterLab.vue'
 </script>
 
 # 选项式 API 与 Vue 2 迁移
@@ -50,7 +50,7 @@ import MigCounterLab from '../labs/25-migrate/MigCounterLab.vue'
 本章给出两种 API 的对应关系和迁移步骤。
 :::
 
-### 25.1 把选项式 API 改写为组合式 API
+### 23.1 把选项式 API 改写为组合式 API
 
 选项式 API 按选项类型组织代码：数据、方法和侦听器分开写。组合式 API 按功能组织代码：一个功能的数据和函数写在一起。下图用底色标出同一个功能。
 
@@ -176,14 +176,14 @@ Vue 3 用 `applyOptions` 处理选项式 API。它在 setup 之后运行：
 不使用选项式 API 时，把构建标志 `__VUE_OPTIONS_API__` 设为 false。打包结果因此变小。
 :::
 
-### 25.2 迁移路径
+### 23.2 迁移路径
 
 Vue 2 在 2023 年 12 月 31 日停止维护。按下面的步骤迁移：
 
 1. 升级到 Vue 2.7。2.7 支持组合式 API 和 `<script setup>`。
 2. 在 2.7 中，把新代码写为组合式 API。把 mixin 改为组合式函数。
 3. 把 Vuex 换为 Pinia。Pinia 2.x 同时支持 Vue 2 和 Vue 3。
-4. 换为 Vue 3 和 `@vue/compat`。按 25.3 节修复控制台中的兼容性警告。
+4. 换为 Vue 3 和 `@vue/compat`。按 23.3 节修复控制台中的兼容性警告。
 5. 同时升级 Vue Router 4 和 UI 库，例如 Element UI 换为 Element Plus。
 6. 修复所有警告后，删除 @vue/compat。
 
@@ -225,7 +225,7 @@ export default {
 
 删除 @vue/compat 之前，先修复所有设置了 MODE: 2 的组件，再删除 compatConfig。
 
-### 25.3 修复 Vue 2 到 Vue 3 的破坏性变化
+### 23.3 修复 Vue 2 到 Vue 3 的破坏性变化
 
 兼容模式的警告对应下表中的变化。逐项修复：
 
@@ -362,7 +362,7 @@ Vue 2 的 `<Dialog :visible.sync="show" />` 在 Vue 3 中怎样写？
 
 <Sc :a="1">
 
-一个 Vue 2.6 项目使用了 mixin、Vuex 和 Element UI。按 25.2 节的迁移路径，第一步做什么？
+一个 Vue 2.6 项目使用了 mixin、Vuex 和 Element UI。按 23.2 节的迁移路径，第一步做什么？
 
 <Opt>直接换为 Vue 3，一次改完所有组件</Opt>
 <Opt>升级到 Vue 2.7，新代码用组合式 API</Opt>

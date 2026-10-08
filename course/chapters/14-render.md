@@ -98,7 +98,7 @@ props 中的属性规则如下：
 }
 ```
 
-后面的章节会用到这些字段。第 15 章读 `patchFlag` 和 `dynamicChildren`。第 16 章读 `type`、`key` 和 `el`，用它们判断两个节点能否复用。第 23、24 章读 `el`，它就是 vnode 对应的 DOM 节点。
+后面的章节会用到这些字段。第 15 章读 `patchFlag` 和 `dynamicChildren`。第 16 章读 `type`、`key` 和 `el`，用它们判断两个节点能否复用。第 24、25 章读 `el`，它就是 vnode 对应的 DOM 节点。
 
 ### 14.1 在 setup 中返回渲染函数
 

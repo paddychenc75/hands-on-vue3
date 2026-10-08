@@ -1,4 +1,4 @@
-// 第 25 章的实验台测试数据。格式见 tests/site/exercises.test.js 的 loadLabs。
+// 第 23 章的实验台测试数据。格式见 tests/site/exercises.test.js 的 loadLabs。
 module.exports = [
   {
     id: 'demo-mig-counter', name: '两个计数器初始 count = 5；点 +1 变 6；重新挂载后回到新的 start', pick: 0,

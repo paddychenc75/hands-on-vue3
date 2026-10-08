@@ -2,13 +2,13 @@
 title: 自定义渲染器
 id: renderer
 stage: 6
-chapter: 24
+chapter: 25
 desc: createRenderer、渲染到 Canvas
 ---
 
 <script setup>
-import RuntimeCoreAndNodeOps from '../figures/24-renderer/RuntimeCoreAndNodeOps.vue'
-import CanvasRenderer from '../labs/24-renderer/CanvasRenderer.vue'
+import RuntimeCoreAndNodeOps from '../figures/25-renderer/RuntimeCoreAndNodeOps.vue'
+import CanvasRenderer from '../labs/25-renderer/CanvasRenderer.vue'
 </script>
 
 # 自定义渲染器
@@ -45,7 +45,7 @@ runtime-core
 本章用 createRenderer 提供自己的节点操作。Vue 的组件、响应式和 diff 都可以复用。
 :::
 
-### 24.1 理解 runtime-core 和 runtime-dom
+### 25.1 理解 runtime-core 和 runtime-dom
 
 下图显示运行时的两层结构。
 
@@ -58,7 +58,7 @@ runtime-core
 
 runtime-core 只通过 nodeOps 操作节点。所以你可以提供另一组 nodeOps，让 Vue 渲染到 Canvas、终端、PDF 或原生应用。
 
-### 24.2 用 createRenderer 创建渲染器
+### 25.2 用 createRenderer 创建渲染器
 
 `createRenderer(options)` 接收 nodeOps 和 patchProp。它返回 render、hydrate 和 createApp。用返回的 createApp 创建应用：
 
@@ -109,7 +109,7 @@ const { createApp } = createRenderer({
 
 <Exercise id="fbRenderer" />
 
-### 24.3 渲染到 Canvas
+### 25.3 渲染到 Canvas
 
 下面的实验台用上面的方法，把一个 Vue 组件画到 Canvas 上。
 

@@ -1,4 +1,4 @@
-// 第 23 章的实验台测试数据。格式见 02-template.js。
+// 第 24 章的实验台测试数据。格式见 02-template.js。
 module.exports = [
   {
     id: 'demo-ssr', name: '放入服务器 HTML 后按钮没反应；水合后点按钮计数增加；文字不匹配时 Vue 把文字改成客户端的', pick: 1,

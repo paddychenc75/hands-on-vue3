@@ -152,7 +152,7 @@ function readTerms() {
     {
       const g = R.group('390px 宽：术语表页、标了术语的章页没有横向滚动')
       const m = await newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true })
-      for (const u of ['/glossary.html', '/chapters/03-refs.html', '/chapters/05-comm.html', '/']) {
+      for (const u of ['/glossary.html', '/chapters/03-refs.html', '/chapters/06-comm.html', '/']) {
         await m.goto(base + u); await m.waitForSelector('.vp-doc h1, .home h1'); await m.waitForTimeout(500)
         const over = await m.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
         g.ok(over <= 0, `${u} 横向溢出 ${over}px`)
@@ -167,7 +167,7 @@ function readTerms() {
     {
       const g = R.group('术语标注：只标已学过的术语；每小节每个术语一次；不标代码、标题、链接、术语块、目标、类比、自测、实验台、练习')
       let total = 0
-      for (const c of ['03-refs', '05-comm', '26-diff']) {
+      for (const c of ['03-refs', '06-comm', '30-diff']) {
         const q = await newPage()
         await q.goto(base + `/chapters/${c}.html`)
         await q.waitForSelector('.vp-doc h1'); await q.waitForSelector('.vp-doc abbr.term', { timeout: 8000 }).catch(() => {})
@@ -199,7 +199,7 @@ function readTerms() {
     }
     {
       // 复合词里的子串不标：对每一章，每个标注（abbr.term）的前后相邻文字不能和它一起组成另一个更长的已知术语
-      // （已知术语 = 术语表全部术语 + 首页写作规则表里的术语）。例：第 2 到 8 章里的“自定义指令”不能把里面的“指令”标出来
+      // （已知术语 = 术语表全部术语 + 首页写作规则表里的术语）。例：第 2 到 9 章里的“自定义指令”不能把里面的“指令”标出来
       const g = R.group('术语标注：不标复合词里的子串（每章的每个标注都不是更长已知术语的一部分）')
       const known = [...new Set([...rows.map(r => r.term), ...WRITING_TERMS.flatMap(w => w.terms)])]
       const q = await newPage()

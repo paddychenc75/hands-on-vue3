@@ -497,7 +497,7 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       const g = R.group('长代码的编辑器限高：约 24 行（手机上不超过屏高的 70%）后在编辑器内部滚动，短代码不受影响')
       for (const [label, vp, maxH] of [['桌面', { width: 1280, height: 800 }, 520], ['手机', { width: 390, height: 844 }, Math.round(844 * 0.7) + 2]]) {
         const p = await site.newPage({ viewport: vp })
-        const box = await openExercise(p, base, '27-runtime', 'miniMount')
+        const box = await openExercise(p, base, '31-runtime', 'miniMount')
         const r = await box.evaluate(el => {
           const eds = [...el.querySelectorAll('.cm-editor')].map(e => ({ h: Math.round(e.getBoundingClientRect().height), sh: e.querySelector('.cm-scroller').scrollHeight, ch: e.querySelector('.cm-scroller').clientHeight }))
           const sc = el.querySelectorAll('.cm-scroller')[1]
@@ -546,8 +546,8 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g.end()
     }
     for (const [title, chapters] of [
-      ['第 25、26、27、30、16、32、28、35、19 章', ['25-compiler', '26-diff', '27-runtime', '30-patterns', '16-state-arch', '32-ssr', '28-renderer', '35-perf-clinic', '19-project']],
-      ['第 20、21、24、22、23、29、33、34、36 章', ['20-reactivity', '21-scheduler', '24-render', '22-watch-impl', '23-reactivity-pitfalls', '29-builtins-impl', '33-errors', '34-forms-arch', '36-lib']],
+      ['第 29、30、31、34、19、36、32、40、23 章', ['29-compiler', '30-diff', '31-runtime', '34-patterns', '19-state-arch', '36-ssr', '32-renderer', '40-perf-clinic', '23-project']],
+      ['第 24、25、28、26、27、33、38、39、41 章', ['24-reactivity', '25-scheduler', '28-render', '26-watch-impl', '27-reactivity-pitfalls', '33-builtins-impl', '38-errors', '39-forms-arch', '41-lib']],
     ]) {
       // 深度补强和新写的章：练习编辑器和实验台都挂载、深入块展开之后，页面不能被撑宽；
       // 也不能有没被任何可滚动容器包住、却伸出窗口右边的元素（页面本身 overflow 被裁掉时 scrollWidth 看不出来）

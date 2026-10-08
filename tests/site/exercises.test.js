@@ -19,7 +19,7 @@ const { loadChapters, startPreview, STORE_KEY } = require('./helpers')
 const CHAPTERS = loadChapters()
 
 const ROOT = path.resolve(__dirname, '../..')
-// 教学内容故意触发的控制台报错：第 32 章的“水合不一致”练习会让 Vue 打印 Hydration mismatch，不算页面报错
+// 教学内容故意触发的控制台报错：第 36 章的“水合不一致”练习会让 Vue 打印 Hydration mismatch，不算页面报错
 const IGNORED_CONSOLE = [/Hydration (completed but contains mismatches|node mismatch|children mismatch|text content mismatch|class attribute mismatch|style mismatch|attribute mismatch)/i]
 let bad = 0
 const log = (ok, msg) => { if (!ok) bad++; console.log((ok ? 'PASS ' : 'FAIL ') + msg) }

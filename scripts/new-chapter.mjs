@@ -149,7 +149,7 @@ ${TODO}自测第 1 题的题干
 const exerciseTs = `import type { Exercise } from './types'
 import { sub } from './types'
 
-// ${TODO}这是脚手架生成的示例练习：能通过检查，但内容是占位。照 course/AUTHORING.md 的 4.10 节改成本章真正的练习。
+// ${TODO}这是脚手架生成的示例练习：能通过检查，但内容是占位。照 course/AUTHORING.md 里讲“练习”的那一节改成本章真正的练习。
 // 练习 id（导出名）创建后不能改。
 const solJs = "const msg = ref('你好')\\n\\nreturn { msg }"
 

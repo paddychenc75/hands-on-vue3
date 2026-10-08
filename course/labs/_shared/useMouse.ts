@@ -1,4 +1,4 @@
-// 第 7 章组合式函数的示例：跟踪指针在某个元素内的位置（旧版 useMouse）。
+// 第 8 章组合式函数的示例：跟踪指针在某个元素内的位置（旧版 useMouse）。
 //   const pad = ref<HTMLElement | null>(null)
 //   const { x, y } = useMouse(pad)
 import { onMounted, onUnmounted, ref, type Ref } from 'vue'

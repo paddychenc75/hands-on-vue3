@@ -250,7 +250,7 @@ watch(filters, (f) => loadTasks(f), {
 const tasks = ref([])
 
 watch(tasks, () => {
-  scrollToTask(route.query.taskId)   // route 是路由信息（第 19 章）。以后列表刷新时不再运行
+  scrollToTask(route.query.taskId)   // route 是路由信息（第 20 章）。以后列表刷新时不再运行
 }, { once: true })
 ```
 

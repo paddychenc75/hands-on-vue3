@@ -76,11 +76,12 @@ if (!DRY) {
 }
 
 const renumber = Object.fromEntries(order.map(c => [c.base, c.newNo]));
-const { writes, noMap, textChanged } = planRenumber(chapters, renumber, newStage !== me.stage ? { [me.base]: newStage } : {});
+const { writes, noMap, textChanged, fencedRefs } = planRenumber(chapters, renumber, newStage !== me.stage ? { [me.base]: newStage } : {});
 const renames = writes.filter(w => w.from !== w.to);
 console.log(`${DRY ? '[dry-run] ' : ''}把 ${me.id} 从第 ${me.no} 章（阶段 ${me.stage}）移到第 ${me.newNo} 章（阶段 ${newStage}），章号变化：`);
 for (const c of order.filter(c => c.newNo !== c.no)) console.log(`  第 ${c.no} 章 ${c.id} -> 第 ${c.newNo} 章`);
 console.log(`重命名 ${renames.length} 个文件（含 labs/、figures/ 目录里的），改写 ${textChanged} 个文件的内容。`);
+if (fencedRefs.length) console.log('\n⚠ 围栏代码块（注释）里写着会变的章号，脚本不改，请人工改：\n' + fencedRefs.map(x => '  ' + x).join('\n'));
 if (DRY) {
   for (const w of renames.filter(w => !/\/(labs|figures)\//.test(w.from))) console.log(`  ${w.from} -> ${w.to}`);
   process.exit(0);

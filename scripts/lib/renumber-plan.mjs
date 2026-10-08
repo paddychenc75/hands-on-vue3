@@ -6,7 +6,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT } from './collect.mjs';
-import { mapPath, pad2, remapExerciseCh, remapFrontmatterChapter, remapHeadings, remapRefs, renameTokens, setFrontmatterStage } from './renumber.mjs';
+import { mapPath, pad2, remapExerciseCh, remapFrontmatterChapter, remapHeadings, remapRefs, remapRefsInLine, renameTokens, setFrontmatterStage } from './renumber.mjs';
+import { maskFences } from '../../course/content-parse.mjs';
 
 const abs = (...p) => path.join(ROOT, ...p);
 const TEXT = /\.(md|ts|mts|vue|js|mjs|json|css)$/;
@@ -47,7 +48,8 @@ function listFiles() {
  * @param chapters 现有章 [{ base, id, no }]
  * @param renumber { 旧 base: 新章号 }
  * @param stages   { 旧 base: 新阶段号 }，只改 frontmatter 的 stage
- * @returns { writes: [{from,to,text|null}], nameMap, noMap, textChanged }
+ * @returns { writes: [{from,to,text|null}], nameMap, noMap, textChanged, fencedRefs }
+ *   fencedRefs：围栏代码块里写着“第 N 章”“N.M 节”、章号会变、但脚本没有改的行（代码注释里的引用，要人工改）
  */
 export function planRenumber(chapters, renumber, stages = {}) {
   const byBase = Object.fromEntries(chapters.map(c => [c.base, c]));
@@ -60,6 +62,7 @@ export function planRenumber(chapters, renumber, stages = {}) {
   }
   const writes = [];
   let textChanged = 0;
+  const fencedRefs = [];
   for (const p of listFiles()) {
     const to = moved.length ? mapPath(p, nameMap) : p;
     if (!TEXT.test(p) || NO_RENAME_TEXT.has(p)) {
@@ -76,13 +79,21 @@ export function planRenumber(chapters, renumber, stages = {}) {
         text = remapHeadings(text, byBase[base].no, renumber[base]);
       }
       if (p.startsWith('course/exercises/') && nameMap[base]) text = remapExerciseCh(text, byBase[base].no, renumber[base]);
-      if (REF_FILES(p)) text = remapRefs(text, noMap, { markdown: p.endsWith('.md') });
+      if (REF_FILES(p)) {
+        text = remapRefs(text, noMap, { markdown: p.endsWith('.md') });
+        if (p.endsWith('.md')) {
+          const fenced = maskFences(src).fenced;
+          src.split('\n').forEach((l, i) => {
+            if (fenced[i] && remapRefsInLine(l, noMap) !== l) fencedRefs.push(`${p}:${i + 1}  ${l.trim().slice(0, 100)}`);
+          });
+        }
+      }
     }
     if (p.startsWith('course/chapters/') && stages[base] != null) text = setFrontmatterStage(text, stages[base]);
     if (text !== src) textChanged++;
     if (to !== p || text !== src) writes.push({ from: p, to, text });
   }
-  return { writes, nameMap, noMap, textChanged };
+  return { writes, nameMap, noMap, textChanged, fencedRefs };
 }
 
 /** 执行 planRenumber 算出的改动：先写新文件，再删掉没有被写成新文件的旧文件，最后清空目录 */

@@ -105,7 +105,7 @@ app.mount('#app')                                 // 最后调用。mount 返回
 
 ```js
 const app = createApp(App)
-app.use(router)                               // 安装插件：路由见第 19 章，插件的写法见 10.2 节
+app.use(router)                               // 安装插件：路由见第 20 章，插件的写法见 10.2 节
 app.config.errorHandler = (err) => report(err) // 组件中未处理的错误都到这里（10.6 节）
 app.mount('#app')                             // 最后一步：挂载
 ```

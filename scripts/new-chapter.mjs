@@ -80,7 +80,7 @@ if (!DRY) {
 }
 
 // ---------- 要改的文件（计算在 lib/renumber-plan.mjs，和 move-chapter 共用） ----------
-const { writes, textChanged } = planRenumber(chapters, Object.fromEntries(moved.map(c => [c.base, c.no + 1])));
+const { writes, textChanged, fencedRefs } = planRenumber(chapters, Object.fromEntries(moved.map(c => [c.base, c.no + 1])));
 
 // ---------- 新文件 ----------
 const camel = s => s.replace(/-([a-z0-9])/g, (_m, c) => c.toUpperCase());
@@ -235,6 +235,7 @@ if (moved.length) {
   for (const f of fs.readdirSync(abs('course/.vitepress/theme'), { recursive: true }).filter(p => /\.(vue|ts|css)$/.test(p))) scan('course/.vitepress/theme/' + f);
   todoList.push(...hits.slice(0, 30), hits.length > 30 ? `  …还有 ${hits.length - 30} 处` : '');
 }
+if (fencedRefs.length) todoList.push('围栏代码块（注释）里写着会变的章号，脚本不改，请人工改：', ...fencedRefs.map(x => '  ' + x));
 todoList.push(
   `测试里锁定的章数和“每个阶段的可用题数”表：tests/expected.cjs（章数、阶段表要跟着改）；首页和测试里的其他章数都是算出来的，不用改。`,
   `阶段说明（course/stages.ts）如果提到章的范围，核对一下。`,

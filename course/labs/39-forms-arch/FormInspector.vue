@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 实验台：表单状态检查器。左边是用迷你表单库（formKit.ts）写的表单，右边实时显示每个字段的状态和各组件的更新次数。
+// 实验台：表单状态检查器。左边是用迷你表单库（formKit.js）写的表单，右边实时显示每个字段的状态和各组件的更新次数。
 import { ref } from 'vue'
 import { domLog } from '../_shared'
 import { useForm } from './formKit'

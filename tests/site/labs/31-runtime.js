@@ -1,7 +1,7 @@
 // 第 31 章的实验台测试数据。
 module.exports = [
   {
-    id: 'demo-runtime-step', name: '首次挂载：运行到底后 App、Counter 都已挂载，Counter 的 mounted 先于 App；只改 label 时 shouldUpdateComponent 返回 false，Counter 不渲染', pick: 1,
+    id: 'demo-runtime-step', name: '首次挂载（运行的是练习里的迷你 Vue）：运行到底后 App、Counter 都已挂载，Counter 的 mounted 先于 App；只改 label 时 shouldUpdateComponent 返回 false，Counter 不渲染', pick: 1,
     async run(p, body, ok) {
       await body.locator('#rtList .st').first().waitFor()
       const list = async () => (await body.locator('#rtList .st code').allTextContents())
@@ -50,7 +50,7 @@ module.exports = [
       await body.locator('#rtScenario').selectOption({ label: '同步改三次，父子的数据都改' })
       await body.getByRole('button', { name: '运行到底' }).click()
       const batch = await list()
-      ok(batch.includes('invalidateJob'), '父组件更新子组件时，把子组件的任务从队列删掉（invalidateJob）')
+      ok(batch.includes('runIfDirty'), '父组件已经同步更新了子组件，子组件排队的更新任务运行时发现不脏，什么也不做（runIfDirty）')
       ok(batch.filter(n => n === 'queueJob').length >= 3, 'queueJob 被调用多次（重复的任务不再入队）')
       ok(renders(await inst()).Counter === 2, '批量更新后 Counter 的 render 次数是 2（初始 1 次加更新 1 次）')
     }

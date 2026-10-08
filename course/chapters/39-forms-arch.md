@@ -4,7 +4,7 @@ id: forms-arch
 stage: 6
 optional: true
 chapter: 39
-desc: 从零设计一个小表单库：状态模型、路径读写、字段注册、分层校验、异步竞态、字段数组、提交与类型
+desc: 从零设计一个小表单库：状态模型、路径读写、字段注册、错误显示与分层校验、异步竞态、字段数组、提交
 ---
 
 <script setup>
@@ -16,7 +16,7 @@ import FormInspector from '../labs/39-forms-arch/FormInspector.vue'
 ::: goals
 <Goal checks="sc:0,ex:formCore">说明表单状态里哪些要存、哪些要算，并写出按路径读写、dirty 和 reset。</Goal>
 <Goal checks="sc:1,sc:2">说明为什么集中持有值不会让整个表单重新渲染，并设计字段的注册与卸载。</Goal>
-<Goal checks="sc:3,sc:4,ex:formRace">区分字段级和表单级校验，写出只认最新结果的异步校验。</Goal>
+<Goal checks="sc:3,sc:4,ex:formRace">说明错误什么时候显示，区分字段级和表单级校验，写出只认最新结果的异步校验。</Goal>
 <Goal checks="sc:5,ex:formArray">实现字段数组的增删移动，并让 touched 和错误跟着项走。</Goal>
 <Goal checks="sc:6,sc:7">设计提交流程，并为字段路径写类型。</Goal>
 <Goal checks="sc:8">判断什么时候用配置驱动的表单、什么时候第 12 章的写法就够。</Goal>
@@ -24,7 +24,7 @@ import FormInspector from '../labs/39-forms-arch/FormInspector.vue'
 :::
 
 ::: rt
-阅读主线约 32 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 22 分钟，深入内容约 8 分钟（可选，主要是完整清单和类型实现）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -56,12 +56,12 @@ schema
 
 原因：[第 12 章](/chapters/12-forms)的写法适合一个表单。表单一多，字段一动态，每个问题都要在每个表单里再解决一遍，而且解决得不一样。
 
-本章带你从零写一个小表单库 `useForm` + `useField`。每一节解决一个设计问题。最后拿它和 VeeValidate、FormKit、TanStack Form 对照，看它们在同样的问题上怎样选择。
+本章从零写一个小表单库 `useForm` + `useField`，每一节解决一个设计问题，最后对照现成的库。
 :::
 
 ### 39.1 表单状态：存什么，算什么
 
-一个字段不只有值。表单也不只有字段。先列出所有状态，再决定哪些存、哪些算。判断依据是[第 19 章](/chapters/19-state-arch)的“派生而不存储”（19.3 节）：能由别的状态算出来的，就不单独存。
+一个字段不只有值，表单也不只有字段。先列出所有状态，再决定哪些存、哪些算。判断依据是[第 19 章](/chapters/19-state-arch)的“派生而不存储”（19.3 节）：能由别的状态算出来的，就不单独存。
 
 | 状态 | 存还是算 | 理由 |
 |---|---|---|
@@ -77,28 +77,30 @@ schema
 
 同步错误为什么不存？存下来就要决定谁在什么时候更新它。例如“确认密码”的错误依赖密码字段。用户改了密码，确认密码字段的值没变，存下来的错误就是过期的。算出来的错误没有这个问题（自测第 4 题）。
 
-核心状态这样写（`useForm` 的前半部分）：
+章末的深入块给出这个小表单库的完整清单。实验台运行的就是同一份代码，正文各节的片段都从它截取。先看 `useForm` 的状态部分：
 
 ```js
+const clone = v => structuredClone(toRaw(v))        // reactive 对象不能直接 structuredClone，先 toRaw
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+
 export function useForm({ initialValues, schema, onSubmit }) {
-  const initial = shallowRef(structuredClone(initialValues))   // 存：比较和重置用
-  const values = reactive(structuredClone(initialValues))      // 存：用户输入
-  const touched = reactive({})                                 // 存：历史
-  const asyncErrors = reactive({})                             // 存：请求的结果
+  const initial = shallowRef(clone(initialValues))  // 存：比较和重置用
+  const values = reactive(clone(initialValues))     // 存：用户输入
+  const touched = reactive({})                      // 存：历史
+  const asyncErrors = reactive({})                  // 存：请求的结果
   const serverErrors = reactive({})
   const validating = reactive({})
   const submitCount = ref(0)
   const isSubmitting = ref(false)
-  const fields = shallowReactive(new Map())                    // 已注册的字段（39.3 节）
+  const fields = shallowReactive(new Map())         // 已注册的字段（39.3 节）
 
-  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
   const isDirty = p => !same(p ? getPath(values, p) : values, p ? getPath(initial.value, p) : initial.value)
-  const dirty = computed(() => isDirty())                      // 算
+  const dirty = computed(() => isDirty())           // 算
 
   function reset(next) {
-    if (next) initial.value = structuredClone(next)            // 保存成功后，把新值当作初始值
+    if (next) initial.value = clone(next)           // 保存成功后，把新值当作初始值
     Object.keys(values).forEach(k => delete values[k])
-    Object.assign(values, structuredClone(initial.value))
+    Object.assign(values, clone(initial.value))
     for (const s of [touched, asyncErrors, serverErrors]) Object.keys(s).forEach(k => delete s[k])
     submitCount.value = 0
   }
@@ -108,9 +110,9 @@ export function useForm({ initialValues, schema, onSubmit }) {
 
 `initial` 和 `values` 必须是两份复制。共用一个对象，用户一改，初始值也变了，`dirty` 永远是 false。`reset` 不能把 `values` 换成新对象，输入框绑定的是原来那个。
 
-用 `JSON.stringify` 比较是为了简单：键的顺序不同会被当成不同，`Date` 会变成字符串。真实的库会写专门的深比较。
+`same` 用 `JSON.stringify` 比较是为了简单：键的顺序不同会被当成不同，`Date` 会变成字符串。真实的库会写专门的深比较。
 
-“放弃修改”的确认就建立在 `dirty` 上。路由守卫（第 17 章）里写 `onBeforeRouteLeave(() => !form.dirty.value || confirm('放弃未保存的修改？'))`。
+“放弃修改”的确认就建立在 `dirty` 上。路由守卫（[第 17 章](/chapters/17-router)）里写 `onBeforeRouteLeave(() => !form.dirty.value || confirm('放弃未保存的修改？'))`。
 
 ### 39.2 值放在哪里：集中持有，按路径读写
 
@@ -123,7 +125,7 @@ export function useForm({ initialValues, schema, onSubmit }) {
 | 提交、重置、dirty | 遍历一个对象 | 要逐个字段收集 |
 | 初始值 | 表单统一给 | 每个字段各自给 |
 
-本章选集中持有，理由和[第 19 章](/chapters/19-state-arch)一致：每个事实只在一个地方写入。字段各自持有适合互相独立、不需要汇总的小控件。
+本章选集中持有，理由和第 19 章一致：每个事实只在一个地方写入。字段各自持有适合互相独立、不需要汇总的小控件。
 
 字段按**路径**读写这个对象。路径是 `user.address.city` 或 `items[2].price` 这样的字符串：
 
@@ -144,19 +146,19 @@ export function setPath(obj, path, value) {
 }
 ```
 
-**重新渲染的范围。**React 生态里常说：值集中在一个 state 里，输入一个字，整个表单都重新渲染。Vue 不是这样。reactive 对象按属性追踪依赖，一个字段只读自己的路径，别的路径变了它不更新。在 Vue 3.5.43 里实测（实验台里能看到）：在一个字段里输入，只有这个字段的组件更新，表单根组件和其他字段都是 0 次。
+**重新渲染的范围。**React 生态里常说：值集中在一个 state 里，输入一个字，整个表单都重新渲染。Vue 不是这样。reactive 对象按属性追踪依赖，一个字段只读自己的路径，别的路径变了它不更新。实验台里能看到：输入时只有这个字段的组件更新，表单根组件和其他字段都是 0 次。
 
 有三种写法会破坏这一点：
 
 1. **读了整个对象。**调试面板里的 `JSON.stringify(form.values)` 或 `{ ...form.values }` 读了每个属性，每次输入都会更新。
-2. **传内联数组或对象。**`<Field :rules="[required]" />` 在父组件每次渲染时创建新数组，子组件的 props 变了，就跟着更新。实测：父组件更新一次，内联数组的子组件更新一次，常量数组的子组件 0 次。把规则写在组件外面。
-3. **根组件读了每次输入都会变的值。**例如在根模板里显示某个字段的当前长度。根模板里的 `form.isValid.value` 只在真假翻转时才引起更新，没有问题。把每次都变的读取放进小组件，让变化只波及它自己（第 21 章 21.2 节讲过这个思路）。
+2. **传内联数组或对象。**`<Field :rules="[required]" />` 在父组件每次渲染时创建新数组，子组件的 props 变了，就跟着更新。父组件更新一次，内联数组的子组件更新一次，常量数组的子组件 0 次。把规则写在组件外面。
+3. **根组件读了每次输入都会变的值。**例如在根模板里显示某个字段的当前长度。（`form.isValid.value` 只在真假翻转时才引起更新，没有问题。）把每次都变的读取放进小组件，让变化只波及它自己（[第 21 章](/chapters/21-perf) 21.2 节讲过这个思路）。
 
 <Exercise id="formCore" />
 
 ::: pitfalls
-1. 不要对 reactive 对象直接调用 `structuredClone`。它会抛出 `DataCloneError`（实测）。先 `toRaw(values)` 再复制。
-2. `touched` 这类按路径存的状态，键是字符串，例如 `'items[1].price'`。数组的项一搬家，这些键就要跟着改（39.6 节）。
+1. 不要对 reactive 对象直接调用 `structuredClone`，它会抛出 `DataCloneError`。先 `toRaw`（上面的 `clone`）。
+2. `touched` 这类按路径存的状态，键是字符串，例如 `'items[1].price'`。数组的项一搬家，这些键就要跟着改（39.7 节）。
 :::
 
 ### 39.3 字段注册：useField 与组件解耦
@@ -178,7 +180,7 @@ export function useField(name, { rules = [], asyncRules = [], delay = 300, clear
     get: () => getPath(form.values, path()),
     set: v => setPath(form.values, path(), v)
   })
-  const meta = { el: null, flush /* 39.5 节 */, syncError /* 39.4 节 */ }
+  const meta = { syncError, el: null, flush }             // 登记给表单的内容（39.4 到 39.6 节）
 
   watch(path, (p, _old, onCleanup) => {
     form.register(p, meta)
@@ -186,18 +188,19 @@ export function useField(name, { rules = [], asyncRules = [], delay = 300, clear
   }, { immediate: true, flush: 'sync' })
 
   onScopeDispose(() => {
+    cancel()
     if (clearOnUnmount) { /* 清掉 values、touched、错误里这个路径的内容 */ }
   })
   // …
 }
 ```
 
-`name` 用 `watch` 监视，是因为字段数组删掉前面的项以后，后面的项下标变了，路径跟着变，要重新注册。
+`name` 用 `watch` 监视，是因为字段数组删掉前面的项以后，后面的项下标变了，路径要重新注册。
 
-**条件字段消失时，值和错误怎么办？**这是产品决定，所以做成选项 `clearOnUnmount`，默认保留。默认保留的理由：用户在“个人/公司”之间来回切换，不应该丢掉刚填的公司名。需要时设为 `true`，卸载时清掉值、touched 和错误。无论哪种，字段注销后它的规则不再参与 `isValid`：隐藏的必填字段不会挡住提交（实测）。
+**条件字段消失时，值和错误怎么办？**这是产品决定，所以做成选项 `clearOnUnmount`，默认保留。默认保留的理由：用户在“个人/公司”之间来回切换，不应该丢掉刚填的公司名。需要时设为 `true`，卸载时清掉值、touched 和错误。无论哪种，字段注销后它的规则不再参与 `isValid`：隐藏的必填字段不会挡住提交。
 
 ::: deep 为什么 unregister 要比对 meta
-`unregister(path, meta)` 只在注册表里的那一项正是自己时才删除。字段数组删掉第 1 项后，旧组件卸载时注销 `items[0]`，而原来第 2 项的组件已经用新路径 `items[0]` 注册了。不比对的话，旧组件的注销会删掉新组件的登记。实测：不比对时，删一项后注册表里的数组项字段全部丢失，`isValid` 和聚焦都失效。
+`unregister(path, meta)` 只在注册表里的那一项正是自己时才删除。字段数组删掉第 1 项后，旧组件卸载时注销 `items[0]`，而原来第 2 项的组件已经用新路径 `items[0]` 注册了。不比对的话，旧组件的注销会删掉新组件的登记。不比对时，删一项后注册表里的数组项字段全部丢失，`isValid` 和聚焦都失效。
 :::
 
 **字段逻辑和输入控件解耦。**沿用[第 35 章](/chapters/35-api-design)的三层：
@@ -232,33 +235,32 @@ const id = useId()
 </template>
 ```
 
-`setEl` 登记元素，用于提交失败后聚焦（39.7 节）。它收到的是组件实例时取 `$el`，所以控件的根元素必须是可聚焦的那个元素。换一个控件（`SelectInput`、日期选择器）不用改 `useField` 和 `FormField`。
+`setEl` 登记元素，用于提交失败后聚焦（39.8 节）。它收到组件实例时取 `$el`，所以控件的根元素必须是可聚焦的那个元素。换一个控件（`SelectInput`、日期选择器）不用改 `useField` 和 `FormField`。
 
-### 39.4 校验的时机与分层
+### 39.4 何时显示错误
 
-**时机。**错误是算出来的，所以一直是最新的。时机只剩一个问题：什么时候显示。
+同步错误是算出来的，所以一直是最新的，不存在“何时校验”的问题。时机只剩一个：**什么时候让用户看到**。
 
 ```js
+// useField 里
 const error = computed(() => (form.touched[path()] || form.submitCount.value > 0 ? form.errorOf(path()) : ''))
+const onBlur = () => { form.touched[path()] = true }
 ```
 
 这就是“提交前宽松，报错后积极”：
 
-1. 用户没碰过这个字段，不显示（刚打第一个字就报错，是打扰）。
-2. 离开字段后显示。这之后每次输入，错误都会立刻更新或消失（用户需要马上知道改对没有）。因为错误是算出来的，这一条不用额外写代码。
-3. 点提交后显示所有错误，并聚焦第一个。
+1. 用户没碰过这个字段，不显示。刚打第一个字就报错，是打扰。
+2. 离开字段后显示。这之后每次输入，错误都会立刻更新或消失，用户需要马上知道改对没有。因为错误是算出来的，这一条不用额外写代码。
+3. 点提交后显示所有错误，并聚焦第一个（39.8 节）。
 
-**分层。**规则有两层：
+只有异步校验是例外：请求要花时间，不能每次输入都发。它的时机问题放到 39.6 节。
+
+### 39.5 规则分层与 schema
+
+规则有两层：
 
 - **字段级规则**挂在字段上：`(value, values) => 错误信息或 ''`。第二个参数让它能读别的字段，例如 `(v, all) => v === all.password ? '' : '两次输入不一致'`。
 - **表单级规则**（schema）看整个对象，返回 `{ 路径: 信息 }`。
-
-```js
-const schemaErrors = computed(() => (schema ? schema(values) : {}))
-const errorOf = p => fields.get(p)?.syncError.value || schemaErrors.value[p] || asyncErrors[p] || serverErrors[p] || ''
-const isValid = computed(() =>
-  [...fields.keys()].every(p => !errorOf(p) && !validating[p]) && Object.keys(schemaErrors.value).length === 0)
-```
 
 字段自己的同步错误放在字段里算：
 
@@ -270,12 +272,24 @@ const syncError = computed(() => {
   }
   return ''
 })
-const error = computed(() => (form.touched[path()] || form.submitCount.value > 0 ? form.errorOf(path()) : ''))   // 显示用
-const onBlur = () => { form.touched[path()] = true }
-const setEl = el => { meta.el = el?.$el ?? el }
+```
+
+`useForm` 把几处错误合并，一个路径取第一个非空的：
+
+```js
+const schemaErrors = computed(() => (schema ? schema(values) : {}))
+const errorOf = p => {
+  const f = fields.get(p)
+  return (f && f.syncError.value) || schemaErrors.value[p] || asyncErrors[p] || serverErrors[p] || ''
+}
+const isValid = computed(
+  () => [...fields.keys()].every(p => !errorOf(p) && !validating[p]) && Object.keys(schemaErrors.value).length === 0
+)
 ```
 
 `syncError` 返回字符串，值没变就不通知依赖它的组件。所以输入密码时，只有密码字段和读了密码的确认字段需要重新计算，别的字段的组件不更新。
+
+**同步规则和异步规则用同一个接口**：都是 `(value, values, signal) => 信息或 ''`，异步的返回 Promise。区别在时机。同步规则在 `computed` 里随值重算，便宜。异步规则是请求，不能在 `computed` 里跑。它们分开声明（`rules` 和 `asyncRules`），只有同步规则全部通过才会发请求。
 
 **用 schema 同时得到校验和类型。**Zod、Valibot 这类库用一份 schema 描述结构和规则，类型从它推出来：
 
@@ -290,8 +304,9 @@ type Order = z.infer<typeof schema>                    // 类型从 schema 得�
 const form = useForm<Order>({ initialValues, schema: fromStandard(schema), onSubmit })
 ```
 
-Zod 4.6.5 和 Valibot 1.5.0 都实现了 **Standard Schema**：每个 schema 上有一个 `~standard` 属性，`~standard.validate(value)` 返回 `{ issues }`，每个 issue 有 `message` 和 `path`。表单库只要认这一个接口，就不用为每个 schema 库写适配器。适配器很短：
+Zod 4.6.5 和 Valibot 1.5.0 都实现了 **Standard Schema**：每个 schema 上有一个 `~standard.validate(value)`，返回 `{ issues }`，每个 issue 有 `message` 和 `path`。表单库只认这一个接口，就不用为每个 schema 库写适配器。上面的 `fromStandard` 就是这样的适配器，它把 issues 转成 `{ 路径: 信息 }`（代码见深入块）。`validate` 也可以返回 Promise，异步的 schema 不能放进同步的 `computed`，要放在提交时检查。
 
+::: deep 适配器 fromStandard
 ```js
 export function fromStandard(schema) {
   return values => {
@@ -308,11 +323,10 @@ export function fromStandard(schema) {
 }
 ```
 
-实测：Zod 的 `path` 是 `['items', 1, 'price']`，Valibot 是带 `key` 字段的对象数组（`{ type, origin, input, key, value }`），所以上面要分两种取。转成路径后，两个库对同一份数据给出相同的结果：`{ email, 'items[1].price', pwd2 }`。`validate` 也可以返回 Promise，异步的 schema 不能放进同步的 `computed`，要放在提交时检查。
+Zod 的 `path` 是 `['items', 1, 'price']`，Valibot 是带 `key` 字段的对象数组，所以要分两种取。转成路径后，两个库对同一份数据给出相同的结果。
+:::
 
-**同步规则和异步规则用同一个接口**：都是 `(value, values, signal) => 信息或 ''`，异步的返回 Promise。区别在时机。同步规则在 `computed` 里随值重算，便宜。异步规则是请求，不能在 `computed` 里跑。它们分开声明（`rules` 和 `asyncRules`），只有同步规则全部通过才会发请求。
-
-### 39.5 异步校验与竞态
+### 39.6 异步校验与竞态
 
 用户名检查是一个请求。请求的返回顺序和发出顺序不一定一样：先发的 `ann` 慢，后发的 `anna` 快，`anna` 的结果先到，`ann` 的结果后到，把正确的结果覆盖了。这就是[第 4 章](/chapters/04-computed)的竞态问题。
 
@@ -320,7 +334,6 @@ export function fromStandard(schema) {
 
 ```js
 let seq = 0, timer, ctrl, checked
-const meta = { syncError, el: null, flush }
 
 function cancel() { checked = undefined; seq++; clearTimeout(timer); ctrl?.abort(); delete form.validating[path()] }
 
@@ -367,11 +380,13 @@ watch(value, () => {                                             // 值变了：
 
 <Exercise id="formRace" />
 
-### 39.6 字段数组
+### 39.7 字段数组
 
 订单的商品行、联系人列表：数量可变，可以增删和排序。三个设计要求：
 
-**每一项要有稳定的 id，用它做 `v-for` 的 key。**下标做 key 时，删掉第一项，原来的第二个输入框 DOM 元素被留在第二个位置，改成显示第三项的数据；用 id 做 key，第二项的元素跟着它移到第一个位置（实测：删掉第 1 项后，用 id 做 key，第 3 项原来的输入框元素被保留；用下标做 key，被保留的是第 1 个位置的元素，它改成显示第 2 项的数据）。光标、输入法组合状态、过渡动画这些只存在于 DOM 元素上的东西，会留在错误的项上（[第 30 章](/chapters/30-diff)的 30.4 节）。注意：移动被聚焦的那一项（上移、拖动排序）时，浏览器会让被移动的输入框失去焦点，哪怕 key 是稳定的 id。移动之后要在 `nextTick` 里自己调用 `focus()`。删除和在它前面插入不受影响。
+**每一项要有稳定的 id，用它做 `v-for` 的 key。**下标做 key 时，删掉第一项，原来的第二个输入框 DOM 元素被留在第二个位置，改成显示第三项的数据；用 id 做 key，第二项的元素跟着它移到第一个位置。光标、输入法组合状态、过渡动画这些只存在于 DOM 元素上的东西，会留在错误的项上（[第 30 章](/chapters/30-diff) 30.4 节）。
+
+注意：移动被聚焦的那一项（上移、拖动排序）时，浏览器会让被移动的输入框失去焦点，哪怕 key 是稳定的 id。移动之后要在 `nextTick` 里自己调用 `focus()`。删除和在它前面插入不受影响。
 
 **不要把状态关联到下标上，除非你负责搬运。**同步错误是算出来的，项一搬家，组件拿到新路径，它自己重新算，自动正确。需要搬运的是按路径存的那几份：`touched`、`asyncErrors`、`serverErrors`。这就是 39.1 节“存与算”的代价。
 
@@ -389,7 +404,7 @@ watch(value, () => {                                             // 值变了：
 
 <Exercise id="formArray" />
 
-### 39.7 提交
+### 39.8 提交
 
 提交是一个小状态机：
 
@@ -403,7 +418,7 @@ async function submit() {
   try {
     await Promise.all([...fields.values()].map(f => f.flush()))
     if (!isValid.value) return focusFirstError()
-    await onSubmit(structuredClone(toRaw(values)))
+    await onSubmit(clone(values))                         // 交出普通对象，不交 reactive 代理
   } catch (e) {
     if (!e.fieldErrors) throw e                           // 不是字段错误：交给调用方
     setErrors(e.fieldErrors)                              // 服务端的字段错误：映射回字段
@@ -416,9 +431,9 @@ async function submit() {
 
 **防重复提交。**按钮写 `:disabled="isSubmitting"` 还不够：`disabled` 要等下一次渲染才生效，同一个同步段内的第二次调用已经进来了。函数开头的检查立即生效（自测第 7 题）。前端的防重复只是减少问题，要真正避免重复下单，服务端要认得重复请求（例如幂等键）。
 
-**服务端的字段错误。**约定服务端返回的错误用和前端相同的路径，例如 `{ "contacts[1].name": "联系人重复" }`。`setErrors` 把它们存进 `serverErrors`，字段按路径取。用户修改这个字段后，`useField` 里的 `watch(value)` 会清掉它。服务端用的是别的路径格式（例如 Zod 风格的数组）时，在入口转换一次，不要让转换散落在字段里。
+**服务端的字段错误。**约定服务端返回的错误用和前端相同的路径，例如 `{ "contacts[1].name": "联系人重复" }`。`setErrors` 把它们存进 `serverErrors`，字段按路径取。用户修改这个字段后，`useField` 里的 `watch(value)` 会清掉它。服务端用别的路径格式时，在入口转换一次。
 
-**聚焦第一个出错的字段。**第 12 章（12.6、12.7 节）讲了为什么要聚焦。架构上的做法是字段注册时登记元素（39.3 节的 `setEl`）。第一个出错的字段按 DOM 顺序排，不能按注册顺序：条件字段和数组项会在中间插入。
+**聚焦第一个出错的字段。**[第 12 章](/chapters/12-forms)（12.6、12.7 节）讲了为什么要聚焦。架构上的做法是字段注册时登记元素（39.3 节的 `setEl`）。第一个出错的字段按 DOM 顺序排，不能按注册顺序：条件字段和数组项会在中间插入。
 
 ```js
 function focusFirstError() {
@@ -428,9 +443,7 @@ function focusFirstError() {
 }
 ```
 
-提交的数据用 `structuredClone(toRaw(values))` 复制成普通对象，不把 reactive 代理交给调用方。
-
-<Lab id="demo-forms-arch" title="实验台：表单状态检查器" note="左边是用本章的迷你表单库写的表单，右边是每个字段的状态和各组件更新的次数">
+<Lab id="demo-forms-arch" title="实验台：表单状态检查器" note="左边是用本章的迷你表单库写的表单（章末的完整清单），右边是每个字段的状态和各组件更新的次数">
 <template #predict>
 <Sc predict :a="1">
 
@@ -458,10 +471,31 @@ function focusFirstError() {
 3. 把“类型”选成公司，填公司名，再选回个人。勾上“条件字段隐藏时清除值”再试一次，看右边的值。
 4. 服务器选“返回字段错误”，点提交。错误出现在对应的字段上，焦点移到第一个出错的字段。
 
-### 39.8 类型：字段名与泛型
+### 39.9 类型：字段名与泛型
 
-字段名是字符串，拼错了不会有任何提示。给 `useForm<T>` 加上路径类型，拼错就是编译错误。下面是思路，不展开成类型体操：
+字段名是字符串，拼错了不会有任何提示。给 `useForm<T>` 加上路径类型，拼错就是编译错误：
 
+```ts
+interface Order { name: string; user: { address: { city: string } }; items: { id: number; price: number }[] }
+
+declare function field<T, P extends Path<T>>(form: T, name: P): { value: PathValue<T, P> }
+declare const order: Order
+field(order, 'items[0].price').value     // number
+field(order, 'user.address.city').value  // string
+// field(order, 'items[0].name')         // 编译错误：Order 的项里没有 name
+// field(order, 'items.price')           // 编译错误：数组要写下标
+```
+
+`Path<T>` 和 `PathValue<T, P>` 是两个递归的条件类型，多数项目直接用库提供的，不必自己写；实现放在下面的深入块里。
+
+还有一个难处：`useField` 在子组件里，通过 `inject` 拿表单，类型信息丢了。常见的两种出路：
+
+- **工厂函数。**`createFormKit<T>()` 返回绑定了 `T` 的 `useForm` 和 `useField`，在表单旁边调用一次。
+- **把类型绑在表单对象上。**TanStack Form 的做法是 `form.Field`：字段组件是从表单对象上取出来的，自然带着 `T`。
+
+`useForm<T>` 的 `initialValues: T`、`onSubmit(values: T)` 用泛型即可。有 schema 时，`T` 从 `z.infer` 得到（39.5 节）。
+
+::: deep Path 和 PathValue 的实现
 ```ts
 type Path<T> = T extends object
   ? { [K in keyof T & string]: T[K] extends (infer U)[]
@@ -475,27 +509,12 @@ type PathValue<T, P extends string> =
   : P extends `${infer K}[${number}]` ? (K extends keyof T ? (T[K] extends (infer U)[] ? U : never) : never)
   : P extends `${infer K}.${infer R}` ? (K extends keyof T ? PathValue<T[K], R> : never)
   : P extends keyof T ? T[P] : never
-
-interface Order { name: string; user: { address: { city: string } }; items: { id: number; price: number }[] }
-
-declare function field<T, P extends Path<T>>(form: T, name: P): { value: PathValue<T, P> }
-declare const order: Order
-field(order, 'items[0].price').value     // number
-field(order, 'user.address.city').value  // string
-// field(order, 'items[0].name')         // 编译错误：Order 的项里没有 name
-// field(order, 'items.price')           // 编译错误：数组要写下标
 ```
 
-用 TypeScript 实测：`Path<Order>` 接受 `'items'`、`'items[2].price'`、`'user.address.city'`，拒绝拼错的路径；`PathValue` 给出对应的类型。
+`Path<Order>` 接受 `'items'`、`'items[2].price'`、`'user.address.city'`，拒绝拼错的路径；`PathValue` 给出对应的类型。
+:::
 
-还有一个难处：`useField` 在子组件里，通过 `inject` 拿表单，类型信息丢了。常见的两种出路：
-
-- **工厂函数。**`createFormKit<T>()` 返回绑定了 `T` 的 `useForm` 和 `useField`，在表单旁边调用一次。
-- **把类型绑在表单对象上。**TanStack Form 的做法是 `form.Field`：字段组件是从表单对象上取出来的，自然带着 `T`。
-
-`useForm<T>` 的 `initialValues: T`、`onSubmit(values: T)` 用泛型即可。有 schema 时，`T` 从 `z.infer` 得到（39.4 节）。
-
-### 39.9 配置驱动的动态表单
+### 39.10 配置驱动的动态表单
 
 有时字段本身来自数据：后端按租户下发设置页的字段，低代码平台让运营拖出表单。这时用一份 JSON 配置渲染：字段类型映射到控件，规则名映射到规则函数，条件显示用数据描述。
 
@@ -505,7 +524,16 @@ const config = { fields: [
   { name: 'email',   label: '邮箱',   control: 'text', rules: ['required', 'email'] },
   { name: 'company', label: '公司名', control: 'text', rules: ['required', 'min:2'], showIf: { field: 'type', equals: 'c' } }
 ] }
+```
 
+渲染器遍历配置，每个字段仍然是 39.3 节的 `FormField`，只是由配置生成：`<FormField v-if="visible(f, form.values)" :name="f.name" :rules="f.parsed" … />`。规则名要先解析成函数（代码见深入块），而且只解析一次：在模板里写 `:rules="parseRules(f.rules)"` 会重犯 39.2 节的错误，每次渲染都生成新数组。条件不满足的字段不渲染，也就不注册。
+
+**值得用的情况：**字段来自数据，种类有限（几种控件、十几条规则），结构相似的表单很多。
+
+**过度设计的情况：**表单是开发者自己写的，只是想少写模板。联动一复杂，条件、计算、校验就越来越多地塞进配置，最后在 JSON 里发明了一门语言，既没有类型，也不能调试。这时直接写组件，用 `v-if` 和函数。
+
+::: deep 把规则名解析成函数
+```js
 const ruleLib = {
   required: () => v => (v ? '' : '必填'),
   email: () => v => (/^\S+@\S+\.\S+$/.test(v) ? '' : '邮箱格式不正确'),
@@ -515,21 +543,9 @@ const parseRules = (list = []) => list.map(s => { const [name, arg] = s.split(':
 const compiled = config.fields.map(f => ({ ...f, parsed: parseRules(f.rules) }))   // 只解析一次
 const visible = (f, values) => !f.showIf || values[f.showIf.field] === f.showIf.equals
 ```
+:::
 
-```vue
-<!-- FormRenderer：每个字段仍然是 39.3 节的 FormField，只是由配置生成 -->
-<template v-for="f in compiled" :key="f.name">
-  <FormField v-if="visible(f, form.values)" :name="f.name" :label="f.label" :rules="f.parsed" :control="controls[f.control]" />
-</template>
-```
-
-实测：初始只注册 `type` 和 `email`；选成公司后，`company` 才注册。`compiled` 只解析一次，原因同 39.2 节：在模板里写 `:rules="parseRules(f.rules)"` 每次渲染都会生成新数组。
-
-**值得用的情况：**字段来自数据，种类有限（几种控件、十几条规则），结构相似的表单很多。
-
-**过度设计的情况：**表单是开发者自己写的，只是想少写模板。联动复杂时，条件、计算、校验越来越多地塞进配置，最后在 JSON 里发明了一门语言，既没有类型，也不能调试。这时直接写组件，复杂的部分用 `v-if` 和函数，比写配置清楚。
-
-### 39.10 对照现成的库，以及什么时候不需要这些
+### 39.11 对照现成的库，以及什么时候不需要这些
 
 本章的每个设计问题，现成的库都要回答。下面只对照思路，用法以各自的文档为准。
 
@@ -538,9 +554,9 @@ const visible = (f, values) => !f.showIf || values[f.showIf.field] === f.showIf.
 | 字段怎样接入 | `useField` 或 `FormField` | `useField`、`<Field>`、`defineField` | 一个 `<FormKit>` 组件，自动汇入所属表单的节点树 | `useForm({ defaultValues, onSubmit })`，字段用 `form.Field`（作用域插槽） |
 | 校验怎样声明 | 字段规则 + 表单级 schema | 字段规则，或用 `toTypedSchema` 包一层 Zod、Yup、Valibot 的 schema（当前稳定版 4.x 需要它；v5 测试版起直接接受 Standard Schema，不再需要） | 规则字符串，如 `validation="required\|email"` | 字段上的 validators；直接接受实现了 Standard Schema 的库（文档列出 Zod、Valibot、ArkType） |
 
-对照文档能看到几个差别：TanStack Form 的 validators 区分触发时机（`onChange`、`onBlur`、`onSubmit` 和对应的异步版本），并有内置的防抖选项，本章把“何时校验”和“何时显示”拆开，思路不同但回答的是同一个问题。FormKit 提供 JSON 可序列化的 schema，用来生成表单（39.9 节）。VeeValidate 的文档列出了数组字段、异步校验和后端错误的支持。
+几个差别：TanStack Form 的 validators 区分触发时机（`onChange`、`onBlur`、`onSubmit` 和对应的异步版本），并有内置的防抖选项，本章把“何时校验”和“何时显示”拆开，回答的是同一个问题。FormKit 提供 JSON 可序列化的 schema，用来生成表单（39.10 节）。
 
-这些差别来自同一个选择：库把哪一层做成“约定”，哪一层留给你。FormKit 把控件、标签、校验和配置渲染放进一个体系，代价是接受它的节点树。TanStack Form 的核心管状态和校验，渲染交给你：文档的快速开始里，字段只给出 `value`、`handleChange` 和 `handleBlur`。VeeValidate 同时提供组合式函数和组件两种接入方式。
+这些差别来自同一个选择：库把哪一层做成“约定”，哪一层留给你。FormKit 把控件、标签、校验和配置渲染放进一个体系，代价是接受它的节点树。TanStack Form 的核心管状态和校验，渲染交给你。VeeValidate 同时提供组合式函数和组件两种接入方式。
 
 **什么时候不需要这一切。**用这三条判断：
 
@@ -550,13 +566,20 @@ const visible = (f, values) => !f.showIf || values[f.showIf.field] === f.showIf.
 
 自己实现的价值不是替代库，而是读库的文档和源码时，知道每个选项在回答哪个设计问题。
 
+::: deep 完整清单：useForm 与 useField
+下面是这个小表单库的全部代码，约 220 行。它就是实验台运行的文件，也是正文各节片段的来源：注释里的 `39.N` 指出片段在哪一节讲。
+
+<<< @/labs/39-forms-arch/formKit.js{js}
+
+读的顺序建议：先看 `useForm` 返回的 `form` 对象有哪些成员，再看 `useField` 怎样用它们。
+:::
+
 ::: pitfalls
 1. 不要把同步错误存起来再手动更新。依赖别的字段的规则（确认密码）会过期。
 2. 不要用下标做字段数组的 `v-for` key，也不要在数组操作后忘记搬运 `touched` 和异步、服务端错误。
 3. 不要让异步校验的过期结果写入，也不要让它改 `validating`。
 4. 不要把规则、选项写成模板里的内联数组。把它们放在组件外。
 5. 不要在调试面板里留着 `JSON.stringify(form.values)`。它读了每个字段，每次输入都会更新。
-6. 不要靠隐藏字段的卸载来清理数组项的状态。数组项由数组操作负责清理，卸载时路径可能已经指向别的项。
 :::
 
 ::: selfcheck
@@ -677,7 +700,7 @@ const visible = (f, values) => !f.showIf || values[f.showIf.field] === f.showIf.
 
 <Sc :a="0">
 
-`interface Order { user: { address: { city: string } }; items: { id: number; price: number }[] }`，路径类型是 39.8 节的 `Path<Order>`。下面哪个字符串可以赋给它？
+`interface Order { user: { address: { city: string } }; items: { id: number; price: number }[] }`，路径类型是 39.9 节的 `Path<Order>`。下面哪个字符串可以赋给它？
 
 <Opt>`'items[2].price'`</Opt>
 <Opt>`'items.price'`</Opt>

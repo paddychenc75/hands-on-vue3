@@ -54,7 +54,7 @@ source map
 
 原因：Vue 只接住它自己调用你的代码时抛出的错误。其他错误直接到浏览器，Vue 不知道。组件渲染出错后，留下的是一个空洞。没有上报，你也不会知道。
 
-本章按三步走：**接住**（38.1 到 38.3），**恢复**（38.4 到 38.6），**上报**（38.7 和 38.8）。第 11 章讲了用法，本章讲机制和工程做法。
+本章按三步走：**接住**（38.1 到 38.3），**恢复**（38.4 到 38.6），**上报**（38.7 和 38.8）。[第 11 章](/chapters/11-app)讲了用法，本章讲机制和工程做法。本章的输出都在 Vue 3.5.43 上运行过。
 :::
 
 ### 38.1 Vue 怎样接住错误
@@ -73,7 +73,7 @@ function callWithAsyncErrorHandling(fn, instance, type, args) {
 }
 ```
 
-`type` 是错误码。它也是传给 `errorCaptured` 和 `errorHandler` 的第三个参数 `info`。下表的码都实测过：
+`type` 是错误码。它也是传给 `errorCaptured` 和 `errorHandler` 的第三个参数 `info`。下表列出常用的码：
 
 | 码 | 位置 | 处理返回的 Promise |
 |---|---|---|
@@ -90,7 +90,7 @@ function callWithAsyncErrorHandling(fn, instance, type, args) {
 
 完整码表在 Vue 文档的“错误码参考”页。
 
-`handleError` 怎样沿父组件链调用 `errorCaptured`，第 11 章 11.6 节已经给过简化源码。这里补三个细节，都用 Vue 3.5.43 实测过：
+`handleError` 怎样沿父组件链调用 `errorCaptured`，第 11 章 11.6 节已经给过简化源码。这里补三个细节：
 
 1. **起点是父组件。**组件自己的 `errorCaptured` 收不到自己的错误。
 2. **`errorCaptured` 自己抛错**，新错误从这个组件的父组件重新走一遍流程。原来的错误继续往上，两个都会到 `errorHandler`。
@@ -112,7 +112,7 @@ function callWithAsyncErrorHandling(fn, instance, type, args) {
 
 规则只有一条：**错误发生时，Vue 在调用栈上，或者 Vue 拿到了你返回的 Promise，错误才会被接住。**
 
-`setup` 和渲染函数是 Vue 调用的，错误在 Vue 的 `try/catch` 里。事件处理函数也是 Vue 的包装函数调用的。但 `setTimeout` 的回调是浏览器调用的，Vue 早就返回了。下表是在一棵真实的组件树里逐个实测的结果（开发版和生产版一致）：
+`setup` 和渲染函数是 Vue 调用的，错误在 Vue 的 `try/catch` 里。事件处理函数也是 Vue 的包装函数调用的。但 `setTimeout` 的回调是浏览器调用的，Vue 早就返回了。下表是在一棵真实的组件树里逐个试出来的（开发版和生产版一致）：
 
 | 错误抛出的位置 | 谁收到 |
 |---|---|
@@ -176,7 +176,7 @@ try {
 }
 ```
 
-实测的结果：
+结果如下：
 
 | 出错的位置 | 页面上留下什么 |
 |---|---|
@@ -237,7 +237,7 @@ export const ErrorBoundary = defineComponent({
 
 1. **重试就是重新挂载。**出错时，`v-if` 式的切换把整棵子树卸载了。`reset` 清除错误后，子树从头创建，`setup` 重新运行，旧状态不会残留。不需要 `key`。`key` 用于“不卸载也要重建”的场景，例如后备界面和内容同时显示。
 2. **换页自动复位，但只在出错时。**`watch` 里的 `if (error.value)` 不能省。没有它，每次换页都会重建整棵子树，用户的滚动位置和输入全部丢失。
-3. **后备界面出错不能被边界吞掉。**后备界面是边界自己的子树，它出错时，边界的 `errorCaptured` 会再次收到。没有 `inFallback` 判断，错误被 `return false` 吞掉，该区域静默变成空白，没有任何上报。有了判断，错误继续往上，由外层边界或 `errorHandler` 处理。实测过。
+3. **后备界面出错不能被边界吞掉。**后备界面是边界自己的子树，它出错时，边界的 `errorCaptured` 会再次收到。没有 `inFallback` 判断，错误被 `return false` 吞掉，该区域静默变成空白，没有任何上报。有了判断，错误继续往上，由外层边界或 `errorHandler` 处理。
 4. **边界接不住自己的错误。**边界的 `setup` 抛错，要靠外层。所以在应用最外层、路由层、有风险的小部件各放一个：粒度决定“出错时失去多少界面”。
 5. **边界接不住异步错误**（38.2 的表）。请求失败用状态建模，见 38.5。
 
@@ -252,7 +252,7 @@ export const ErrorBoundary = defineComponent({
 | 预期失败 | 404、网络断开、校验不通过、没有权限 | 状态：`error` ref，在原地显示 |
 | 异常 | 代码 bug、接口返回了违反约定的数据 | 抛出，交给错误边界和上报 |
 
-预期失败是业务的一部分。用抛出表示，就把“这个用户不存在”和“代码写错了”混在一起，边界会把整个区域换成“出错了”。第 19 章 19.5 节讲的服务端状态，天然就带 `loading`、`error`、`data` 三个状态。
+预期失败是业务的一部分。用抛出表示，就把“这个用户不存在”和“代码写错了”混在一起，边界会把整个区域换成“出错了”。[第 18 章](/chapters/18-data-fetching)讲的服务端状态，天然就带 `loading`、`error`、`data` 三个状态。
 
 组合式函数的约定：**内部 catch，返回 `error`，不向外抛。**
 
@@ -276,7 +276,7 @@ export function useUser(id) {
 
 如果 `load` 把错误抛出来，侦听器回调返回的 Promise 会被 Vue 接住（38.1 的表），错误到达 `errorCaptured`，于是“用户不存在”去找错误边界。这不是你想要的。只有真正的异常才重新抛出，例如在 `catch` 里写 `if (!(e instanceof HttpError)) throw e`。
 
-**`async setup` 与 Suspense。**`<script setup>` 顶层写 `await`，组件就变成异步 setup。实测的行为：
+**`async setup` 与 Suspense。**`<script setup>` 顶层写 `await`，组件就变成异步 setup。行为如下：
 
 | 情况 | 结果 |
 |---|---|
@@ -291,7 +291,7 @@ export function useUser(id) {
 
 这两处的错误不经过 Vue 的 `errorHandler`，因为调用它们的不是 Vue 组件。
 
-**路由。**对照 vue-router 5 实测（5.3.1 和 5.4.0 的行为相同）：
+**路由。**对照 [vue-router 5](/chapters/17-router)（5.3.1 和 5.4.0 的行为相同）：
 
 | 情况 | `router.onError` | `router.push()` 的 Promise |
 |---|---|---|
@@ -319,9 +319,9 @@ router.afterEach((to, from, failure) => {
 })
 ```
 
-各浏览器的错误信息措辞不同，所以用正则匹配多个。Chrome 是 `Failed to fetch dynamically imported module`，Safari 是 `Importing a module script failed`，这两条我们在真实浏览器里实测过。Firefox 的措辞来自社区报告，含有 `dynamically imported module`，也能匹配，但我们没有在 Firefox 里实测。`Loading chunk` 是 webpack 的措辞，Vite 项目不会出现。Vite 还提供了更直接的事件：构建产物里的动态导入失败时，会先派发可取消的 `vite:preloadError`（`event.payload` 是错误），没人 `preventDefault()` 才继续抛出。
+各浏览器的错误信息措辞不同，所以用正则匹配多个：Chrome 是 `Failed to fetch dynamically imported module`，Safari 是 `Importing a module script failed`，`Loading chunk` 是 webpack 的措辞。Firefox 的措辞未在真实浏览器里核对，按社区报告也含有 `dynamically imported module`。Vite 还提供了更直接的事件：构建产物里的动态导入失败时，会先派发可取消的 `vite:preloadError`（`event.payload` 是错误），没人 `preventDefault()` 才继续抛出。
 
-**Pinia。**action 抛错（同步或 `async`）时，`$onAction` 的 `onError` 会收到，**同时错误仍然抛给调用者**。`onError` 只是旁观，不吞掉错误。所以在插件里统一上报很方便：
+**Pinia**（[第 16 章](/chapters/16-pinia)）。action 抛错（同步或 `async`）时，`$onAction` 的 `onError` 会收到，**同时错误仍然抛给调用者**。`onError` 只是旁观，不吞掉错误。所以在插件里统一上报很方便：
 
 ```js
 pinia.use(({ store }) => {
@@ -352,7 +352,7 @@ const chainOf = inst => { const a = []; for (let c = inst; c; c = c.$parent) a.p
 // 例：['UserCard', 'Panel', 'App']
 ```
 
-两个事实，在生产构建里实测过：组件名在压缩后仍然可用，因为 `name` 和 SFC 编译器写入的 `__name` 是字符串属性，不会被压缩改名。函数式组件没有实例，`$parent` 链会跳过它们。开发版有更完整的“组件追踪”：警告里的 `at <Child> at <App>`，可以通过 `app.config.warnHandler(msg, instance, trace)` 拿到。**`warnHandler` 只在开发版调用**，生产版的警告函数是空的，不能依赖它。
+两个事实：组件名在生产构建压缩后仍然可用，因为 `name` 和 SFC 编译器写入的 `__name` 是字符串属性，不会被压缩改名。函数式组件没有实例，`$parent` 链会跳过它们。开发版有更完整的“组件追踪”：警告里的 `at <Child> at <App>`，可以通过 `app.config.warnHandler(msg, instance, trace)` 拿到。**`warnHandler` 只在开发版调用**，生产版的警告函数是空的，不能依赖它。
 
 **去重、采样、限流。**一个渲染错误出现在 1000 行的列表里，会产生 1000 次上报。一个出错的侦听器在循环里触发，一秒钟几千次。没有保护，监控服务的配额被一个 bug 用光，用户的网络也被占满。
 
@@ -412,7 +412,7 @@ export function report(err, inst, info, extra) {
 
 一个错误只提示一次。边界已经显示了后备界面，就 `return false`，不要再让 `errorHandler` 弹一个 toast。表单错误留在表单里，全局错误才进全局通道。
 
-**SSR 里的错误。**对照第 36 章的 `renderToString`，用 Vue 3.5.43 实测：
+**SSR 里的错误。**对照[第 36 章](/chapters/36-ssr)的 `renderToString`：
 
 | 情况 | 开发环境 | 生产环境 |
 |---|---|---|

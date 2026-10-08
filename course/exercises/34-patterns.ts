@@ -242,3 +242,76 @@ slotForward.wrong = [
 slotForward.faded = {
   js: sub(slotForward.solJs, SLOT_FWD, '      <template v-for="(_, name) in $slots" #[name]="/* ✏️ 接收作用域参数 */">\n        <!-- ✏️ 用同一个插槽名再放一个 slot，并把作用域参数传下去 -->\n      </template>\n')
 }
+
+// ===================== 34.3 表单组件：先改草稿，再提交 =====================
+const DRAFT_JS_HEAD = `const user = ref({ name: '小明', city: '北京' })
+const submits = ref(0)
+const cancels = ref(0)
+
+const UserForm = {
+  props: ['user'],
+  emits: ['submit', 'cancel'],
+  setup(props, { emit }) {
+`
+const DRAFT_JS_TAIL = `    return { draft, emit }
+  },
+  template: \`<form class="uf" @submit.prevent="emit('submit', SUBMIT)">
+    <input class="f-name" v-model="draft.name">
+    <input class="f-city" v-model="draft.city">
+    <button class="save">保存</button>
+    <button class="cancel" type="button" @click="emit('cancel')">取消</button>
+  </form>\`
+}
+
+function onSubmit(u) { user.value = u; submits.value++ }
+
+return { user, submits, cancels, onSubmit, components: { UserForm } }`
+const DRAFT_SOL_BODY = `    const draft = reactive({ ...props.user })                // 草稿：改它不影响父组件
+    watch(() => props.user, u => Object.assign(draft, u))   // 父组件换了数据：重置草稿
+`
+const draftTail = (payload: string) => DRAFT_JS_TAIL.replace('SUBMIT', payload)
+
+export const draftForm: Exercise = {
+  title: '写一个先改草稿再提交的表单', ch: 34,
+  task: '<p>UserForm 编辑父组件传来的 <code>user</code>。用户没点“保存”之前，父组件的数据不能变。</p><ol><li>在 UserForm 的 setup 里，用 <code>props.user</code> 复制出一份响应式的草稿 <code>draft</code>。输入框已经绑定了 <code>draft</code>。</li><li>点“保存”时，表单把草稿的<b>副本</b>发给父组件。模板里的 submit 事件已经写好，请把载荷改成副本。</li><li>父组件把 <code>user</code> 换成另一个用户时，草稿要重置成新用户的数据。</li></ol><p>“取消”只发出 cancel 事件，不用改父组件的数据。</p>',
+  tpl: `<UserForm :user="user" @submit="onSubmit" @cancel="cancels++" />
+<p class="now">当前用户：{{ user.name }}，{{ user.city }}</p>
+<p class="cnt">已保存 {{ submits }} 次，取消 {{ cancels }} 次</p>
+<button class="swap" @click="user = { name: '小红', city: '上海' }">切换用户</button>`,
+  js: DRAFT_JS_HEAD + '    // TODO 1：复制出草稿 draft\n    // TODO 2：父组件换了 user，重置草稿\n    const draft = reactive({})\n' + draftTail('draft'),
+  solJs: DRAFT_JS_HEAD + DRAFT_SOL_BODY + draftTail('{ ...draft }'),
+  hints: [
+    '“34.3 表单组件”讲了这个写法：草稿是 props.user 的一份复制，输入框改的是草稿。',
+    '草稿用 reactive({ ...props.user })。注意它只在 setup 里复制一次，父组件换数据时不会自动更新，需要 watch。',
+    'watch(() => props.user, u => Object.assign(draft, u))。保存时发出 { ...draft }：如果直接发 draft，父组件拿到的就是草稿本身，之后再改输入框，父组件的数据会跟着变。',
+    'const draft = reactive({ ...props.user })\nwatch(() => props.user, u => Object.assign(draft, u))\n模板里：emit(\'submit\', { ...draft })'
+  ],
+  async check(T) {
+    const val = (s: string) => ((T.$(s) as HTMLInputElement | null)?.value ?? '')
+    const now = () => ((T.$('.now') as any)?.textContent || '').trim()
+    const cnt = () => ((T.$('.cnt') as any)?.textContent || '').trim()
+    const type = async (s: string, v: string) => { const el = T.$(s) as HTMLInputElement; el.value = v; el.dispatchEvent(new Event('input')); await nextTick() }
+    T.ok(val('.f-name') === '小明' && val('.f-city') === '北京', '输入框里先显示父组件传来的数据：小明、北京（当前：' + val('.f-name') + '、' + val('.f-city') + '）')
+    await type('.f-name', '小明明')
+    T.ok(now() === '当前用户：小明，北京', '还没点保存，父组件的数据不变（当前：' + now() + '）。输入框改的是草稿，不是 props')
+    await T.click(T.btn('取消'))
+    T.ok(/取消 1 次/.test(cnt()) && now() === '当前用户：小明，北京', '点“取消”：父组件收到 cancel，数据没变')
+    await T.click(T.btn('保存'))
+    T.ok(now() === '当前用户：小明明，北京' && /已保存 1 次/.test(cnt()), '点“保存”：父组件收到新数据（当前：' + now() + '；' + cnt() + '）')
+    await type('.f-name', '小明明明')
+    T.ok(now() === '当前用户：小明明，北京', '保存之后继续改输入框，父组件的数据不变：发给父组件的是草稿的副本，不是草稿本身（当前：' + now() + '）')
+    await T.click(T.btn('切换用户'))
+    T.ok(val('.f-name') === '小红' && val('.f-city') === '上海', '父组件切换用户后，输入框重置成新用户的数据，没保存的输入被丢弃（当前：' + val('.f-name') + '、' + val('.f-city') + '）')
+    await type('.f-city', '深圳')
+    await T.click(T.btn('保存'))
+    T.ok(now() === '当前用户：小红，深圳', '对新用户编辑并保存，同样有效（当前：' + now() + '）')
+  }
+}
+draftForm.wrong = [
+  { js: sub(draftForm.solJs, DRAFT_SOL_BODY, "    const draft = props.user\n"), why: '输入框直接绑定了 props.user 里的字段。敲一个字，父组件的数据就变了：不用点保存，页面其他地方已经显示新值，取消也无法还原。', expectFail: /还没点保存/ },
+  { js: sub(draftForm.solJs, "    watch(() => props.user, u => Object.assign(draft, u))   // 父组件换了数据：重置草稿\n", ''), why: '草稿只在 setup 里复制了一次。父组件换成另一个用户，输入框里还是上一个用户的数据。', expectFail: /切换用户/ },
+  { js: sub(draftForm.solJs, "emit('submit', { ...draft })", "emit('submit', draft)"), why: '把草稿本身发给了父组件。父组件的 user 和草稿成了同一个对象，保存之后再改输入框，父组件的数据又跟着变。', expectFail: /保存之后继续改/ }
+]
+draftForm.faded = {
+  js: sub(draftForm.solJs, DRAFT_SOL_BODY, "    const draft = /* ✏️ 用 props.user 复制出一份响应式的草稿 */ reactive({})\n    /* ✏️ 父组件换了 user：怎样重置草稿？ */\n")
+}

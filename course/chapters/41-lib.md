@@ -23,7 +23,7 @@ import TwoVue from '../labs/41-lib/TwoVue.vue'
 :::
 
 ::: rt
-阅读主线约 28 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习和自测。本章的命令要在本地项目里运行。
+阅读主线约 20 分钟，深入内容约 6 分钟（可选）。另外留时间做实验台、练习和自测。本章的命令要在本地项目里运行。
 :::
 
 ::: analogy
@@ -66,7 +66,7 @@ import TwoVue from '../labs/41-lib/TwoVue.vue'
 
 原因：应用的代码只有你自己的构建会读，库的代码要被别人的构建读。库要同时管好四件事：产物长什么样，怎样声明入口，怎样提供类型，怎样让别人只拿需要的部分。前面的章节教你写应用。本章把它们做成库。
 
-本章用一个最小的库 `mini-ui`（`MiniButton`、`MiniList`、`MiniField` 三个组件，`useToggle` 一个组合式函数）走完整条路，再建一个应用安装它的 tarball。所有版本和输出都在这个组合上实测过：Vite 8.3.3、`@vitejs/plugin-vue` 6.0.9、`vue-tsc` 3.3.12、TypeScript 5.9.3、publint 0.3.25、`@arethetypeswrong/cli` 0.18.5、Vue 3.5.43。
+本章用一个最小的库 `mini-ui`（`MiniButton`、`MiniList`、`MiniField` 三个组件，`useToggle` 一个组合式函数）走完整条路，再建一个应用安装它的 tarball。所有版本和输出都在这个组合上验证过：Vite 8.3.3、`@vitejs/plugin-vue` 6.0.9、`vue-tsc` 3.3.12、TypeScript 5.9.3、publint 0.3.25、`@arethetypeswrong/cli` 0.18.5、Vue 3.5.43。
 :::
 
 ### 41.1 库不带自己的 Vue
@@ -81,7 +81,7 @@ import TwoVue from '../labs/41-lib/TwoVue.vue'
 
 `vue` 要同时出现在 `peerDependencies`（告诉包管理器和使用者）和 `devDependencies`（让你自己能开发和测试）里，并且在构建时**外部化**：产物里保留 `import ... from "vue"`，不把 Vue 的代码打进去。
 
-如果不外部化，使用者的页面上就有两份 Vue。本课程的页面就是这种情况：站点有自己的 Vue，第 40 章和本章的实验台又动态载入了第二份 Vue。下面把它变成可控的实验：
+如果不外部化，使用者的页面上就有两份 Vue。本课程的页面就是这种情况：站点有自己的 Vue，第 27 章、第 40 章和本章的实验台又动态载入了第二份 Vue。下面把它变成可控的实验：
 
 <Lab id="demo-two-vue" title="实验台：库自带一份 Vue 会怎样" note="第二份 Vue 是动态载入的 vue.esm-browser.js，相当于库把 Vue 打包进了自己。应用用的是页面自己的 Vue">
 <template #predict>
@@ -104,7 +104,7 @@ import TwoVue from '../labs/41-lib/TwoVue.vue'
 <TwoVue />
 </Lab>
 
-我们在 Vue 3.5.43 的生产构建里实测了两份 Vue 的后果：
+两份 Vue 的后果（Vue 3.5.43 生产构建）：
 
 - **响应式不互通。**库创建的 `ref` 被应用读取时不会被追踪，页面不更新。库的 `computed` 依赖应用的 `ref` 时，永远不会重新计算（实验台里翻倍停在 2）。同一个对象，应用和库各调用一次 `reactive()`，得到两个不同的代理，`===` 不成立。
 - **`inject`、`provide` 和生命周期钩子仍然能用。**Vue 3.5 的 `runtime-core` 把“当前实例”登记到 `globalThis.__VUE_INSTANCE_SETTERS__`，每份 Vue 设置当前实例时通知所有副本，所以库里的 `inject` 能读到应用 `provide` 的值。不要把“两份 Vue 的 `provide/inject` 会失效”当作理由；真正的危害是响应式断开，而且**没有任何报错**。
@@ -112,7 +112,7 @@ import TwoVue from '../labs/41-lib/TwoVue.vue'
 ::: pitfalls
 1. `vue` 只写在 `dependencies` 里：使用者的版本范围和你的不重合时，包管理器会装两份。写成 `peerDependencies`。
 2. 只写了 `peerDependencies`，构建配置里没有外部化：产物里仍然有一份 Vue。检查产物里有没有 Vue 的源码（例如搜索 `currentInstance`）。
-3. 库要用 `vue/server-renderer` 这类子路径时，外部化要写成函数或正则，`external: ['vue']` 只匹配 `vue` 本身：`external: [/^vue(\/.*)?$/]`。
+3. 库要用 `vue/server-renderer` 这类子路径时，外部化要写成正则：`external: [/^vue(\/.*)?$/]`。`external: ['vue']` 只匹配 `vue` 本身。
 :::
 
 ### 41.2 用 Vite 库模式构建
@@ -136,15 +136,24 @@ export default defineConfig({
 })
 ```
 
-逐项说明：
+这五处配置各回答一个问题：
 
-- `build.lib` 把 Vite 从“构建应用”切换到“构建库”：入口是 `src/index.ts`，不是 `index.html`。
-- Vite 8 的底层是 Rolldown，所以选项叫 `rolldownOptions`。旧名字 `rollupOptions` 还能用，但类型里标记为已弃用。
-- `formats: ['es']`：只出 ESM。判断要不要 CJS：使用者都用打包器或现代 Node 时，ESM 就够了。Node 的 `require()` 现在可以加载 ESM：Node 22.12 和 20.19 起默认可用，更老的版本会抛 `ERR_REQUIRE_ESM`。限制是被加载的模块图里不能有顶层 `await`，否则抛 `ERR_REQUIRE_ASYNC_MODULE`。我们在 Node 25.6 上实测可用，前提是 `exports` 里有 `default` 条件，见 41.3 节。只有要给 CDN 用 `<script>` 标签时，才加 `umd` 或 `iife`，并配 `output.globals: { vue: 'Vue' }`、`lib.name`。我们实测过 UMD 的产物，开头是 `t(e.MiniUI={},e.Vue)`，`vue` 通过全局变量 `Vue` 取得。
-- `minify: false`：库的产物交给使用者的构建去压缩。我们第一次构建时没有关，ES 产物里的变量名被改成了 `e`、`t`、`n`，使用者看到的报错栈无法阅读。
-- `preserveModules`：每个源文件对应一个产物文件。单文件打包（去掉 `output` 那一行）更简单，产物只有 `index.js` 加 `style.css`。我们对比过：应用只导入 `MiniButton` 时，两种产物打包后都是 61.78 kB，tree-shaking 效果相同。选择 `preserveModules` 的理由是：`sideEffects` 可以精确到文件，使用者的调试器能对应到源文件，将来也能加深层导入的子路径。
+- `build.lib`：把 Vite 从“构建应用”切换到“构建库”，入口是 `src/index.ts`，不是 `index.html`。
+- `rolldownOptions.external`：外部化 `vue`（41.1 节）。Vite 8 的底层是 Rolldown，所以选项叫 `rolldownOptions`；旧名字 `rollupOptions` 还能用，但类型里标记为已弃用。
+- `formats: ['es']`：只出 ESM。使用者都用打包器或现代 Node 时，ESM 就够了。要不要 CJS 和 UMD，见深入块。
+- `minify: false`：库的产物交给使用者的构建去压缩。第一次构建时没有关，ES 产物里的变量名被改成了 `e`、`t`、`n`，使用者看到的报错栈无法阅读。
+- `preserveModules`：每个源文件对应一个产物文件。单文件打包更简单，但应用只导入 `MiniButton` 时，两种产物打包后都是 61.78 kB，tree-shaking 效果相同。选择 `preserveModules` 的理由是：`sideEffects` 可以精确到文件，使用者的调试器能对应到源文件，将来也能加深层导入的子路径。
 
-构建后的产物（`npm pack` 实际打包进 tarball 的文件，加上 `package.json` 共 21 个，同类的文件只列一组）：
+构建出来的东西，使用者的项目不需要 `@vue/compiler-sfc`，也不需要 `@vitejs/plugin-vue`：每个 `.vue` 变成了两个 `.js` 文件（对应第 29 章 29.6 节的 `compileScript` 和 `compileTemplate`），模板已经编译成渲染函数，宏 `defineProps` 变成了 `props` 选项，`<style>` 抽到了 `style.css`。这就是“发布编译后的产物，不发布 `.vue` 源码”的好处。
+
+::: deep 要不要输出 CJS 和 UMD
+Node 的 `require()` 现在可以加载 ESM：Node 22.12 和 20.19 起默认可用，更老的版本会抛 `ERR_REQUIRE_ESM`。限制是被加载的模块图里不能有顶层 `await`，否则抛 `ERR_REQUIRE_ASYNC_MODULE`。在 Node 25.6 上验证可用，前提是 `exports` 里有 `default` 条件（41.3 节）。所以只出 ESM 的库，多数使用者仍然能 `require` 它。
+
+只有要给 CDN 用 `<script>` 标签时，才加 `umd` 或 `iife`，并配 `output.globals: { vue: 'Vue' }` 和 `lib.name`。UMD 产物的开头是 `t(e.MiniUI={},e.Vue)`，`vue` 通过全局变量 `Vue` 取得。
+:::
+
+::: deep 产物清单，以及一个组件编译后的样子
+`npm pack` 实际打包进 tarball 的文件，加上 `package.json` 共 21 个，同类的只列一组：
 
 ```text
 dist/
@@ -155,8 +164,6 @@ dist/
   composables/useToggle.js  useToggle.d.ts
   _virtual/_plugin-vue_export-helper.js
 ```
-
-每个 `.vue` 变成了两个文件，对应第 29 章 29.6 节的 `compileScript` 和 `compileTemplate`：
 
 ```js
 // components/MiniButton.vue_vue_type_script_setup_true_lang.js（节选）
@@ -171,8 +178,7 @@ var MiniButton_default = /*@__PURE__*/ defineComponent({
 // components/MiniButton.js：加上 scopeId
 _plugin_vue_export_helper_default(MiniButton_vue_vue_type_script_setup_true_lang_default, [["__scopeId", "data-v-f48befc7"]])
 ```
-
-模板已经编译成渲染函数（生产构建把它内联在 `setup` 里返回），宏 `defineProps` 变成了 `props` 选项，`<style>` 抽到了 `style.css`。使用者的项目不需要 `@vue/compiler-sfc`，也不需要 `@vitejs/plugin-vue`，才能使用你的组件。这是“发布编译后的产物，不发布 `.vue` 源码”的好处。
+:::
 
 ### 41.3 `package.json` 的出口
 
@@ -196,11 +202,11 @@ _plugin_vue_export_helper_default(MiniButton_vue_vue_type_script_setup_true_lang
 }
 ```
 
-- **`exports` 是权威。**它支持子路径（`./global`、`./style.css`），并且**封闭**：没写进去的路径使用者不能导入（Node 报 `ERR_PACKAGE_PATH_NOT_EXPORTED`），这让内部文件不会被意外依赖，对应第 35 章 35.5 节“少暴露”。
-- **条件按书写顺序匹配，第一个命中的胜出。**`types` 必须写在最前面，`default` 必须写在最后。`types` 写在 `import` 后面时，查找类型的工具先命中 `import`，拿到的是 `.js`。我们实测：这种写法在 TypeScript 里碰巧还能得到类型，因为 TypeScript 会退而去看 `.js` 旁边有没有同名的 `.d.ts`；但 publint 把它报为错误，不要依赖这种回退。
-- **为什么写 `default` 而不是 `import`。**只写 `import` 条件时，我们实测 `require('mini-ui')` 直接抛出 `ERR_PACKAGE_PATH_NOT_EXPORTED`。
-- `main`、`module`、`types` 是旧工具（Node 10 风格的解析）的兜底。保留它们几乎没有成本。
-- **`files`** 决定 tarball 里有什么。只列 `dist`，不要把 `src` 和测试发出去，除非你想让使用者看到源码映射。
+- **`exports` 是权威。**它支持子路径（`./global`、`./style.css`），并且**封闭**：没写进去的路径使用者不能导入（Node 报 `ERR_PACKAGE_PATH_NOT_EXPORTED`），这让内部文件不会被意外依赖，对应第 35 章讲的“少暴露”。
+- **条件按书写顺序匹配，第一个命中的胜出。**`types` 必须写在最前面，`default` 必须写在最后。`types` 写在 `import` 后面时，查找类型的工具先命中 `import`，拿到的是 `.js`。这种写法在 TypeScript 里碰巧还能得到类型，因为 TypeScript 会退而去看 `.js` 旁边有没有同名的 `.d.ts`；但 publint 把它报为错误，不要依赖这种回退。
+- **写 `default`，不写 `import`。**只写 `import` 条件时，`require('mini-ui')` 直接抛出 `ERR_PACKAGE_PATH_NOT_EXPORTED`。
+- `main`、`module`、`types` 是旧工具（Node 10 风格的解析）的兜底，保留它们几乎没有成本。
+- **`files`** 决定 tarball 里有什么。只列 `dist`，不要把 `src` 和测试发出去。
 - **`sideEffects`** 是给使用者的打包器看的：值为 `false` 表示“这个包里没有任何文件在被导入时做事，没人用的导出可以整个删掉”。包里有必须保留的文件时，用数组列出来。
 
 `sideEffects` 的效果可以直接测。给 `theme.ts` 加一行模块顶层代码 `window.addEventListener('resize', ...)`，应用只导入 `MiniButton`：
@@ -210,7 +216,7 @@ _plugin_vue_export_helper_default(MiniButton_vue_vue_type_script_setup_true_lang
 | 没写 | 61.86 kB | 有 |
 | `false` 或 `["**/*.css"]` | 61.78 kB | 没有 |
 
-没有声明时，打包器不敢删这个模块，因为它可能有副作用。声明之后，整个模块被丢掉，监听器也不见了。**所以 `sideEffects` 是库作者对打包器的承诺：声明 `false` 之后，真有副作用的文件会被悄悄删掉，没有任何提示。**CSS 文件要么列进数组，要么确认使用者的打包器会保留它（Vite 实测不会删，webpack 的文档要求列出）。
+没有声明时，打包器不敢删这个模块，因为它可能有副作用。声明之后，整个模块被丢掉，监听器也不见了。**所以 `sideEffects` 是库作者对打包器的承诺：声明 `false` 之后，真有副作用的文件会被悄悄删掉，没有任何提示。**CSS 文件要么列进数组，要么确认使用者的打包器会保留它（Vite 不会删，webpack 的文档要求列出）。
 
 下面是 `exports` 的解析规则。请你实现它的核心：
 
@@ -241,16 +247,30 @@ npx attw mini-ui-0.1.0.tgz --profile esm-only --exclude-entrypoints style.css
 "build": "vite build && vue-tsc -p tsconfig.build.json && node scripts/fix-dts.mjs"
 ```
 
-`vite-plugin-dts`（5.1.2）也能在构建时生成类型，我们试过，它输出的文件布局和 `vue-tsc` 相同，所以下面的问题两者都会遇到。
+`vite-plugin-dts`（5.1.2）也能在构建时生成类型，它输出的文件布局和 `vue-tsc` 相同，所以下面的问题两者都会遇到。
 
-**`vue-tsc` 3.3.12 和 TypeScript 7.0.2 不兼容。**我们实测：用 7.0.2 时 `vue-tsc` 抛出 `ERR_PACKAGE_PATH_NOT_EXPORTED: './lib/tsc'`（TypeScript 7 的包没有导出 `vue-tsc` 要加载的 `typescript/lib/tsc`）。用 5.9.3 和 6.0.3 都正常。所以库项目的 `typescript` 钉在 5.9 或 6.0，即使你的应用已经用了 7。
+库项目只有一个 `tsconfig.json`，只想检查而不生成文件时，`vue-tsc --noEmit` 就够了。脚手架生成的应用项目不同：根配置是 `files: []` 加 `references`，要用 `vue-tsc --build`，在根目录运行 `--noEmit` 不会检查任何文件，却报告通过（[第 14 章](/chapters/14-ts) 14.1 节）。
 
-**还有一个要修的问题：`.vue` 引用。**`vue-tsc` 把 `Foo.vue` 输出为 `Foo.vue.d.ts`，`index.d.ts` 里写的是 `from './components/MiniButton.vue'`。我们用 `attw` 检查，`node16`（ESM）下报了“内部解析失败”：Node16 以上的 TypeScript 找不到它。（源码里导入同目录的 `.ts` 文件也要写 `.js` 后缀，例如 `./plugin.js`，否则同样解析失败。）更糟的是，使用者开着 `skipLibCheck`（大多数模板默认）时**没有任何错误**，`MiniButton` 却变成了 `any`：写错 props 也不报错。
+**`vue-tsc` 3.3.12 和 TypeScript 7.0.2 不兼容。**用 7.0.2 时 `vue-tsc` 抛出 `ERR_PACKAGE_PATH_NOT_EXPORTED: './lib/tsc'`（TypeScript 7 的包没有导出 `vue-tsc` 要加载的 `typescript/lib/tsc`）。用 5.9.3 和 6.0.3 都正常。所以库项目的 `typescript` 钉在 5.9 或 6.0，即使你的应用已经用了 7。
+
+**还有一个要修的问题：`.vue` 引用。**`vue-tsc` 把 `Foo.vue` 输出为 `Foo.vue.d.ts`，`index.d.ts` 里写的是 `from './components/MiniButton.vue'`。`attw` 在 `node16`（ESM）下报“内部解析失败”：Node16 以上的 TypeScript 找不到它。（源码里导入同目录的 `.ts` 文件也要写 `.js` 后缀，例如 `./plugin.js`，否则同样解析失败。）更糟的是，使用者开着 `skipLibCheck`（大多数模板默认）时**没有任何错误**，`MiniButton` 却变成了 `any`：写错 props 也不报错。
 
 解决办法是一个十几行的后处理脚本（`scripts/fix-dts.mjs`）：把 `Foo.vue.d.ts` 改名为和 `Foo.js` 配对的 `Foo.d.ts`，把 `.d.ts` 里的 `./Foo.vue` 改成 `./Foo.js`。处理以后 `attw` 的 `node16 (from ESM)` 和 `bundler` 两列都是绿色。
 
-使用者能用到哪些类型，我们在一个应用里实测过：
+**泛型组件的类型能保留。**`MiniList` 用 `<script setup generic="T">`，使用者的模板里 `#default="{ item }"` 的 `item` 就是传入数组的元素类型，写 `item.nope` 会报错。库内部有一个坑：`app.component('MiniList', MiniList)` 本身会报类型错误（泛型组件是一个带类型参数的函数，不能赋给 `Component`），`install` 里要写成 `MiniList as unknown as Component`。
 
+**全局组件的类型。**应用 `app.use(MiniUI)` 之后，模板里直接写 `<MiniButton>`，类型工具不知道它存在。库提供一个单独的入口（[第 14 章](/chapters/14-ts) 14.7 节的 `GlobalComponents` 扩充）：
+
+```ts
+// src/global.ts，发布为 mini-ui/global
+declare module 'vue' {
+  interface GlobalComponents { MiniButton: typeof MiniButton; MiniList: typeof MiniList; MiniField: typeof MiniField }
+}
+```
+
+使用者在 `tsconfig.json` 的 `compilerOptions.types` 里加上 `"mini-ui/global"`。开着 `vueCompilerOptions.strictTemplates` 验证：没有这一项，两个标签都报“Property does not exist”；加上以后，只剩真正的类型错误（`variant="ghost"`）。**不要把它放进主入口：**只想按需导入的使用者不应该被你的全局声明影响。
+
+::: deep 使用者怎样取出组件的 props 和实例类型
 ```ts
 import type { ComponentInstance } from 'vue'
 import type { ComponentProps, ComponentEmit, ComponentSlots } from 'vue-component-type-helpers'
@@ -262,19 +282,7 @@ type Inst = ComponentInstance<typeof MiniButton>                         // vue 
 ```
 
 `ComponentInstance` 来自 `vue`；`ComponentProps`、`ComponentEmit`、`ComponentSlots`、`ComponentExposed` 来自 `vue-component-type-helpers`（`vue-tsc` 的同一个仓库）。写错的 `variant: 'ghost'` 和 `items` 里的字段名都被类型检查拦住了。
-
-**泛型组件的类型能保留。**`MiniList` 用 `<script setup generic="T">`，使用者的模板里 `#default="{ item }"` 的 `item` 就是传入数组的元素类型，写 `item.nope` 会报错。但库内部有一个坑：`app.component('MiniList', MiniList)` 本身会报类型错误（泛型组件是一个带类型参数的函数，不能赋给 `Component`）。库里的 `install` 要写成 `MiniList as unknown as Component`。
-
-**全局组件的类型。**应用 `app.use(MiniUI)` 之后，模板里直接写 `<MiniButton>`，类型工具不知道它存在。库提供一个单独的入口（第 11 章 11.2 节的 `GlobalComponents` 扩充）：
-
-```ts
-// src/global.ts，发布为 mini-ui/global
-declare module 'vue' {
-  interface GlobalComponents { MiniButton: typeof MiniButton; MiniList: typeof MiniList; MiniField: typeof MiniField }
-}
-```
-
-使用者在 `tsconfig.json` 的 `compilerOptions.types` 里加上 `"mini-ui/global"`。我们开着 `vueCompilerOptions.strictTemplates` 实测：没有这一项，两个标签都报“Property does not exist”；加上以后，只剩真正的类型错误（`variant="ghost"`）。**不要把它放进主入口：**只想按需导入的使用者不应该被你的全局声明影响。
+:::
 
 ### 41.5 样式的分发
 
@@ -283,17 +291,18 @@ declare module 'vue' {
 | 方式 | 做法 | 代价 |
 |---|---|---|
 | 单个 CSS 文件（默认） | `exports` 里导出 `./style.css` | 使用者要多写一行导入；不用的组件的样式也会带上 |
-| 按组件拆分 CSS | `build.cssCodeSplit: true` | 我们实测：每个组件一个 `.css`，但 JS 里**不会自动导入**它们（只留一行注释 `/* empty css */`），使用者要手动导入每个文件 |
-| 随组件注入 JS | `vite-plugin-css-injected-by-js` | 我们实测：它把所有 CSS 放进入口 `index.js` 顶层，用 `typeof document` 保护，对 SSR 安全，但这是**模块顶层副作用**，只用一个按钮也会注入全部样式 |
+| 按组件拆分 CSS | `build.cssCodeSplit: true` | 每个组件一个 `.css`，但 JS 里**不会自动导入**它们（只留一行注释 `/* empty css */`），使用者要手动导入每个文件 |
+| 随组件注入 JS | `vite-plugin-css-injected-by-js` | 它把所有 CSS 放进入口 `index.js` 顶层，用 `typeof document` 保护，对 SSR 安全，但这是**模块顶层副作用**，只用一个按钮也会注入全部样式 |
 
 默认的单个文件最简单，也最容易让 `sideEffects` 保持正确。
 
-**scoped 样式在库里的表现**（第 15 章 15.4 节）：每个选择器被加上 `[data-v-f48befc7]`，特异性变成 (0,2,0)。我们在浏览器里测了使用者覆盖样式的几种办法：
+**主题接口用 CSS 变量。**scoped 样式（[第 15 章](/chapters/15-tooling) 15.4 节）给每个选择器加上 `[data-v-f48befc7]`，特异性变成 (0,2,0)。在浏览器里测使用者覆盖样式的办法：
 
-- 用 CSS 变量：使用者写 `.theme-green { --mini-color: #16a34a }`，按钮的背景变成了 `rgb(22, 163, 74)`。**这是首选的主题接口。**组件的样式写 `var(--mini-color, #3b82f6)`，变量的名字和默认值写进文档。
 - 写 `.mini-button { border-radius: 20px }`（特异性 0,1,0）：**没有效果**，被库的 (0,2,0) 压过，按钮仍是 4px。
 - 写 `.mini-button.wide { padding: 20px 40px }`（0,2,0）：生效，但这靠特异性相同时后出现的规则胜出，取决于 CSS 的加载顺序。
-- 需要覆盖库内部的元素，用 `:deep()`；需要完全控制外观的使用者，提供无样式的版本（第 35 章的无渲染组件）。
+- 用 CSS 变量：使用者写 `.theme-green { --mini-color: #16a34a }`，按钮的背景变成了 `rgb(22, 163, 74)`。**这是首选的主题接口。**组件的样式写 `var(--mini-color, #3b82f6)`，变量的名字和默认值写进文档。
+
+需要覆盖库内部的元素时用 `:deep()`；需要完全控制外观的使用者，提供无样式的版本（第 35 章的无渲染组件）。
 
 ::: pitfalls
 1. 不要把全局 reset（`* { box-sizing: ... }`、`body { margin: 0 }`）打进库的 CSS。它会改掉使用者整个页面的样式。
@@ -302,7 +311,7 @@ declare module 'vue' {
 
 ### 41.6 按需引入与 tree-shaking
 
-使用者只用一个按钮，就应该只拿到按钮。我们在应用里量过（Vite 8.3.3 生产构建，`minify` 默认，括号里是 gzip）：
+使用者只用一个按钮，就应该只拿到按钮。在应用里量过（Vite 8.3.3 生产构建，`minify` 默认，括号里是 gzip）：
 
 | 应用的写法 | 打包后的 JS |
 |---|---|
@@ -330,7 +339,8 @@ export default {
 }
 ```
 
-使用者不想每个页面都写 `import { MiniButton }` 时，用 `unplugin-vue-components`（32.1.0）：它在构建时扫描模板，只为用到的标签生成导入。库要告诉它标签对应哪个包，写一个解析函数：
+::: deep 让使用者不用手写 import：unplugin-vue-components
+使用者不想每个页面都写 `import { MiniButton }` 时，可以用 `unplugin-vue-components`（32.1.0）：它在构建时扫描模板，只为用到的标签生成导入。库要告诉它标签对应哪个包，写一个解析函数：
 
 ```ts
 Components({
@@ -339,13 +349,14 @@ Components({
 })
 ```
 
-我们实测：模板里只写 `<MiniButton>`，产物里只有 `mini-button`，没有 `mini-list` 和 `mini-field`；它还生成了 `components.d.ts`，里面是 `GlobalComponents` 的声明，所以这种用法不需要 `mini-ui/global`。库作者可以把这个解析函数写进文档，或者发布为 `mini-ui/resolver`。
+模板里只写 `<MiniButton>`，产物里只有 `mini-button`，没有 `mini-list` 和 `mini-field`。它还生成 `components.d.ts`，里面是 `GlobalComponents` 的声明，所以这种用法不需要 `mini-ui/global`。库作者可以把这个解析函数写进文档，或者发布为 `mini-ui/resolver`。
+:::
 
 ### 41.7 SSR 兼容
 
 库的代码在服务器上也会被执行（第 36 章）。有两个时机最容易出错：
 
-- **模块被导入时。**我们把带 `window.addEventListener` 的 `theme.ts` 打成包，在 Node 里 `import('mini-ui')`：直接抛出 `ReferenceError: window is not defined`。服务端渲染的整个服务都起不来。
+- **模块被导入时。**把带 `window.addEventListener` 的 `theme.ts` 打成包，在 Node 里 `import('mini-ui')`：直接抛出 `ReferenceError: window is not defined`。服务端渲染的整个服务都起不来。
 - **`setup` 运行时。**组件的 `setup` 在服务器上运行，所以 `setup` 顶层同样不能碰 `window` 和 `document`。
 
 ```ts
@@ -356,13 +367,15 @@ export function useWidth() {
 }
 ```
 
-浏览器专属的代码放进 `onMounted` 或事件处理函数里。生成 id 用 `useId()`（第 36 章 36.6 节）：我们用 `renderToString` 渲染 `MiniField` 两次，两个输入框的 id 都是 `v-0`、`v-1`，而且两次渲染一致，所以和浏览器水合时 `for` 和 `id` 能对上。不要用 `Math.random()` 或模块里的计数器生成 id，模块级计数器还会在服务器上跨请求累加。
+浏览器专属的代码放进 `onMounted` 或事件处理函数里。生成 id 用 `useId()`（第 36 章 36.6 节）：用 `renderToString` 渲染 `MiniField` 两次，两个输入框的 id 都是 `v-0`、`v-1`，而且两次渲染一致，所以和浏览器水合时 `for` 和 `id` 能对上。不要用 `Math.random()` 或模块里的计数器生成 id，模块级计数器还会在服务器上跨请求累加。
 
-库如果用了 `Teleport`，要告诉使用者：服务器渲染时，被传送的内容不在 `renderToString` 返回的 HTML 里，而在渲染上下文的 `ctx.teleports` 里（我们实测：`to: '#modal'` 的内容出现在 `ctx.teleports['#modal']`），使用者要把它放进页面的目标容器，水合时才对得上。用到 `Teleport` 的库组件，在文档里写明这一点。
+::: deep 库里用了 Teleport 要告诉使用者
+服务器渲染时，被传送的内容不在 `renderToString` 返回的 HTML 里，而在渲染上下文的 `ctx.teleports` 里（`to: '#modal'` 的内容出现在 `ctx.teleports['#modal']`）。使用者要把它放进页面的目标容器，水合时才对得上。用到 `Teleport` 的库组件，在文档里写明这一点。
+:::
 
 ### 41.8 版本与发布
 
-语义化版本（`主版本.次版本.修订号`）与第 35 章 35.5 节的表对应：
+语义化版本（`主版本.次版本.修订号`）与第 35 章讲的破坏性变化对应：
 
 | 改动 | 版本 |
 |---|---|
@@ -376,19 +389,21 @@ export function useWidth() {
 
 1. `npm pack`，得到 `mini-ui-0.1.0.tgz`。
 2. 新建一个应用，`npm i ../mini-ui/mini-ui-0.1.0.tgz`。
-3. 在应用里导入、类型检查（`vue-tsc --noEmit`）、构建。
+3. 在应用里导入、类型检查、构建。类型检查的命令看应用的结构：脚手架应用用 `vue-tsc --build`，只有单个 `tsconfig.json` 的用 `vue-tsc --noEmit`（41.4 节）。
 
 库项目里的 `npm run dev` 读的是 `src`，不经过 `exports`，也不经过 `files`，所以验证不了任何出口问题。
 
-预发布版本用 `npm version 0.2.0-beta.0` 和 `npm publish --tag beta`：只有明确 `npm i mini-ui@beta` 的人才会拿到它，`latest` 不受影响。先用 `npm publish --dry-run` 看一遍，我们实测它会列出文件并提示需要登录，不会真的发布。
+预发布版本用 `npm version 0.2.0-beta.0` 和 `npm publish --tag beta`：只有明确 `npm i mini-ui@beta` 的人才会拿到它，`latest` 不受影响。先用 `npm publish --dry-run` 看一遍，它会列出文件并提示需要登录，不会真的发布。
 
-供应链措施简单提一下：npm 支持在发布时附带**来源证明**（provenance），证明这个包是从哪个仓库的哪次构建发布出来的。官方文档要求 npm 9.5.0 或更高，在 GitHub Actions 或 GitLab CI 的云端运行器上执行 `npm publish --provenance`（或在 `publishConfig` 里设置 `provenance: true`）；使用 npm 的 trusted publishing（OIDC）时会自动生成（仅限公开仓库里发布的公开包）。我们没有真的发布，这一条按官方文档陈述。
+::: deep 供应链证明，以及库和文档站放在一个仓库
+npm 支持在发布时附带**来源证明**（provenance），证明这个包是从哪个仓库的哪次构建发布出来的。官方文档要求 npm 9.5.0 或更高，在 GitHub Actions 或 GitLab CI 的云端运行器上执行 `npm publish --provenance`（或在 `publishConfig` 里设置 `provenance: true`）；使用 npm 的 trusted publishing（OIDC）时会自动生成（仅限公开仓库里发布的公开包）。本章没有真的发布，这一条按官方文档陈述。
 
-组件库和文档站通常放进同一个仓库：一个 workspace 里 `packages/ui` 是库，`docs` 是文档站，文档站依赖本地的库：pnpm 和 Yarn 2 及以上写 `"mini-ui": "workspace:*"`；npm 不认 `workspace:` 协议，写 `"mini-ui": "*"`，workspaces 会自动链接到本地包。本课程就是用 VitePress 写的，Markdown 里可以直接使用 Vue 组件（本页的自测题和实验台都是组件），所以文档里的示例是真的运行，不是截图。
+组件库和文档站通常放进同一个仓库：一个 workspace 里 `packages/ui` 是库，`docs` 是文档站，文档站依赖本地的库。pnpm 和 Yarn 2 及以上写 `"mini-ui": "workspace:*"`；npm 不认 `workspace:` 协议，写 `"mini-ui": "*"`，workspaces 会自动链接到本地包。本课程就是用 VitePress 写的，Markdown 里可以直接使用 Vue 组件（本页的自测题和实验台都是组件），所以文档里的示例是真的运行，不是截图。
+:::
 
 ### 41.9 测试和发布前清单
 
-组件库的测试对准**公开面**：props 的取值、触发的事件和载荷、插槽的内容、键盘操作和 ARIA 属性（第 35 章），用第 15 章 15.6 节的方式 `mount` 之后断言。不断言内部类名和 DOM 层级，否则一次内部重构就改掉一大片测试。
+组件库的测试对准**公开面**：props 的取值、触发的事件和载荷、插槽的内容、键盘操作和 ARIA 属性（第 35 章），用[第 20 章](/chapters/20-testing)的方式 `mount` 之后断言。不断言内部类名和 DOM 层级，否则一次内部重构就改掉一大片测试。
 
 下面是发布前的检查清单：
 
@@ -441,7 +456,7 @@ export function useWidth() {
 
 <template #explain>
 
-解析：Vue 3.5 把“当前实例”的设置函数登记在 `globalThis.__VUE_INSTANCE_SETTERS__` 里，每份 Vue 设置当前实例时通知所有副本，所以 `inject` 能读到 `'dark'`。响应式系统的“当前正在运行的副作用函数”却是每份 Vue 各自的，应用渲染时读取的 `n.value` 不会被库那份记录，所以页面不更新。最迷惑的是第二项：以为两份 Vue 的 `provide/inject` 会失效。我们在浏览器里实测过，它仍然有效；真正的危险是响应式断开，而且没有任何报错。
+解析：Vue 3.5 把“当前实例”的设置函数登记在 `globalThis.__VUE_INSTANCE_SETTERS__` 里，每份 Vue 设置当前实例时通知所有副本，所以 `inject` 能读到 `'dark'`。响应式系统的“当前正在运行的副作用函数”却是每份 Vue 各自的，应用渲染时读取的 `n.value` 不会被库那份记录，所以页面不更新。最迷惑的是第二项：以为两份 Vue 的 `provide/inject` 会失效。在浏览器里验证过，它仍然有效；真正的危险是响应式断开，而且没有任何报错。
 
 </template>
 </Sc>
@@ -461,7 +476,7 @@ export function useWidth() {
 
 <template #explain>
 
-解析：`exports` 的条件按对象里键的书写顺序匹配，第一个命中的胜出。查找类型的工具带着 `types` 和 `import` 两个条件，先遇到 `import`，拿到的是 `.js`。我们实测 TypeScript 随后会尝试同名的 `.d.ts`，所以这个包的类型碰巧可用，所以第二项的“任何情况下都找不到”太绝对。第三项是常见误解，工具不会重排条件。第四项错在：只写 `import` 时 `require()` 直接抛出 `ERR_PACKAGE_PATH_NOT_EXPORTED`。
+解析：`exports` 的条件按对象里键的书写顺序匹配，第一个命中的胜出。查找类型的工具带着 `types` 和 `import` 两个条件，先遇到 `import`，拿到的是 `.js`。TypeScript 随后会尝试同名的 `.d.ts`，所以这个包的类型碰巧可用，所以第二项的“任何情况下都找不到”太绝对。第三项是常见误解，工具不会重排条件。第四项错在：只写 `import` 时 `require()` 直接抛出 `ERR_PACKAGE_PATH_NOT_EXPORTED`。
 
 </template>
 </Sc>
@@ -476,7 +491,7 @@ export function useWidth() {
 
 <template #explain>
 
-解析：打包器看到一条它无法证明纯净的顶层语句，又没有 `sideEffects` 声明，就保守地保留整个模块。我们实测产物从 61.78 kB 变成 61.86 kB，里面有 `resize`。声明 `"sideEffects": false` 后监听器被删掉。第一项以为打包器总是能判断；第二项以为会有提示，实际上没有任何提示，包括 `false` 误删真正的副作用时。
+解析：打包器看到一条它无法证明纯净的顶层语句，又没有 `sideEffects` 声明，就保守地保留整个模块。产物从 61.78 kB 变成 61.86 kB，里面有 `resize`。声明 `"sideEffects": false` 后监听器被删掉。第一项以为打包器总是能判断；第二项以为会有提示，实际上没有任何提示，包括 `false` 误删真正的副作用时。
 
 </template>
 </Sc>

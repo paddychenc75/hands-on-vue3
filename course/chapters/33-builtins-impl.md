@@ -9,6 +9,7 @@ desc: KeepAlive、Teleport、Transition、Suspense 和异步组件在运行时�
 
 <script setup>
 import KeepAliveHidden from '../labs/33-builtins-impl/KeepAliveHidden.vue'
+import SuspenseTimeline from '../labs/33-builtins-impl/SuspenseTimeline.vue'
 </script>
 
 # 内置组件的实现
@@ -18,12 +19,12 @@ import KeepAliveHidden from '../labs/33-builtins-impl/KeepAliveHidden.vue'
 <Goal checks="sc:2,sc:3,ex:miniKeepAlive">写出带 LRU 的迷你 KeepAlive，说明失活和激活为什么只是搬家，include 怎样匹配。</Goal>
 <Goal checks="sc:1">说明 Teleport 的锚点、disabled 和 defer，以及逻辑关系和 DOM 事件冒泡为什么走不同的路。</Goal>
 <Goal checks="sc:4,sc:5,sc:6,ex:miniEnter">写出进入序列的 class 变化，说明离开时 DOM 移除被推迟的原因，以及 FLIP 的做法。</Goal>
-<Goal checks="sc:7,sc:8,sc:9,sc:10">说明 Suspense 怎样登记异步依赖并在计数归零时 resolve，以及异步组件的两条路径。</Goal>
+<Goal checks="sc:7,sc:8,sc:9,sc:10">说明 Suspense 怎样登记异步依赖并在计数归零时 resolve，切换内容时 fallback 何时出现，以及异步组件的两条路径。</Goal>
 
 :::
 
 ::: rt
-阅读主线约 20 分钟，深入内容约 4 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 16 分钟，深入内容约 4 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -53,7 +54,7 @@ KeepAlive 是**侧幕**：演员下场不卸妆回家，站在侧幕里等，服
 
 你给 `Suspense` 写了 `fallback`。第一次加载显示了它，之后切换内容再也不显示。
 
-这些现象的原因都在实现里。内置组件不是魔法，是运行时里几十行到几百行具体的代码。第 9 章讲怎样用，本章对着 Vue 3.5.43 的源码讲它们怎样工作。
+这些现象的原因都在实现里。内置组件是运行时里几十行到几百行具体的代码。第 9 章讲怎样用，本章每一节先回到你在第 9 章遇到的现象，再对着 Vue 3.5.43 的源码看它怎样产生。
 :::
 
 ### 33.1 两类内置组件：普通组件，和 patch 里的专门分支
@@ -67,32 +68,28 @@ KeepAlive 是**侧幕**：演员下场不卸妆回家，站在侧幕里等，服
 | `Teleport`、`Suspense` | 特殊的 vnode 类型，类型对象带 `process` 方法 | `shapeFlag` 的 `TELEPORT`（64）和 `SUSPENSE`（128） |
 | `defineAsyncComponent` | 返回一个包装组件 | 包装组件上的 `__asyncLoader` |
 
-**普通组件只能返回一棵子树，放在哪里由渲染器决定。**Teleport 要把子节点挂到别的容器。Suspense 要先把子树挂进隐藏容器。它们必须自己调用 `mountChildren`、`move`、`unmount` 这些内部函数，所以 31.2 节的 `patch` 分发代码最后两个分支直接调用 `type.process(n1, n2, container, anchor, …, internals)`，把渲染器的内部函数作为 `internals` 传进去。
+**普通组件只能返回一棵子树，放在哪里由渲染器决定。** Teleport 要把子节点挂到别的容器。Suspense 要先把子树挂进隐藏容器。它们必须自己调用 `mountChildren`、`move`、`unmount` 这些渲染器的内部函数，所以第 31 章 `patch` 分发代码最后两个分支直接调用 `type.process(n1, n2, container, anchor, …, internals)`。`internals` 是渲染器把自己的内部函数打包成的一个对象，传给类型对象使用。
 
+KeepAlive 虽然是普通组件，也要用这些内部函数。`mountComponent` 看到它时，把 `internals` 存到 `instance.ctx.renderer`。KeepAlive 的 `setup` 从那里取出 `move`、`unmount` 和 `createElement`，再把 `activate`、`deactivate` 两个函数挂回 `instance.ctx`，供渲染器回调。
+
+vnode 上的 `shapeFlag` 位就是这些约定的暗号：`TELEPORT`（64）和 `SUSPENSE`（128）让 `patch` 调 `type.process`；KeepAlive 的渲染函数给自己返回的 vnode 加上 `COMPONENT_SHOULD_KEEP_ALIVE`（256，卸载时调 `ctx.deactivate`，不真的卸载）和 `COMPONENT_KEPT_ALIVE`（512，挂载时调 `ctx.activate`，不调 `mountComponent`）。
+
+第 32 章讲过自定义渲染器里哪些内置功能可用：KeepAlive、Teleport、Suspense、`defineAsyncComponent` 只依赖 `RendererOptions`，而 `Transition` 要读 `classList` 和 `getComputedStyle`，属于 runtime-dom。
+
+::: deep 渲染器为什么不直接 import Teleport
 渲染器不直接 `import` Teleport，而是检查类型上的 `__isTeleport` 标记。源码注释写明了原因：直接导入会让 Teleport 没法被 tree-shaking 摇掉。
-
-KeepAlive 虽然是普通组件，也要用渲染器的内部接口。`mountComponent` 看到它时，把 `internals` 存到 `instance.ctx.renderer`。KeepAlive 的 `setup` 从那里取出 `move`、`unmount` 和 `createElement`，再把 `activate`、`deactivate` 两个函数挂回 `instance.ctx`，供渲染器回调。
-
-vnode 上的四个位就是这些约定的暗号：
-
-| 位 | 值 | 谁设置 | 渲染器看到后 |
-|---|---|---|---|
-| `TELEPORT` / `SUSPENSE` | 64 / 128 | `createVNode` 按类型标记设置 | 调 `type.process`，移动和卸载也交给类型对象 |
-| `COMPONENT_SHOULD_KEEP_ALIVE` | 256 | KeepAlive 的渲染函数 | 卸载时调 `ctx.deactivate`，不真的卸载 |
-| `COMPONENT_KEPT_ALIVE` | 512 | KeepAlive 的渲染函数 | 挂载时调 `ctx.activate`，不调 `mountComponent` |
-
-第 32 章说过自定义渲染器里哪些内置功能可用：KeepAlive、Teleport、Suspense、`defineAsyncComponent` 只依赖 `RendererOptions`，而 `Transition` 要读 `classList` 和 `getComputedStyle`，属于 runtime-dom。
+:::
 
 ### 33.2 KeepAlive：失活不是卸载，是搬家
 
-问题：切走一个组件时，不销毁它，状态和 DOM 都保留。下面是 `runtime-core/components/KeepAlive.ts` 的简化版：
+现象：第 9 章说，被 KeepAlive 缓存的组件切走再切回，状态还在，`onMounted` 不再运行。实现：切走时不销毁，把 DOM 搬进隐藏容器。下面是 `runtime-core/components/KeepAlive.ts` 的简化版（`move` 是渲染器的“搬 DOM”函数，`MoveType` 标明这次搬是进入还是离开，让外面包的 `Transition` 知道该播哪种动画）：
 
 ```js
 // runtime-core/components/KeepAlive.ts（简化）
 setup(props, { slots }) {
   const cache = new Map()   // key -> 组件 vnode（带着 el 和 component）
   const keys = new Set()    // 使用顺序：最前面最久没用
-  let pendingCacheKey = null
+  let pendingCacheKey = null   // 这次渲染的 key，等渲染完才能写进缓存
   const { p: patch, m: move, um: unmount, o: { createElement } } = instance.ctx.renderer
   const storageContainer = createElement('div')          // 隐藏容器
 
@@ -110,7 +107,7 @@ setup(props, { slots }) {
 
   const cacheSubtree = () => cache.set(pendingCacheKey, getInnerChild(instance.subTree))
   onMounted(cacheSubtree)   // 渲染完才有 vnode.component，所以这时才写进缓存
-  onUpdated(cacheSubtree)
+  onUpdated(cacheSubtree)   // getInnerChild：取子树里真正的组件 vnode
 
   return () => {
     const vnode = slots.default()[0]
@@ -137,10 +134,8 @@ setup(props, { slots }) {
 
 所以：
 
-- 失活只做两件事：`move` 把 DOM 搬进隐藏容器，把 `da` 数组里的钩子放进后置队列。组件实例、它的 `setup` 状态、它的侦听器都没有动。
-- 激活是 `move` 搬回来，再补一次 `patch`（父组件传的 props 可能已经变了），把 `a` 数组放进后置队列。
+- 失活只做两件事：`move` 把 DOM 搬进隐藏容器，把 `da` 数组（`onDeactivated` 注册的钩子）放进后置队列。组件实例、它的 `setup` 状态、它的侦听器都没有动。激活是 `move` 搬回来，再补一次 `patch`，把 `a` 数组（`onActivated` 的钩子）放进后置队列。
 - `max` 是上限，**包括当前正在显示的那个**。`keys` 是 `Set`，遍历顺序等于插入顺序，所以 `keys.values().next().value` 永远是最久没用的。命中时先 `delete` 再 `add`，就把它移到了最后。
-- `move` 带着 `MoveType`（进入或离开），所以 KeepAlive 外面包 `Transition` 时，激活和失活也会触发进入和离开动画。
 
 <Lab id="demo-ka-hidden" title="实验台：KeepAlive 的隐藏容器和淘汰顺序" note="真实的 KeepAlive 加自定义渲染器：能直接看到 KeepAlive 造的隐藏容器里有什么">
 <template #predict>
@@ -163,25 +158,27 @@ setup(props, { slots }) {
 <KeepAliveHidden />
 </Lab>
 
-**onActivated 注册到哪里。**`activate` 只认识 KeepAlive 的直接子组件，它调用的是这个组件的 `a` 数组。但你可能在更深的后代里写 `onActivated`。`registerKeepAliveHook` 把钩子注册到后代自己身上之外，还沿着 `parent` 往上走，一遇到 `current.parent` 是 KeepAlive，就把同一个函数**前插**到那个直接子组件的 `a` 里。后代卸载时再摘掉。所以嵌套的后代也会在激活时运行，顺序是后代先、祖先后。注册进去的是一个包装函数：只要祖先链上有任何一个组件处于失活状态，就不执行。
-
-第一次显示一个被缓存的组件时，渲染器看到 `shapeFlag & 256`，会在挂载完成后追加运行 `a`。所以首次显示是 `onMounted` 再 `onActivated`。
-
-**include 和 exclude**按组件名匹配，名字取 `component.name`，没有就取 `__name`。`<script setup>` 的单文件组件由编译器按文件名生成 `__name`，所以 `Foo.vue` 能被 `include="Foo"` 匹配到。设置了 `include` 而组件没有任何名字时，它不会被缓存。改变 `include` 或 `exclude` 时，一个 `flush: 'post'` 的侦听器会清理缓存里不再匹配的条目。
-
 ::: note
-知道了实现，下面这些现象就不再奇怪：`onMounted` 只在第一次运行，每次显示都要做的事放进 `onActivated`；失活组件里的 `watch` 仍然会响应数据变化（实例没有停）；没有名字的组件在设置了 `include` 之后永远不会缓存。
+知道了实现，下面这些现象就不再奇怪：`onMounted` 只在第一次运行，每次显示都要做的事放进 `onActivated`；失活组件里的 `watch` 仍然会响应数据变化（实例没有停）；`include` 按组件名匹配，所以没有名字的组件在设置了 `include` 之后永远不会缓存。
 :::
 
-下面的练习让你自己写一遍搬家加 LRU。它直接操作 DOM，所以不需要渲染器的内部接口。
+下面的练习让你自己写一遍搬家加 LRU。它直接操作 DOM，所以不需要渲染器的内部函数。
 
 <Exercise id="miniKeepAlive" />
 
-迷你版和真实实现的关键差别：真实的缓存里放的是 vnode，搬家由渲染器的 `move` 完成（处理 Fragment、组件和过渡）；钩子进后置队列，不是同步调用；`activate` 还要补一次 `patch`；缓存是在 `onMounted` 和 `onUpdated` 里写入的。
+::: deep onActivated 注册到哪里，include 怎样匹配，以及迷你版的差别
+`activate` 只认识 KeepAlive 的直接子组件，它调用的是这个组件的 `a` 数组。但你可能在更深的后代里写 `onActivated`。`registerKeepAliveHook` 把钩子注册到后代自己身上之外，还沿着 `parent` 往上走，一遇到 `current.parent` 是 KeepAlive，就把同一个函数**前插**到那个直接子组件的 `a` 里。后代卸载时再摘掉。所以嵌套的后代也会在激活时运行，顺序是后代先、祖先后。注册进去的是一个包装函数：只要祖先链上有任何一个组件处于失活状态，就不执行。
+
+第一次显示一个被缓存的组件时，渲染器看到 `shapeFlag & 256`，会在挂载完成后追加运行 `a`。所以首次显示是 `onMounted` 再 `onActivated`。
+
+**include 和 exclude** 按组件名匹配，名字取 `component.name`，没有就取 `__name`。`<script setup>` 的单文件组件由编译器按文件名生成 `__name`，所以 `Foo.vue` 能被 `include="Foo"` 匹配到。改变 `include` 或 `exclude` 时，一个 `flush: 'post'` 的侦听器会清理缓存里不再匹配的条目。
+
+**迷你版和真实实现的差别。** 真实的缓存里放的是 vnode，搬家由渲染器的 `move` 完成（处理 Fragment、组件和过渡）；钩子进后置队列，不是同步调用；缓存是在 `onMounted` 和 `onUpdated` 里写入的。
+:::
 
 ### 33.3 Teleport：两个锚点，加一个目标容器
 
-问题：子节点要出现在页面另一个位置，组件关系却不能变。`TeleportImpl.process` 在挂载时做三件事：
+现象：第 9 章说，Teleport 里的弹窗仍能 `inject` 祖先的值，点击却不冒泡到原来的父元素。实现：`TeleportImpl.process` 在挂载时做三件事：
 
 ```js
 // runtime-core/components/Teleport.ts（简化）
@@ -202,10 +199,8 @@ process(n1, n2, container, anchor, parentComponent, parentSuspense /* … */) {
     if (disabled) mountChildren(n2.children, container, mainAnchor, parentComponent /* … */)   // 就地渲染
     mountToTarget()
   } else {
-    // 更新：子节点照常 patch，到它们此刻所在的容器里（wasDisabled 是上一次的 disabled）
-    patchChildren(n1, n2, wasDisabled ? container : n1.target, wasDisabled ? mainAnchor : n1.targetAnchor /* … */)
+    // 更新：子节点照常 patch，到它们此刻所在的容器里
     // disabled 切换，或者 to 变了：把已有的 DOM 移过去，不重新创建
-    if (disabled 变了 || to 变了) moveTeleport(n2, 新容器, /* … */)
   }
 }
 
@@ -216,7 +211,7 @@ function mountToTarget() {
 }
 ```
 
-在浏览器里实测（挂载后的 HTML，`to="#modal"`）：
+挂载后，原位置留下两个注释，子节点在目标容器里：
 
 ```html
 <!-- #app 里（开发版） -->
@@ -226,17 +221,19 @@ function mountToTarget() {
 
 `disabled` 变为 `true` 时，同一批 DOM 被移回两个注释之间。`to` 变化时，DOM 被移到新目标，旧目标被清空。
 
-**为什么逻辑关系不变，而 DOM 事件按真实 DOM 走。**注意传给 `mountChildren` 的 `parentComponent` 没有变，它仍是渲染 Teleport 的那个组件。组件实例的 `parent`、`provides` 原型链、`emit` 要找的 `onXxx` 监听函数，全部由这条父子链决定，跟 DOM 无关。而 DOM 事件是浏览器的：Vue 用 `addEventListener` 给元素绑定监听，事件按元素在文档里的真实祖先冒泡。实测：弹窗里的按钮 `emit('close')` 能触发父组件的监听，但点击不会冒泡到原来父元素上的 `onClick`，因为按钮在 `#modal` 里。
-
-**defer 解决什么。**没有 `defer` 时，`process` 同步查找目标。目标如果是同一个模板里排在后面的元素，此时还没有创建，Vue 警告 `Failed to locate Teleport target`，内容不渲染。`defer` 把挂载排进后置队列，等整棵树 patch 完再找目标，同一次渲染里稍后才出现的目标就找到了。
+**为什么逻辑关系不变，而 DOM 事件按真实 DOM 走。** 传给 `mountChildren` 的 `parentComponent` 没有变，它仍是渲染 Teleport 的那个组件。组件实例的 `parent`、`provides` 原型链、`emit` 要找的 `onXxx` 监听函数，全部由这条父子链决定，跟 DOM 无关。而 DOM 事件是浏览器的：Vue 用 `addEventListener` 给元素绑定监听，事件按元素在文档里的真实祖先冒泡。实测：弹窗里的按钮 `emit('close')` 能触发父组件的监听，但点击不会冒泡到原来父元素上的 `onClick`，因为按钮在 `#modal` 里。
 
 ::: note
 知道了实现：Teleport 出去的弹窗仍能 `inject` 祖先提供的值，也仍受祖先的 `emit` 监听；但在它外面的祖先元素上写 `@click` 收不到它里面的点击，要靠 `emit` 或直接在弹窗上监听。
 :::
 
+::: deep defer 解决什么
+没有 `defer` 时，`process` 同步查找目标。目标如果是同一个模板里排在后面的元素，此时还没有创建，Vue 警告 `Failed to locate Teleport target`，内容不渲染。`defer` 把挂载排进后置队列，等整棵树 patch 完再找目标，同一次渲染里稍后才出现的目标就找到了。
+:::
+
 ### 33.4 Transition：钩子挂在 vnode 上，渲染器负责调用
 
-问题：进入和离开动画需要在“插入前后”和“移除前”插手。`BaseTransition` 是平台无关的状态机。它不碰 DOM，只做两件事：把一组**过渡钩子**挂到子 vnode 的 `transition` 属性上，管理 `out-in`、`in-out` 的先后。真正在合适的时机调用这些钩子的是渲染器：
+现象：第 9 章说，`<Transition>` 只负责在合适的时间加减 class，动画由 CSS 完成；离开动画结束前元素还留在页面上。实现：`BaseTransition` 是平台无关的状态机。它不碰 DOM，只做两件事：把一组**过渡钩子**挂到子 vnode 的 `transition` 属性上，管理 `out-in`、`in-out` 的先后。真正在合适的时机调用这些钩子的是渲染器：
 
 ```js
 // runtime-core/renderer.ts（简化）
@@ -261,7 +258,7 @@ const remove = (vnode) => {
 }
 ```
 
-离开时，真正的 `hostRemove` 被包进回调 `performRemove`，交给 `leave(el, done)`。**钩子调用 `done` 之前，元素一直在页面上。**这就是为什么 `onLeave(el, done)` 里忘了调 `done`，元素永远不会消失。
+离开时，真正的 `hostRemove` 被包进回调 `performRemove`，交给 `leave(el, done)`。**钩子调用 `done` 之前，元素一直在页面上。** 这就是为什么 `onLeave(el, done)` 里忘了调 `done`，元素永远不会消失。
 
 runtime-dom 的 `Transition` 只是一个函数式组件：`h(BaseTransition, resolveTransitionProps(props), slots)`。`resolveTransitionProps` 把 `name`、`duration` 这些 props 翻译成加减 class 的钩子：
 
@@ -290,24 +287,36 @@ onLeave(el, done) {
 
 两层 `requestAnimationFrame` 保证浏览器先应用了 `from` 的样式，再切到 `to`，起点和终点之间才有变化可过渡。同步地先去 `from` 再加 `to`，浏览器只看到最终状态，不会产生动画。
 
-**结束靠什么。**`whenTransitionEnds` 有显式 `duration` 就用 `setTimeout`。没有就用 `getComputedStyle` 读 `transition` 和 `animation` 的时长，监听 `transitionend` 或 `animationend`，用 `setTimeout(timeout + 1)` 兜底。每个元素有 `_endId`，防止旧的过渡误结束新的过渡。用户钩子的参数多于一个（声明了 `done`），Vue 就不自动结束，等你调用。
-
-**第一次渲染没有动画。**`beforeEnter` 和 `enter` 开头都有判断：`state.isMounted` 还是假、又没有 `appear`，就直接返回。`state.isMounted` 在 `BaseTransition` 自己的 `onMounted` 里才变真。加 `appear` 才让初始渲染也走进入序列。
-
-**模式。**`out-in` 时，新旧子节点不同，`BaseTransition` 的渲染函数先返回一个空占位，并设 `state.isLeaving = true`；旧元素的 `afterLeave` 里把 `isLeaving` 清掉，再调用 `instance.update()` 重新渲染，新元素这时才挂载并进入。`in-out` 则给旧元素设 `delayLeave`：新元素的进入结束（`enter` 的 `done`）之后，才执行被推迟的离开。在浏览器里实测：`out-in` 的离开期间页面上只有旧元素；`in-out` 的进入期间两个元素同时在页面上，旧元素没有任何过渡 class，等新元素进入结束才开始离开。
+**第一次渲染没有动画。** `beforeEnter` 和 `enter` 开头都有判断：`state.isMounted` 还是假、又没有 `appear`，就直接返回。`state.isMounted` 在 `BaseTransition` 自己的 `onMounted` 里才变真。加 `appear`（第 9 章）才让初始渲染也走进入序列。
 
 ::: note
-知道了实现，“Transition 里必须是单个元素根节点”就有了解释：`BaseTransition` 只给一个子 vnode 设钩子（多于一个非注释子节点会警告）；离开要求 `shapeFlag & ELEMENT`，所以组件的根节点必须是元素，否则 Vue 警告 `Component inside <Transition> renders non-element root node that cannot be animated`。元素的 `key` 变了也会触发过渡，因为 key 不同就是不同的 vnode，旧的走离开，新的走进入。
+知道了实现，“Transition 里必须是单个元素根节点”就有了解释：`BaseTransition` 只给一个子 vnode 设钩子；离开要求 `shapeFlag & ELEMENT`，所以组件的根节点必须是元素，否则 Vue 警告 `Component inside <Transition> renders non-element root node that cannot be animated`。元素的 `key` 变了也会触发过渡，因为 key 不同就是不同的 vnode，旧的走离开，新的走进入。
 :::
 
 下面的练习让你写进入序列：按帧加减 class，结束后清理，还要支持中途取消。
 
 <Exercise id="miniEnter" />
 
-迷你版和真实实现的差别：真实的结束可以由 `transitionend` 触发；钩子是挂在 vnode 上由渲染器调用的，不是自己去插入元素；取消时真实代码会按 `_enterCancelled` 区分离开从哪个状态开始。
+::: deep 过渡怎样结束，out-in 和 in-out 怎样排先后，以及迷你版的差别
+**迷你版的差别。** 真实的结束可以由 `transitionend` 触发；钩子是挂在 vnode 上由渲染器调用的，不是自己去插入元素；取消时真实代码会按 `_enterCancelled` 区分离开从哪个状态开始。
 
-**TransitionGroup 的 FLIP。**列表里的元素移动没有进入或离开，所以没有钩子可以挂。`TransitionGroup` 用 FLIP（First, Last, Invert, Play）：先记旧位置，更新后算新位置，用 `transform` 把元素反向推回旧位置，再放手让它过渡到 0。
+**结束靠什么。** `whenTransitionEnds` 有显式 `duration` 就用 `setTimeout`。没有就用 `getComputedStyle` 读 `transition` 和 `animation` 的时长，监听 `transitionend` 或 `animationend`，用 `setTimeout(timeout + 1)` 兜底。每个元素有 `_endId`，防止旧的过渡误结束新的过渡。用户钩子的参数多于一个（声明了 `done`），Vue 就不自动结束，等你调用。
 
+**模式。** `out-in` 时，新旧子节点不同，`BaseTransition` 的渲染函数先返回一个空占位，并设 `state.isLeaving = true`；旧元素的 `afterLeave` 里把 `isLeaving` 清掉，再调用 `instance.update()` 重新渲染，新元素这时才挂载并进入。`in-out` 则给旧元素设 `delayLeave`：新元素的进入结束（`enter` 的 `done`）之后，才执行被推迟的离开。在浏览器里实测：`out-in` 的离开期间页面上只有旧元素；`in-out` 的进入期间两个元素同时在页面上，旧元素没有任何过渡 class，等新元素进入结束才开始离开。
+:::
+
+### 33.5 TransitionGroup 的 FLIP（选读）
+
+现象：第 9 章说，列表项换位置时，`TransitionGroup` 能让它们平滑地滑过去。但列表里的元素移动没有进入或离开，没有钩子可以挂。`TransitionGroup` 用 FLIP（First, Last, Invert, Play）：
+
+1. **First**：更新 DOM 之前，记下每个子元素的旧位置（`getBoundingClientRect`）。
+2. **Last**：DOM 更新之后，再量一次新位置。
+3. **Invert**：用 `transform: translate(dx, dy)` 把元素反向推回旧位置，位移是旧位置减新位置，并把过渡时长设为 0。元素看起来还在原地。
+4. **Play**：去掉内联的 `transform`，同时加上 `move` class（里面写了 `transition: transform`），元素从旧位置过渡到 0，也就是新位置。
+
+实测：四个高 20px 的 `li` 从 `1 2 3 4` 变成 `4 1 2 3`。`4` 向上移了三格，设置的是 `translate(0px, 60px)`；`1 2 3` 各向下移一格，设置的是 `translate(0px, -20px)`。随后 `v-move` 加上，内联样式清掉，浏览器里出现四个 `transform` 过渡。
+
+::: deep TransitionGroup 的简化源码
 ```js
 // runtime-dom/components/TransitionGroup.ts（简化）
 render() {                 // 渲染函数里，DOM 还没有更新
@@ -331,16 +340,15 @@ onUpdated(() => {          // DOM 已经更新
   })
 })
 ```
-
-实测：四个高 20px 的 `li` 从 `1 2 3 4` 变成 `4 1 2 3`。`4` 向上移了三格，设置的是 `translate(0px, 60px)`（旧位置减新位置）；`1 2 3` 各向下移一格，设置的是 `translate(0px, -20px)`。随后 `v-move` 加上，内联样式清掉，浏览器里出现四个 `transform` 过渡。
-
-### 33.5 Suspense：先在隐藏容器里渲染，计数归零再换上
-
-::: note warn
-Suspense 仍是**实验性功能**。官方文档写的是：`<Suspense>` is an experimental feature. It is not guaranteed to reach stable status and the API may change before it does。开发版第一次创建边界时，控制台会打印 `<Suspense> is an experimental feature and its API will likely change.`。下面讲的是 3.5.43 的实现，细节可能改变。
 :::
 
-问题：等多个异步组件都好了再一起显示，期间显示 fallback。`SuspenseImpl.process` 的挂载路径（`mountSuspense`）：
+### 33.6 Suspense：先在隐藏容器里渲染，计数归零再换上
+
+::: note warn
+Suspense 仍是**实验性功能**：官方文档写明它不保证成为稳定功能，API 可能改变；开发版第一次创建边界时，控制台会打印 `<Suspense> is an experimental feature and its API will likely change.`。下面讲的是 3.5.43 的实现。
+:::
+
+现象：第 9 章说，等多个异步子组件都好了再一起显示，期间显示 fallback。实现：Suspense 的挂载路径（`mountSuspense`）分四步，下面的 `defaultBranch` 和 `fallbackBranch` 是默认插槽和 `fallback` 插槽的 vnode（源码里叫 `ssContent` 和 `ssFallback`）：
 
 ```js
 // runtime-core/components/Suspense.ts（简化）
@@ -348,16 +356,16 @@ function mountSuspense(vnode, container, anchor, parentComponent /* … */) {
   const hiddenContainer = createElement('div')                      // 1. 隐藏容器
   const suspense = (vnode.suspense = createSuspenseBoundary(/* … */))
   patch(null, (suspense.pendingBranch = vnode.ssContent), hiddenContainer, null, parentComponent, suspense)
-  //   默认内容挂进隐藏容器；parentSuspense 传的是这个边界
+  //   默认内容（defaultBranch）挂进隐藏容器；parentSuspense 传的是这个边界
   if (suspense.deps > 0) {                                           // 2. 有异步依赖：显示 fallback
-    triggerEvent(vnode, 'onPending'); triggerEvent(vnode, 'onFallback')
-    patch(null, vnode.ssFallback, container, anchor, parentComponent, null)   // fallback 没有 suspense 上下文
-    setActiveBranch(suspense, vnode.ssFallback)
+    triggerEvent(vnode, 'onPending'); triggerEvent(vnode, 'onFallback')   // triggerEvent：调用你写的 @pending 等监听
+    patch(null, vnode.ssFallback, container, anchor, parentComponent, null)   // fallbackBranch 没有 suspense 上下文
+    setActiveBranch(suspense, vnode.ssFallback)                     // activeBranch：此刻显示在页面上的那一支
   } else suspense.resolve()                                          // 3. 没有依赖：直接换上
 }
 ```
 
-**异步依赖怎样登记。**默认内容挂载时，`mountComponent` 发现某个组件的 `setup` 返回了 Promise（`instance.asyncDep`），就调 `parentSuspense.registerDep`。这时组件先渲染一个注释占位。`registerDep` 让 `suspense.deps++`，并在 Promise 完成后补上真正的渲染：
+**异步依赖怎样登记。** 默认内容挂载时，`mountComponent` 发现某个组件的 `setup` 返回了 Promise（`instance.asyncDep`），就调 `parentSuspense.registerDep`，组件先渲染一个注释占位。`registerDep` 让 `suspense.deps++`，Promise 完成后补上真正的渲染：
 
 ```js
 registerDep(instance, setupRenderEffect) {
@@ -370,29 +378,64 @@ registerDep(instance, setupRenderEffect) {
 }
 ```
 
-**resolve 做什么。**`resolve()` 里：卸载当前的 `activeBranch`（首次是 fallback），把 `pendingBranch` 用 `move(…, ENTER)` 从隐藏容器搬进真实容器，`activeBranch = pendingBranch`、`pendingBranch = null`，再把 `suspense.effects` 放进后置队列，最后触发 `onResolve`。
+**resolve 做什么。** `resolve()` 里：卸载当前的 `activeBranch`（首次是 fallback），把 `pendingBranch` 用 `move(…, ENTER)` 从隐藏容器搬进真实容器，`activeBranch = pendingBranch`、`pendingBranch = null`，再把 `suspense.effects` 放进后置队列，最后触发 `onResolve`。
 
-`effects` 是关键细节。内容在隐藏容器里挂载期间，它们的 `onMounted` 等后置任务，经 `queuePostRenderEffect(fn, suspense)` 被**拦截**：边界有 `pendingBranch` 时，任务进 `suspense.effects` 而不是全局后置队列。所以子组件的 `onMounted` 要等到 resolve、DOM 真的在页面上之后才运行。在浏览器里实测，`onResolve` 先于子组件的 `onMounted`，且 `onMounted` 里 `document.contains(el)` 为 `true`。
+内容在隐藏容器里挂载期间，子组件的 `onMounted` 等后置任务被**拦截**：边界有 `pendingBranch` 时，`queuePostRenderEffect(fn, suspense)` 把任务存进 `suspense.effects`，而不是全局后置队列。所以 `onMounted` 要等到 resolve、DOM 真的在页面上之后才运行。
 
-用两个异步子组件（`setup` 分别要 50 ms 和 120 ms）看计数：第 50 ms A 的 `setup` 完成，`deps` 从 2 降到 1，页面仍是 fallback；第 120 ms B 完成，`deps` 归零，`resolve`，内容一起出现（页面状态是实测，`deps` 的数值来自源码）。
+下面的实验台用真实的 Suspense 和两三个 `async setup` 的子组件，把这个过程摆成时间线：哪个事件在什么时刻触发，页面上此刻是 fallback 还是内容，异步依赖还剩几个。
 
-**内容切换。**`process` 在更新时走 `patchSuspense`：
+<Lab id="demo-suspense-timeline" title="实验台：Suspense 的时间线" note="真实的 Suspense。只读可观察的事件和页面状态，不读内部字段">
+<template #predict>
+<Sc predict :a="1">
+
+先猜：A 的 `setup` 要 300 ms，B 要 800 ms。点“首次加载”。到 300 ms 时，A 已经准备好了，页面上显示什么？
+
+<Opt>A 的内容已经出现，B 的位置还是占位</Opt>
+<Opt>仍然是 fallback，要等到 B 完成才一起换成内容</Opt>
+<Opt>页面空白，fallback 在 A 完成时消失</Opt>
+
+<template #explain>
+
+解析：A 的内容在隐藏容器里渲染好了，但 `deps` 只从 2 降到 1，没有归零，`resolve` 不会发生，页面上仍是 fallback。800 ms 时 B 完成，`deps` 归零，两块内容才一起搬进页面。第一项是“每个组件独立显示”的直觉，Suspense 的设计正好相反。打开实验台，看时间线里 300 ms 那一行的“页面”列。
+
+</template>
+</Sc>
+</template>
+
+<SuspenseTimeline />
+</Lab>
+
+在实验台里试几遍，可以读出：首次加载是 `onPending`、`onFallback`，每个依赖完成时只改计数，全部完成后才有 `onResolve`；子组件的 `onMounted` 在 `onResolve` 之后，这时 DOM 已经在页面上。
+
+**切换内容时，要看根有没有被替换。** 这是“切换内容再也不显示 fallback”这个现象的原因：
+
+| 切换时 | 发生什么 | 页面上 |
+|---|---|---|
+| 默认插槽的根被替换（类型不同） | 新内容挂进新的隐藏容器，进入 pending | 默认一直留着旧内容；设了 `timeout` 才在超时后显示 fallback |
+| 根没变（例如都是 `div`），只是里面换了子组件 | 原地 patch，不进入 pending | 新的异步子组件先是占位，没有 fallback |
+| 首次加载 | 进入 pending | 立刻显示 fallback |
+
+在实验台里切换“默认内容的根”，再点“切换内容”，就能看到两种结果。`timeout` 选“100 ms”时，新内容超过 100 ms 才出现 fallback；选“0”时立刻出现。
+
+::: note
+知道了实现：fallback 只在首次加载，或切换根节点后超过 `timeout` 才出现，是因为切换时旧内容还在（`activeBranch`），新内容在后台排好，这是 Suspense 避免加载闪烁的设计。服务器上的 Suspense 只渲染默认内容，不改变流式渲染的顺序（第 36 章 36.7 节）。
+:::
+
+::: deep patchSuspense 的三条分支和 timeout
+`process` 在更新时走 `patchSuspense`：
 
 - 有 `pendingBranch` 且新旧分支类型相同：直接 patch 它，`deps` 照常计数。
 - 没有 `pendingBranch`，并且 `activeBranch` 和新分支同类型（例如根都是 `div`）：**原地 patch，不进入 pending**，内部新出现的异步依赖不会触发 fallback。官方文档说的就是这个：只有默认插槽的**根节点被替换**，才会回到 pending。
 - 否则：`pendingBranch = newBranch`，新内容挂进一个新的隐藏容器。依赖数为 0 就 `resolve`；否则看 `timeout`：默认 `-1`，永远不显示 fallback，旧内容一直留着；大于 0，`setTimeout` 之后调 `suspense.fallback()`；等于 0，立刻显示。
 
-在浏览器里实测：`timeout="60"`，新内容需要 30 ms，旧内容一直在，没有 fallback；新内容需要 120 ms，第 60 ms 后 fallback 出现，120 ms 时换成新内容。`timeout` 在**创建边界时**读取一次（`timeout: toNumber(vnode.props.timeout)`），之后改这个 prop 不再生效。
+在浏览器里实测：`timeout="60"`，新内容需要 30 ms，旧内容一直在，没有 fallback；新内容需要 120 ms，第 60 ms 后 fallback 出现，120 ms 时换成新内容。`timeout` 在**创建边界时**读取一次（`timeout: toNumber(vnode.props.timeout)`），之后改这个 prop 不再生效，所以实验台里改 `timeout` 会新建一个 Suspense。
 
 事件的触发时机：`onPending` 在进入 pending 时（首次是挂载时，切换时是 `patchSuspense` 开头），`onFallback` 在 fallback 真正显示时，`onResolve` 在 `resolve` 末尾。
-
-::: note
-知道了实现：fallback 只在首次加载，或切换根节点后超过 `timeout` 才出现，是因为切换时旧内容还在（`activeBranch`），新内容在后台排好，这是 Suspense 避免加载闪烁的设计。`async setup` 里 `await` 之后再调 `onMounted` 不起作用，因为这时 `currentInstance` 已经没有了（31.7 节）。服务器上的 Suspense 只渲染默认内容，第 36 章（36.8 节）会讲。
 :::
 
-### 33.6 defineAsyncComponent：一个包装组件，两条路径
+### 33.7 defineAsyncComponent：一个包装组件，两条路径
 
-问题：组件的代码要晚点下载，下载期间显示加载状态。`defineAsyncComponent` 返回一个名为 `AsyncComponentWrapper` 的普通组件。包装组件的 `setup` 按有没有 Suspense 走两条路径：
+现象：第 9 章说，`defineAsyncComponent` 的加载状态、延迟和超时，放进 Suspense 之后就不管用了。实现：`defineAsyncComponent` 返回一个名为 `AsyncComponentWrapper` 的普通组件。包装组件的 `setup` 按有没有 Suspense 走两条路径：
 
 ```js
 // runtime-core/apiAsyncComponent.ts（简化）
@@ -431,19 +474,22 @@ function defineAsyncComponent({ loader, loadingComponent, errorComponent, delay 
 | 在 Suspense 里 | fallback | fallback | 真正的组件 |
 | 在 Suspense 里，`suspensible: false` | 注释占位 | 加载组件 | 真正的组件 |
 
-路径 A 里，包装组件的 `loadingComponent`、`errorComponent`、`delay`、`timeout` 全被忽略，加载状态完全由 Suspense 决定。官方文档也写了这一点。路径 B 的状态机是三个 `ref`：`delay` 内不显示加载组件（避免闪一下），`timeout` 到了而没加载完就进入错误状态；超时后如果加载仍然完成，`loaded` 变真，真正的组件仍然会显示（实测）。
+路径 A 里，包装组件的 `loadingComponent`、`errorComponent`、`delay`、`timeout` 全被忽略，加载状态完全由 Suspense 决定。官方文档也写了这一点。路径 B 靠三个 `ref` 管状态：`delay` 内不显示加载组件，`timeout` 到了还没加载完就进入错误状态。
+
+::: deep loader 的缓存、重试和延迟水合
+超时后如果加载仍然完成，`loaded` 变真，真正的组件仍然会显示（实测）。
 
 `loader` 的结果被 `pendingRequest` 缓存：两个实例同时挂载，`loader` 只调用一次（实测）。`onError(err, retry, fail, attempts)` 里调 `retry()` 会清掉 `pendingRequest` 再 `load()`，所以重试是重新调用 `loader`。
 
 3.5 加的延迟水合（`hydrate` 选项和 `__asyncHydrate`）在第 36 章（36.7 节）会讲。
+:::
 
 ::: pitfalls
 1. 不要期望 `KeepAlive` 里的 `onMounted` 每次显示都运行。原因：失活只是搬家，实例没有销毁。每次显示都要做的事放进 `onActivated`。
 2. 不要给没有名字的组件设 `include`。原因：`include` 按 `name` 或 `__name` 匹配，匹配不到名字的组件不会被缓存。
 3. 不要指望在祖先元素上的 `@click` 收到 Teleport 内容里的点击。原因：DOM 事件按真实 DOM 冒泡，Teleport 内容的真实祖先在目标容器里。
 4. 不要在 `onLeave(el, done)` 里忘记调用 `done`。原因：元素的移除被推迟到 `done` 之后。
-5. 不要在 `async setup` 的 `await` 之后注册 `onMounted` 之类的钩子。原因：`await` 之后 `currentInstance` 已经被清掉。
-6. 不要把 `Suspense` 的 `timeout` 写成会变化的值。原因：边界只在创建时读取一次。
+5. 不要在 `async setup` 的 `await` 之后注册 `onMounted` 之类的钩子，也不要把 `Suspense` 的 `timeout` 写成会变化的值。原因：`await` 之后 `currentInstance` 已经被清掉；边界只在创建时读取一次 `timeout`。
 :::
 
 ::: selfcheck

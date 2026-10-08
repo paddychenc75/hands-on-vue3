@@ -1,396 +1,77 @@
 import type { Exercise } from './types'
 import { sub } from './types'
+import { answer, build, domSource, fold, PARTS, region } from '../mini'
 
-// 两道练习共用同一个迷你 Vue（第 31.8 节的完整清单）。
-// 脚本里的函数用 function 声明：练习环境把 reactive、provide、inject、onMounted 等名字当作参数提供，
-// function 声明可以覆盖同名参数，const 不行。所以迷你版的 reactive、onMounted 在这里覆盖了真实的同名函数；
-// 需要真实的 Vue API 时写 Vue.onMounted。
+// 三道练习共用同一套迷你 Vue（course/mini，见 course/mini/README.md）：
+// 第 24、25、26、28、30 章写过的零件（响应式、更新队列、watch、h、元素与 diff）整体折叠，
+// 本章零件（6a 组件实例与钩子，6b 组件挂载与更新）里除了要写的那一段，其余也折叠。
+// 脚本里的函数用 function 声明，所以迷你版的 reactive、onMounted 覆盖了练习环境里同名的真实函数；需要真实的 Vue API 时写 Vue.xxx。
 
-const MINI_REACTIVE = `// ===== 12 章：响应式（加了 scheduler 和 lazy 两个选项） =====
-let activeEffect = null
-const targetMap = new WeakMap()
+const EARLIER = fold('第 24、25、26、28、30 章你写过的零件：响应式、更新队列、watch、h、元素与 diff', domSource('element'))
+const COMP = PARTS.component + '\n' + PARTS.componentRender
+const REST = '本章其余已经写好的部分：组件实例、钩子、provide、更新、卸载、createApp'
 
-function track(target, key) {
-  if (!activeEffect) return
-  let depsMap = targetMap.get(target)
-  if (!depsMap) targetMap.set(target, (depsMap = new Map()))
-  let dep = depsMap.get(key)
-  if (!dep) depsMap.set(key, (dep = new Set()))
-  dep.add(activeEffect)
-  activeEffect.deps.push(dep)
-}
-
-function trigger(target, key) {
-  const dep = targetMap.get(target)?.get(key)
-  dep && [...dep].forEach(e => e !== activeEffect && (e.scheduler ? e.scheduler() : e.run()))
-}
-
-function reactive(obj) {
-  return new Proxy(obj, {
-    get(t, k, r) { track(t, k); return Reflect.get(t, k, r) },
-    set(t, k, v, r) {
-      const old = t[k]
-      const ok = Reflect.set(t, k, v, r)
-      if (!Object.is(old, v)) trigger(t, k)
-      return ok
+/** 只露出 names 里的区域，其余的代码折叠成只读块 */
+function focus(code: string, names: string[]): string {
+  const lines = code.split('\n')
+  const ranges: [number, number][] = names.map(name => {
+    const s = lines.findIndex(l => new RegExp('^\\s*//#region ' + name + '\\s*$').test(l))
+    if (s < 0) throw new Error('找不到区域 ' + name)
+    let depth = 0
+    for (let i = s; i < lines.length; i++) {
+      if (/^\s*\/\/#region\b/.test(lines[i])) depth++
+      else if (/^\s*\/\/#endregion\b/.test(lines[i]) && --depth === 0) return [s, i] as [number, number]
     }
-  })
-}
-
-function effect(fn, { scheduler, lazy } = {}) {
-  const e = {
-    deps: [], scheduler,
-    run() {
-      e.deps.forEach(dep => dep.delete(e))
-      e.deps.length = 0
-      const prev = activeEffect
-      activeEffect = e
-      try { return fn() } finally { activeEffect = prev }
-    }
+    throw new Error('区域 ' + name + ' 没有结束标记')
+  }).sort((a, b) => a[0] - b[0])
+  const out: string[] = []
+  let at = 0
+  const gap = (from: number, to: number) => {
+    const chunk = lines.slice(from, to)
+    if (chunk.some(l => l.trim() && !/^\s*\/\/#(end)?region\b/.test(l))) out.push(fold(REST, chunk.join('\n')))
   }
-  if (!lazy) e.run()
-  return e
-}
-
-// ===== 13 章：更新队列 =====
-const queue = []
-const postCbs = []
-let pending = false
-
-function queueJob(job) {
-  if (queue.includes(job)) return
-  let i = queue.length
-  while (i > 0 && queue[i - 1].id > job.id) i--   // 按 id 排：父组件先更新
-  queue.splice(i, 0, job)
-  if (!pending) { pending = true; Promise.resolve().then(flushJobs) }
-}
-function invalidateJob(job) {
-  const i = queue.indexOf(job)
-  if (i > -1) queue.splice(i, 1)
-}
-function queuePostCb(cb) { postCbs.push(cb) }
-function flushJobs() {
-  while (queue.length) queue.shift()()
-  pending = false
-  flushPostCbs()
-}
-function flushPostCbs() {
-  postCbs.splice(0).forEach(cb => cb())
-}
-
-// ===== 14 章：虚拟节点 =====
-const Text = Symbol('Text')
-
-function h(type, props = null, children = null) {
-  if (typeof children === 'number') children = String(children)
-  if (Array.isArray(children)) {
-    children = children.map(c => (c !== null && typeof c === 'object' ? c : h(Text, null, String(c))))
+  for (const [s, e] of ranges) {
+    gap(at, s)
+    out.push(lines.slice(s, e + 1).join('\n'))
+    at = e + 1
   }
-  return { type, props, children, key: props && props.key != null ? props.key : null, el: null, component: null }
-}
-const isSameVNodeType = (a, b) => a.type === b.type && a.key === b.key
-
-// ===== 31.2：patch 的分发、元素的挂载和更新、卸载 =====
-function patch(n1, n2, container, anchor = null, parent = null) {
-  if (n1 === n2) return
-  if (n1 && !isSameVNodeType(n1, n2)) {
-    anchor = getNextHostNode(n1)
-    unmount(n1)
-    n1 = null
-  }
-  const { type } = n2
-  if (type === Text) processText(n1, n2, container, anchor)
-  else if (typeof type === 'string') processElement(n1, n2, container, anchor, parent)
-  else processComponent(n1, n2, container, anchor, parent)
+  gap(at, lines.length)
+  return out.join('\n')
 }
 
-function getNextHostNode(vnode) {
-  return vnode.component ? getNextHostNode(vnode.component.subTree) : vnode.el.nextSibling
+/** 把 text 里从 from 开始到 to 结束（含 to）的一段换成 rep；找不到就抛错，免得悄悄生成一道没有挖空的题 */
+function cut(text: string, from: string, to: string, rep: string, last = false): string {
+  const s = text.indexOf(from)
+  const e = last ? text.lastIndexOf(to) : text.indexOf(to, s)
+  if (s < 0 || e < 0) throw new Error('cut：找不到 ' + from + ' … ' + to)
+  return text.slice(0, s) + rep + text.slice(e + to.length)
 }
 
-function processText(n1, n2, container, anchor) {
-  if (n1 == null) {
-    n2.el = document.createTextNode(n2.children)
-    container.insertBefore(n2.el, anchor)
-  } else {
-    n2.el = n1.el
-    if (n1.children !== n2.children) n2.el.textContent = n2.children
-  }
-}
-
-function processElement(n1, n2, container, anchor, parent) {
-  if (n1 == null) mountElement(n2, container, anchor, parent)
-  else patchElement(n1, n2, parent)
-}
-
-function mountElement(vnode, container, anchor, parent) {
-  const el = (vnode.el = document.createElement(vnode.type))
-  if (typeof vnode.children === 'string') el.textContent = vnode.children
-  else if (vnode.children) vnode.children.forEach(c => patch(null, c, el, null, parent))
-  for (const key in vnode.props) patchProp(el, key, null, vnode.props[key])
-  container.insertBefore(el, anchor)       // 子树建好以后才插入页面
-}
-
-function patchProp(el, key, prev, next) {
-  if (key === 'key') return
-  if (/^on[A-Z]/.test(key)) {
-    const name = key.slice(2).toLowerCase()
-    prev && el.removeEventListener(name, prev)
-    next && el.addEventListener(name, next)
-  } else if (next == null) el.removeAttribute(key)
-  else el.setAttribute(key, next)
-}
-
-function patchElement(n1, n2, parent) {
-  const el = (n2.el = n1.el)
-  const oldProps = n1.props || {}
-  const newProps = n2.props || {}
-  for (const key in newProps) if (newProps[key] !== oldProps[key]) patchProp(el, key, oldProps[key], newProps[key])
-  for (const key in oldProps) if (!(key in newProps)) patchProp(el, key, oldProps[key], null)
-  const c1 = n1.children
-  const c2 = n2.children
-  if (typeof c2 === 'string') {
-    if (Array.isArray(c1)) c1.forEach(c => unmount(c, false))
-    if (c1 !== c2) el.textContent = c2
-  } else if (Array.isArray(c2)) {
-    if (Array.isArray(c1)) {               // 30.4：没有 key 的 diff，按下标比较
-      const len = Math.min(c1.length, c2.length)
-      for (let i = 0; i < len; i++) patch(c1[i], c2[i], el, null, parent)
-      c1.slice(len).forEach(c => unmount(c))
-      c2.slice(len).forEach(c => patch(null, c, el, null, parent))
-    } else {
-      el.textContent = ''
-      c2.forEach(c => patch(null, c, el, null, parent))
-    }
-  } else if (Array.isArray(c1)) c1.forEach(c => unmount(c))
-  else el.textContent = ''
-}
-
-function unmount(vnode, doRemove = true) {
-  const instance = vnode.component
-  if (instance) {
-    instance.isUnmounted = true
-    instance.um.forEach(queuePostCb)
-    unmount(instance.subTree, doRemove)
-    return
-  }
-  if (Array.isArray(vnode.children)) vnode.children.forEach(c => unmount(c, false))
-  if (doRemove) vnode.el.remove()
-}
-
-// ===== 31.3：组件实例和 setupComponent =====
-let uid = 0
-let currentInstance = null
-
-function createComponentInstance(vnode, parent) {
-  return {
-    uid: uid++, vnode, type: vnode.type, parent,
-    props: null, render: null, subTree: null, update: null, next: null,
-    provides: parent ? parent.provides : Object.create(null),
-    isMounted: false, isUnmounted: false,
-    m: [], u: [], um: []
-  }
-}
-
-function setupComponent(instance) {
-  instance.props = reactive({ ...instance.vnode.props })
-  currentInstance = instance
-  instance.render = instance.type.setup(instance.props)
-  currentInstance = null
-}
-
-function processComponent(n1, n2, container, anchor, parent) {
-  if (n1 == null) mountComponent(n2, container, anchor, parent)
-  else updateComponent(n1, n2)
-}
-`
-
-const MOUNT_SOL = `function mountComponent(vnode, container, anchor, parent) {
-  const instance = (vnode.component = createComponentInstance(vnode, parent))
-  setupComponent(instance)
-  setupRenderEffect(instance, container, anchor)
-}
-
-function setupRenderEffect(instance, container, anchor) {
-  const componentUpdateFn = () => {
-    if (instance.isUnmounted) return
-    if (!instance.isMounted) {
-      const subTree = (instance.subTree = instance.render())
-      patch(null, subTree, container, anchor, instance)
-      instance.vnode.el = subTree.el
-      instance.isMounted = true
-      instance.m.forEach(queuePostCb)
-    } else {
-      if (instance.next) updateComponentPreRender(instance, instance.next)
-      const prevTree = instance.subTree
-      const nextTree = (instance.subTree = instance.render())
-      patch(prevTree, nextTree, prevTree.el.parentNode, getNextHostNode(prevTree), instance)
-      instance.vnode.el = nextTree.el
-      instance.u.forEach(queuePostCb)
-    }
-  }
-  const runner = effect(componentUpdateFn, { lazy: true, scheduler: () => queueJob(update) })
-  const update = (instance.update = runner.run)
-  update.id = instance.uid
-  update()
-}
-`
-
-const MOUNT_START = `// ===== 你要写的：mountComponent 和 setupRenderEffect =====
-function mountComponent(vnode, container, anchor, parent) {
-  // TODO 1：三步。创建实例（记在 vnode.component 上）、setupComponent、setupRenderEffect
-}
-
-function setupRenderEffect(instance, container, anchor) {
-  // TODO 2：把渲染函数装进一个副作用函数里。
-  // 第一次（!instance.isMounted）：运行 instance.render() 得到 subTree，记在 instance.subTree 上，
-  //   patch(null, subTree, …)，把 subTree.el 记到 vnode.el，标记 isMounted，把 instance.m 里的钩子放进后置队列。
-  // 之后：有 instance.next 时先 updateComponentPreRender，再渲染出新 subTree，和旧的 patch，
-  //   最后把 instance.u 里的钩子放进后置队列。
-  // 数据改变时不能直接运行，要放进更新队列；任务的 id 用 instance.uid。
-}
-`
-
-const MOUNT_FADED = `function mountComponent(vnode, container, anchor, parent) {
-  const instance = (vnode.component = /* ✏️ 创建组件实例，传入 vnode 和 parent */)
-  /* ✏️ 处理 props 并运行 setup */
-  setupRenderEffect(instance, container, anchor)
-}
-
-function setupRenderEffect(instance, container, anchor) {
-  const componentUpdateFn = () => {
-    if (instance.isUnmounted) return
-    if (!instance.isMounted) {
-      const subTree = (instance.subTree = instance.render())
-      patch(null, subTree, container, anchor, instance)
-      instance.vnode.el = subTree.el
-      instance.isMounted = true
-      instance.m.forEach(queuePostCb)
-    } else {
-      if (instance.next) updateComponentPreRender(instance, instance.next)
-      const prevTree = instance.subTree
-      const nextTree = (instance.subTree = instance.render())
-      patch(prevTree, nextTree, prevTree.el.parentNode, getNextHostNode(prevTree), instance)
-      instance.vnode.el = nextTree.el
-      instance.u.forEach(queuePostCb)
-    }
-  }
-  // ✏️ 创建副作用函数：lazy，数据改变时 scheduler 把 update 放进更新队列
-  const update = (instance.update = runner.run)
-  update.id = instance.uid
-  update()
-}
-`
-
-const UPDATE_PART = `
-function updateComponentPreRender(instance, next) {
-  const prevProps = instance.vnode.props || {}
-  const nextProps = next.props || {}
-  instance.vnode = next
-  instance.next = null
-  for (const key in nextProps) instance.props[key] = nextProps[key]
-  for (const key in prevProps) if (!(key in nextProps)) delete instance.props[key]
-}
-
-function updateComponent(n1, n2) {
-  const instance = (n2.component = n1.component)
-  if (shouldUpdateComponent(n1, n2)) {
-    instance.next = n2
-    invalidateJob(instance.update)
-    instance.update()
-  } else {
-    n2.el = n1.el
-    instance.vnode = n2
-  }
-}
-
-const isEmitListener = (emits, key) => /^on[A-Z]/.test(key) && emits.includes(key[2].toLowerCase() + key.slice(3))
-
-`
-
-const SHOULD_SOL = `function shouldUpdateComponent(prev, next) {
-  const prevProps = prev.props || {}
-  const nextProps = next.props || {}
-  const emits = prev.component.type.emits || []
-  const keys = Object.keys(nextProps)
-  if (keys.length !== Object.keys(prevProps).length) return true
-  return keys.some(key => nextProps[key] !== prevProps[key] && !isEmitListener(emits, key))
-}
-`
-
-const SHOULD_START = `// ===== 你要写的：shouldUpdateComponent =====
-// prev、next 是新旧两个组件 vnode，它们的 props 是 vnode.props（可能是 null）。
-// 返回 true：子组件要更新。返回 false：跳过。
-function shouldUpdateComponent(prev, next) {
-  return true     // 现在的写法：只要父组件重新渲染，子组件就更新
-}
-`
-
-const SHOULD_FADED = `function shouldUpdateComponent(prev, next) {
-  const prevProps = prev.props || {}
-  const nextProps = next.props || {}
-  const emits = prev.component.type.emits || []
-  const keys = Object.keys(nextProps)
-  if (/* ✏️ 新旧属性的个数不同（多了或少了属性） */) return true
-  return keys.some(key => /* ✏️ 这个属性的值变了，并且它不是已声明的事件监听 */)
-}
-`
-
-const TAIL = `
-// ===== 31.6、31.7：生命周期钩子、provide / inject、入口 =====
-function injectHook(type, fn) {
-  if (!currentInstance) throw new Error('生命周期钩子只能在 setup 里同步调用')
-  currentInstance[type].push(fn)
-}
-function onMounted(fn) { injectHook('m', fn) }
-function onUpdated(fn) { injectHook('u', fn) }
-function onUnmounted(fn) { injectHook('um', fn) }
-
-function provide(key, value) {
-  let provides = currentInstance.provides
-  const parentProvides = currentInstance.parent && currentInstance.parent.provides
-  if (provides === parentProvides) provides = currentInstance.provides = Object.create(parentProvides)
-  provides[key] = value
-}
-function inject(key, defaultValue) {
-  const provides = currentInstance.parent && currentInstance.parent.provides
-  return provides && key in provides ? provides[key] : defaultValue
-}
-
-function render(vnode, container) {
-  patch(container._vnode || null, vnode, container)
-  container._vnode = vnode
-  flushPostCbs()
-}
-function createApp(Root, rootProps) {
-  return { mount(container) { render(h(Root, rootProps), container) } }
-}
-`
-
-const GIVEN_NOTE = '// 下面是已经写好的迷你 Vue，不用修改。\n// 要写的部分在后面，用 TODO 标出。\n\n'
+const SRE = region(PARTS.componentRender, 'setupRenderEffect')
+const MC = region(PARTS.componentRender, 'mountComponent')
 
 // ---------------------------------------------------------------------------
-// 练习 1：补全 mountComponent 和 setupRenderEffect
+// 演示代码：用迷你 Vue 的公开名字（reactive、h、onMounted、createApp）
 // ---------------------------------------------------------------------------
 
-const DEMO_MOUNT = `
+const demo = (p: string) => `
 // ===== 使用迷你 Vue（不用修改） =====
 const state = reactive({ count: 0, label: 'a' })
 
 function log(msg) {
-  document.getElementById('mm-log').textContent += msg + '\\n'
+  document.getElementById('${p}-log').textContent += msg + '\\n'
 }
 
 const Counter = {
   setup(props) {
     log('Counter setup')
     onMounted(() => {
-      const inPage = document.getElementById('mm-host').contains(document.getElementById('mm-counter'))
+      const inPage = document.getElementById('${p}-host').contains(document.getElementById('${p}-counter'))
       log('Counter mounted，DOM 已在页面上：' + inPage)
     })
     return () => {
       log('Counter render')
-      return h('i', { id: 'mm-counter' }, 'count = ' + props.count)
+      return h('i', { id: '${p}-counter' }, 'count = ' + props.count)
     }
   }
 }
@@ -406,33 +87,61 @@ const App = {
   }
 }
 
-Vue.onMounted(() => createApp(App).mount(document.getElementById('mm-host')))
+Vue.onMounted(() => createApp(App).mount(document.getElementById('${p}-host')))
 
 function addThree() { state.count++; state.count++; state.count++ }
 function changeLabel() { state.label += 'b' }
 
 return { addThree, changeLabel }`
 
-const TPL_MOUNT = `<button @click="addThree">count 同步加 3</button>
+const tpl = (p: string) => `<button @click="addThree">count 同步加 3</button>
 <button @click="changeLabel">改 label</button>
-<div id="mm-host"></div>
-<pre id="mm-log"></pre>`
+<div id="${p}-host"></div>
+<pre id="${p}-log"></pre>`
 
-const MOUNT_FULL = GIVEN_NOTE + MINI_REACTIVE + UPDATE_PART + SHOULD_SOL + TAIL + '\n' + MOUNT_SOL + DEMO_MOUNT
+// ---------------------------------------------------------------------------
+// 练习 1：mountComponent 和首次渲染（能看到页面）
+// ---------------------------------------------------------------------------
+
+const MOUNT_FROM = 'instance.bm.forEach(fn => fn())'
+const MOUNT_TO = 'instance.isMounted = true\n'
+
+const MC_START = `function mountComponent(vnode, container, anchor, parentComponent) {
+  // TODO 1：三步。创建实例（记在 vnode.component 上）、setupComponent、setupRenderEffect
+}`
+const SRE_START_1 = cut(SRE, MOUNT_FROM, MOUNT_TO, `// TODO 2：首次渲染。先调用 instance.bm 里的钩子，再运行渲染函数得到 subTree（记在 instance.subTree 上），
+      // patch(null, subTree, …) 挂载它，把 subTree.el 记到 instance.vnode.el，
+      // 把 instance.m 里的钩子放进后置队列，最后标记 instance.isMounted
+`)
+const MC_FADED = `function mountComponent(vnode, container, anchor, parentComponent) {
+  const instance = (vnode.component = /* ✏️ 创建组件实例，传入 vnode 和父组件实例 */)
+  /* ✏️ 处理 props 并运行 setup */
+  setupRenderEffect(instance, container, anchor)
+}`
+const SRE_FADED_1 = cut(SRE, MOUNT_FROM, MOUNT_TO, `instance.bm.forEach(fn => fn())
+      const subTree = (instance.subTree = /* ✏️ 运行渲染函数 */)
+      /* ✏️ 把 subTree 挂载进容器：patch 的第一个参数是 null */
+      instance.vnode.el = subTree.el
+      /* ✏️ mounted 钩子要等整棵树插入页面以后才运行：放进后置队列 */
+      instance.isMounted = true
+`)
+
+const BLANK_1 = { mountComponent: MC_START, setupRenderEffect: SRE_START_1 }
+const SOL_1 = EARLIER + answer(focus(COMP, ['mountComponent', 'setupRenderEffect'])) + demo('mm')
 
 export const miniMount: Exercise = {
-  title: '补全迷你 Vue 的 mountComponent 和 setupRenderEffect',
+  title: '补全迷你 Vue 的 mountComponent 和首次渲染',
   ch: 31,
-  task: '<p>脚本里是 31.8 节的迷你 Vue：响应式、更新队列、<code>h</code>、<code>patch</code>、元素的挂载和更新都已经写好。你要补全组件的挂载。</p><ol><li><b>TODO 1</b>：<code>mountComponent</code> 做三步：创建实例（记在 <code>vnode.component</code> 上）、<code>setupComponent</code>、<code>setupRenderEffect</code>。</li><li><b>TODO 2</b>：<code>setupRenderEffect</code> 里写一个 <code>componentUpdateFn</code>。第一次运行时 render 并 patch 子树，之后运行时比较新旧子树。再把它装进副作用函数，数据改变时通过更新队列运行。</li></ol><p>补全后，页面下方的日志应显示：App 先 setup 再 render，Counter 的 mounted 先于 App 的 mounted，而且 Counter mounted 时它的 DOM 已经在页面上。点“count 同步加 3”，App 和 Counter 各只渲染一次。点“改 label”，只有 App 渲染。</p>',
-  tpl: TPL_MOUNT,
-  js: GIVEN_NOTE + MINI_REACTIVE + UPDATE_PART + SHOULD_SOL + TAIL + '\n' + MOUNT_START + DEMO_MOUNT,
-  solJs: MOUNT_FULL,
-  faded: { js: GIVEN_NOTE + MINI_REACTIVE + UPDATE_PART + SHOULD_SOL + TAIL + '\n' + MOUNT_FADED + DEMO_MOUNT },
+  task: '<p>下面是迷你 Vue（第 24 到 30 章你写过的零件已折叠，点开可以看）。本章的组件挂载只留下两处空白：</p><ol><li><b>TODO 1</b>：<code>mountComponent</code> 做三步：创建实例（记在 <code>vnode.component</code> 上）、<code>setupComponent</code>、<code>setupRenderEffect</code>。</li><li><b>TODO 2</b>：<code>setupRenderEffect</code> 里的首次渲染分支（<code>!instance.isMounted</code>）：调用 beforeMount 钩子，渲染并挂载子树，记下 el，把 mounted 钩子放进后置队列。</li></ol><p>更新分支和更新队列已经写好，下一道练习再写。补全后，页面下方的日志应显示：App 先 setup 再 render，Counter 的 mounted 先于 App 的 mounted，而且 Counter mounted 时它的 DOM 已经在页面上。</p>',
+  tpl: tpl('mm'),
+  js: EARLIER + build(focus(COMP, ['mountComponent', 'setupRenderEffect']), BLANK_1) + demo('mm'),
+  solJs: SOL_1,
+  faded: { js: EARLIER + build(focus(COMP, ['mountComponent', 'setupRenderEffect']), { mountComponent: MC_FADED, setupRenderEffect: SRE_FADED_1 }) + demo('mm') },
   hints: [
-    '先看第 31.3、31.4 节。mountComponent 只有三步：createComponentInstance、setupComponent、setupRenderEffect。setupRenderEffect 里的副作用函数有两条路径，用 instance.isMounted 区分。',
-    '副作用函数用 effect(componentUpdateFn, { lazy: true, scheduler: … }) 创建。lazy 表示创建时不运行。scheduler 在数据改变时代替直接运行：它把 update 放进更新队列 queueJob。update 就是 runner.run，id 设为 instance.uid，创建完以后手动调用一次 update()，完成第一次渲染。',
-    'mounted 钩子不能在 patch 之后直接调用：这时整棵树还没有插入页面。把它们放进后置队列，等整棵树 patch 完再运行：instance.m.forEach(queuePostCb)。更新时，instance.next 不为空，要先调用 updateComponentPreRender(instance, instance.next)，子组件才能拿到新的 props。',
-    MOUNT_SOL
+    '先看第 31.3、31.4 节。mountComponent 只有三步：createComponentInstance、setupComponent、setupRenderEffect。首次渲染在 componentUpdateFn 的第一条路径里。',
+    '首次渲染的顺序：bm 钩子同步调用；instance.render() 得到子树；patch(null, subTree, container, anchor, instance)；instance.vnode.el = subTree.el；mounted 钩子放进后置队列；isMounted 置 true。',
+    'mounted 钩子不能在 patch 之后直接调用：这时整棵树还没有插入页面。用 queuePostFlushCb 放进后置队列，等整棵树 patch 完再运行：instance.m.forEach(queuePostFlushCb)。',
+    MC + '\n\n' + region(PARTS.componentRender, 'setupRenderEffect').split('\n').slice(0, 14).join('\n') + '\n  …（后面是更新分支和副作用函数，已经写好）'
   ],
   async check(T) {
     const wait = () => new Promise(r => setTimeout(r, 40))
@@ -440,15 +149,96 @@ export const miniMount: Exercise = {
     const logEl = T.$('#mm-log')
     if (!host || !logEl) { T.ok(false, '页面上有 #mm-host 和 #mm-log'); return }
     const lines = () => (logEl.textContent || '').split('\n').filter(Boolean)
-    const count = (name) => lines().filter(l => l === name).length
-    const index = (prefix) => lines().findIndex(l => l.startsWith(prefix))
+    const count = (name: string) => lines().filter(l => l === name).length
+    const index = (prefix: string) => lines().findIndex(l => l.startsWith(prefix))
     T.ok(/count = 0/.test(host.textContent || '') && /label = a/.test(host.textContent || ''), '首次挂载后页面显示 “count = 0” 和 “label = a”（当前：“' + (host.textContent || '') + '”）')
     T.ok(host.querySelectorAll('#mm-counter').length === 1, '页面上只有一个 Counter')
-    const a = lines()
     T.ok(index('App setup') >= 0 && index('App setup') < index('App render') && index('App render') < index('Counter setup') && index('Counter setup') < index('Counter render'),
       '顺序是 App setup、App render、Counter setup、Counter render（渲染 App 时才遇到 Counter，才创建它）')
+    T.ok(count('App render') === 1 && count('Counter render') === 1, '首次挂载：App 和 Counter 的渲染函数各只运行一次（现在 App ' + count('App render') + ' 次、Counter ' + count('Counter render') + ' 次）')
     T.ok(index('Counter mounted') >= 0 && index('App mounted') > index('Counter mounted'), 'Counter 的 mounted 先于 App 的 mounted（子先父后）')
-    T.ok(a.some(l => l.startsWith('Counter mounted') && l.endsWith('true')), 'Counter mounted 运行时，它的 DOM 已经在页面上（mounted 要等整棵树插入页面后才运行）')
+    T.ok(lines().some(l => l.startsWith('Counter mounted') && l.endsWith('true')), 'Counter mounted 运行时，它的 DOM 已经在页面上（mounted 要等整棵树插入页面后才运行）')
+    const add = T.btn('同步加 3')
+    if (!add) { T.ok(false, '页面上有按钮'); return }
+    await T.click(add); await wait()
+    T.ok(count('Counter setup') === 1, 'Counter 的 setup 只运行一次（现在 ' + count('Counter setup') + ' 次）')
+  },
+  wrong: [
+    {
+      js: sub(SOL_1, 'instance.m.forEach(queuePostFlushCb)', 'instance.m.forEach(fn => fn())'),
+      why: '子组件 patch 完就直接调用 mounted。这时父组件的 DOM 还没有插入页面，所以子组件在 mounted 里读到的 DOM 不在页面上。mounted 要放进后置队列，整棵树 patch 完才运行。',
+      expectFail: /已经在页面上/
+    },
+    {
+      js: sub(SOL_1, 'const subTree = (instance.subTree = instance.render())', 'instance.render()\n      const subTree = (instance.subTree = instance.render())'),
+      why: '渲染函数运行了两次：一次结果被丢掉。渲染函数要读响应式数据、有副作用（本例的日志），一次渲染只能运行一次。',
+      expectFail: /各只运行一次/
+    },
+    {
+      js: sub(SOL_1, 'patch(null, subTree, container, anchor, instance)', 'patch(null, subTree, document.body, anchor, instance)'),
+      why: '子树被挂载到了 document.body，而不是传进来的容器。patch 的第三个参数是 setupRenderEffect 收到的 container。',
+      expectFail: /页面显示|只有一个 Counter/
+    }
+  ]
+}
+
+// ---------------------------------------------------------------------------
+// 练习 2：更新分支和更新队列
+// ---------------------------------------------------------------------------
+
+const UPD_FROM = 'if (instance.next) updateComponentPreRender(instance, instance.next)'
+const UPD_TO = 'instance.u.forEach(queuePostFlushCb)\n'
+const TAIL_FROM = 'const e = (instance.effect'
+const TAIL_TO = 'instance.update()\n'
+
+const SRE_START_2 = cut(cut(SRE, UPD_FROM, UPD_TO, `// TODO 1：更新分支。有 instance.next 时先 updateComponentPreRender；调用 bu 钩子；
+      // 渲染出新子树，和旧子树 patch（容器是旧 DOM 的父节点，anchor 是旧子树之后的节点）；
+      // 把 subTree.el 记到 instance.vnode.el；u 钩子放进后置队列
+`), TAIL_FROM, TAIL_TO, `// TODO 2：把 componentUpdateFn 装进渲染副作用函数，记在 instance.effect 上（放在 instance.scope.run 里）。
+  // lazy：创建时不运行；调度函数把更新任务放进更新队列。
+  // instance.update 是直接运行；instance.job 是放进队列的更新任务（runIfDirty），id 用 instance.uid，allowRecurse 为 true。
+  // 最后调用 instance.update() 完成首次渲染。
+`, true)
+const SRE_FADED_2 = cut(cut(SRE, UPD_FROM, UPD_TO, `if (instance.next) updateComponentPreRender(instance, instance.next)
+      instance.bu.forEach(fn => fn())
+      const prevTree = instance.subTree
+      const nextTree = (instance.subTree = /* ✏️ 渲染出新子树 */)
+      /* ✏️ 新旧子树 patch：容器是旧 DOM 的父节点，anchor 是旧子树之后的节点 */
+      instance.vnode.el = nextTree.el
+      instance.u.forEach(queuePostFlushCb)
+`), TAIL_FROM, TAIL_TO, `const e = (instance.effect = instance.scope.run(() =>
+    effect(componentUpdateFn, { lazy: true, scheduler: /* ✏️ 调度函数：把更新任务放进更新队列 */ })))
+  instance.update = e.run
+  const job = (instance.job = /* ✏️ 更新任务：已经被直接更新过就不再重复运行 */)
+  job.id = instance.uid
+  job.allowRecurse = true
+  instance.update()
+`, true)
+
+const SOL_2 = EARLIER + answer(focus(COMP, ['setupRenderEffect'])) + demo('mu')
+
+export const miniUpdateEffect: Exercise = {
+  title: '补全 setupRenderEffect 的更新分支和更新队列',
+  ch: 31,
+  task: '<p>上一道练习写了首次渲染。这一道补完 <code>setupRenderEffect</code> 的另一半（<code>mountComponent</code> 和首次渲染分支已经写好）：</p><ol><li><b>TODO 1</b>：<code>componentUpdateFn</code> 的更新分支。父组件触发的更新带着 <code>instance.next</code>，要先更新 props；然后渲染新子树，和旧子树 patch。</li><li><b>TODO 2</b>：创建渲染副作用函数。<code>lazy</code>，数据改变时不直接运行，由调度函数把更新任务放进更新队列；任务的 <code>id</code> 用 <code>instance.uid</code>。最后手动运行第一次。</li></ol><p>补全后，点“count 同步加 3”：App 和 Counter 各只多渲染一次。点“改 label”：只有 App 渲染，Counter 的 props 没变，不渲染。</p>',
+  tpl: tpl('mu'),
+  js: EARLIER + build(focus(COMP, ['setupRenderEffect']), { setupRenderEffect: SRE_START_2 }) + demo('mu'),
+  solJs: SOL_2,
+  faded: { js: EARLIER + build(focus(COMP, ['setupRenderEffect']), { setupRenderEffect: SRE_FADED_2 }) + demo('mu') },
+  hints: [
+    '先看第 31.4 节的两条路径对照表。更新分支比首次渲染多两件事：先用 instance.next 更新 props，再拿新旧子树 patch。',
+    '副作用函数用 effect(componentUpdateFn, { lazy: true, scheduler: … }) 创建。lazy 表示创建时不运行。调度函数只做一件事：queueJob(job)。update 是 e.run（直接运行），job 是 e.runIfDirty（放进队列的任务），job.id = instance.uid，创建完以后手动调用一次 update()。',
+    '更新分支里 patch 的参数：patch(prevTree, nextTree, hostParentNode(prevTree.el), getNextHostNode(prevTree), instance)。instance.next 不为空时，要先调用 updateComponentPreRender(instance, instance.next)，子组件才能拿到新的 props。',
+    SRE
+  ],
+  async check(T) {
+    const wait = () => new Promise(r => setTimeout(r, 40))
+    const host = T.$('#mu-host')
+    const logEl = T.$('#mu-log')
+    if (!host || !logEl) { T.ok(false, '页面上有 #mu-host 和 #mu-log'); return }
+    const lines = () => (logEl.textContent || '').split('\n').filter(Boolean)
+    const count = (name: string) => lines().filter(l => l === name).length
+    T.ok(/count = 0/.test(host.textContent || '') && host.querySelectorAll('#mu-counter').length === 1, '首次挂载后页面显示 “count = 0”，只有一个 Counter')
     const add = T.btn('同步加 3')
     const lab = T.btn('改 label')
     if (!add || !lab) { T.ok(false, '页面上有两个按钮'); return }
@@ -460,31 +250,26 @@ export const miniMount: Exercise = {
     T.ok(/label = ab/.test(host.textContent || ''), '改 label 后页面显示 “label = ab”')
     T.ok(count('App render') === 3 && count('Counter render') === 2, '只改 label：App 又渲染一次，Counter 的 props 没变，不渲染（App ' + count('App render') + ' 次、Counter ' + count('Counter render') + ' 次）')
     T.ok(count('Counter setup') === 1, 'Counter 的 setup 只运行一次（现在 ' + count('Counter setup') + ' 次）。setup 在创建实例时运行，更新时只运行渲染函数')
-    T.ok(host.querySelectorAll('#mm-counter').length === 1, '更新以后，页面上仍然只有一个 Counter')
+    T.ok(host.querySelectorAll('#mu-counter').length === 1, '更新以后，页面上仍然只有一个 Counter')
   },
   wrong: [
     {
-      js: sub(MOUNT_FULL, ', scheduler: () => queueJob(update)', ''),
-      why: '没有 scheduler 时，数据一改变，副作用函数就立刻运行。同步改 3 次就渲染 3 次。真实的 Vue 用 scheduler 把任务放进更新队列（第 25 章），同一个任务只排一次。',
+      js: sub(SOL_2, ', scheduler: () => queueJob(job)', ''),
+      why: '没有调度函数时，数据一改变，副作用函数就立刻运行。同步改 3 次就渲染 3 次。真实的 Vue 用调度函数把更新任务放进更新队列（第 25 章），同一个任务只排一次。',
       expectFail: /更新队列|各只多渲染一次/
     },
     {
-      js: sub(MOUNT_FULL, 'if (!instance.isMounted) {', 'if (true) {'),
-      why: '每次都当作第一次，调用 patch(null, …)。旧的 DOM 没有被比较，也没有被删除，页面上会出现重复的内容。要用 isMounted 区分挂载和更新两条路径。',
-      expectFail: /只有一个 Counter|一个 Counter/
+      js: sub(SOL_2, 'patch(prevTree, nextTree, hostParentNode(prevTree.el), getNextHostNode(prevTree), instance)', 'patch(null, nextTree, hostParentNode(prevTree.el), getNextHostNode(prevTree), instance)'),
+      why: '更新时仍然 patch(null, …)，把它当成挂载：新的 DOM 被插进去，旧的 DOM 没有被比较，也没有被删除，页面上会出现重复的内容。更新要拿旧子树和新子树比较。',
+      expectFail: /只有一个 Counter/
     },
     {
-      js: sub(MOUNT_FULL, 'instance.m.forEach(queuePostCb)', 'instance.m.forEach(fn => fn())'),
-      why: '子组件 patch 完就直接调用 mounted。这时父组件的 DOM 还没有插入页面，所以子组件在 mounted 里读到的 DOM 不在页面上。mounted 要放进后置队列，整棵树 patch 完才运行。',
-      expectFail: /已经在页面上/
-    },
-    {
-      js: sub(MOUNT_FULL, 'const nextTree = (instance.subTree = instance.render())', 'setupComponent(instance)\n      const nextTree = (instance.subTree = instance.render())'),
+      js: sub(SOL_2, 'const nextTree = (instance.subTree = instance.render())', 'setupComponent(instance)\n      const nextTree = (instance.subTree = instance.render())'),
       why: '每次更新都重新运行 setup。setup 只在创建实例时运行一次，里面创建的状态会被重置，钩子也会被重复注册。更新时只运行渲染函数。',
       expectFail: /setup 只运行一次/
     },
     {
-      js: sub(MOUNT_FULL, 'if (instance.next) updateComponentPreRender(instance, instance.next)\n', ''),
+      js: sub(SOL_2, 'if (instance.next) updateComponentPreRender(instance, instance.next)', ''),
       why: '父组件让子组件更新时，新的 vnode 放在 instance.next 上。渲染子组件之前必须先用它更新 props，否则子组件用旧 props 渲染，页面不变。',
       expectFail: /count = 3/
     }
@@ -492,8 +277,24 @@ export const miniMount: Exercise = {
 }
 
 // ---------------------------------------------------------------------------
-// 练习 2：shouldUpdateComponent
+// 练习 3：shouldUpdateComponent
 // ---------------------------------------------------------------------------
+
+const SHOULD_START = `function shouldUpdateComponent(prev, next) {
+  // prev、next 是新旧两个组件 vnode，它们的 props 是 vnode.props（可能是 null）。
+  // 返回 true：子组件要更新。返回 false：跳过。
+  return true     // 现在的写法：只要父组件重新渲染，子组件就更新
+}`
+const SHOULD_FADED = `function shouldUpdateComponent(prev, next) {
+  const prevProps = prev.props || {}
+  const nextProps = next.props || {}
+  const emits = prev.type.emits || []
+  const keys = Object.keys(nextProps)
+  if (/* ✏️ 新旧属性的个数不同（多了或少了属性） */) return true
+  return keys.some(key => /* ✏️ 这个属性的值变了，并且它不是已声明的事件监听 */)
+}`
+const SHOULD_ANS = region(PARTS.componentRender, 'shouldUpdateComponent')
+const SHOULD_BODY = SHOULD_ANS.slice(SHOULD_ANS.indexOf('  if (keys.length'), SHOULD_ANS.lastIndexOf('}'))
 
 const DEMO_SHOULD = `
 // ===== 使用迷你 Vue（不用修改） =====
@@ -545,32 +346,32 @@ const TPL_SHOULD = `<button @click="bumpOther">改 other（和子组件无关）
 <button @click="removeExtra">去掉 E 的 extra 属性</button>
 <div id="ms-host"></div>`
 
-const SHOULD_FULL = GIVEN_NOTE + MINI_REACTIVE + UPDATE_PART + MOUNT_SOL + TAIL + '\n' + SHOULD_SOL + DEMO_SHOULD
+const SOL_3 = EARLIER + answer(focus(COMP, ['shouldUpdateComponent'])) + DEMO_SHOULD
 
 export const miniShouldUpdate: Exercise = {
   title: '实现 shouldUpdateComponent',
   ch: 31,
-  task: '<p>父组件重新渲染时，会给每个子组件一个新的 vnode。<code>shouldUpdateComponent(prev, next)</code> 比较新旧 vnode 的 props，决定子组件要不要更新。现在它永远返回 <code>true</code>，所以子组件总是更新。</p><p>按 Vue 的规则实现它：</p><ol><li>属性的个数不同，要更新。</li><li>逐个属性用 <code>!==</code> 比较（浅比较，不比较对象的内容）。有一个值变了，要更新。</li><li>已经在 <code>emits</code> 里声明的事件监听（例如声明了 <code>save</code> 的 <code>onSave</code>）不参与比较。<code>isEmitListener(emits, key)</code> 已经写好。</li></ol><p>五个子组件的页面上都显示渲染次数。先点“改 other”，再点“改 id”，最后点“去掉 E 的 extra 属性”，核对哪些子组件应该更新。</p>',
+  task: '<p>父组件重新渲染时，会给每个子组件一个新的 vnode。<code>shouldUpdateComponent(prev, next)</code> 比较新旧 vnode 的 props，决定子组件要不要更新。现在它永远返回 <code>true</code>，所以子组件总是更新。其余的迷你 Vue（已折叠）都已写好。</p><p>按 Vue 的规则实现它：</p><ol><li>属性的个数不同，要更新。</li><li>逐个属性用 <code>!==</code> 比较（浅比较，不比较对象的内容）。有一个值变了，要更新。</li><li>已经在 <code>emits</code> 里声明的事件监听（例如声明了 <code>save</code> 的 <code>onSave</code>）不参与比较。<code>isEmitListener(emits, key)</code> 已经写好。</li></ol><p>五个子组件的页面上都显示渲染次数。先点“改 other”，再点“改 id”，最后点“去掉 E 的 extra 属性”，核对哪些子组件应该更新。</p>',
   tpl: TPL_SHOULD,
-  js: GIVEN_NOTE + MINI_REACTIVE + UPDATE_PART + MOUNT_SOL + TAIL + '\n' + SHOULD_START + DEMO_SHOULD,
-  solJs: SHOULD_FULL,
-  faded: { js: GIVEN_NOTE + MINI_REACTIVE + UPDATE_PART + MOUNT_SOL + TAIL + '\n' + SHOULD_FADED + DEMO_SHOULD },
+  js: EARLIER + build(focus(COMP, ['shouldUpdateComponent']), { shouldUpdateComponent: SHOULD_START }) + DEMO_SHOULD,
+  solJs: SOL_3,
+  faded: { js: EARLIER + build(focus(COMP, ['shouldUpdateComponent']), { shouldUpdateComponent: SHOULD_FADED }) + DEMO_SHOULD },
   hints: [
     '先看第 31.5 节的 shouldUpdateComponent。它只做 props 的浅比较：先看属性个数，再逐个看值。',
     '属性个数不同时，直接返回 true。个数相同时，遍历 nextProps 的每个 key：值不相同（!==），并且 !isEmitListener(emits, key)，就返回 true。遍历完都没有变化，返回 false。',
     '不要比较 prev.props !== next.props：父组件每次渲染都会创建新的 props 对象，它们永远不相同。也不要用 JSON.stringify 比较内容：Vue 只做浅比较，每次传新对象的子组件就是会更新。',
-    SHOULD_SOL
+    SHOULD_ANS
   ],
   async check(T) {
     const wait = () => new Promise(r => setTimeout(r, 40))
     const host = T.$('#ms-host')
     if (!host) { T.ok(false, '页面上有 #ms-host'); return }
     const counts = () => {
-      const r = {}
+      const r: Record<string, number> = {}
       ;(host.textContent || '').replace(/([A-E]) 渲染了 (\d+) 次/g, (_, n, c) => { r[n] = +c; return '' })
       return r
     }
-    const show = (c) => ['A', 'B', 'C', 'D', 'E'].map(n => n + '=' + c[n]).join('，')
+    const show = (c: Record<string, number>) => ['A', 'B', 'C', 'D', 'E'].map(n => n + '=' + c[n]).join('，')
     const b1 = T.btn('改 other'), b2 = T.btn('改 id'), b3 = T.btn('去掉 E')
     if (!b1 || !b2 || !b3) { T.ok(false, '页面上有三个按钮'); return }
     let c = counts()
@@ -593,27 +394,27 @@ export const miniShouldUpdate: Exercise = {
   },
   wrong: [
     {
-      js: sub(SHOULD_FULL, 'if (keys.length !== Object.keys(prevProps).length) return true\n  return keys.some(key => nextProps[key] !== prevProps[key] && !isEmitListener(emits, key))', 'return prev.props !== next.props'),
+      js: sub(SOL_3, SHOULD_BODY, '  return prev.props !== next.props\n'),
       why: '比较的是 props 对象本身。父组件每次渲染都会创建新的 props 对象，它们永远不相同，所以子组件总是更新。要逐个属性比较。',
       expectFail: /A 的 props 没变/
     },
     {
-      js: sub(SHOULD_FULL, 'if (keys.length !== Object.keys(prevProps).length) return true\n  return keys.some(key => nextProps[key] !== prevProps[key] && !isEmitListener(emits, key))', 'return JSON.stringify(prev.props) !== JSON.stringify(next.props)'),
+      js: sub(SOL_3, SHOULD_BODY, '  return JSON.stringify(prev.props) !== JSON.stringify(next.props)\n'),
       why: '比较了内容（深比较）。Vue 只做浅比较：B 每次传新对象，对象内容相同，Vue 仍然会更新它。深比较在大对象上也有成本。而且函数在 JSON.stringify 里会被忽略，事件监听的差别看不出来。',
       expectFail: /B 每次收到新对象|D 没有声明/
     },
     {
-      js: sub(SHOULD_FULL, ' && !isEmitListener(emits, key)', ''),
+      js: sub(SOL_3, ' && !isEmitListener(emits, key)', ''),
       why: '没有排除已声明的事件监听。父组件每次渲染都会创建新的回调函数，onSave !== onSave 恒为 true，声明了事件的子组件也总是更新。',
       expectFail: /C 声明了 save/
     },
     {
-      js: sub(SHOULD_FULL, '  if (keys.length !== Object.keys(prevProps).length) return true\n', ''),
+      js: sub(SOL_3, '  if (keys.length !== Object.keys(prevProps).length) return true\n', ''),
       why: '只遍历了新 props 的属性，没有比较属性的个数。新 props 里没有的旧属性（被删除的 extra）被漏掉了，子组件应该更新却没有更新。',
       expectFail: /属性个数变了/
     },
     {
-      js: sub(SHOULD_FULL, 'if (keys.length !== Object.keys(prevProps).length) return true\n  return keys.some(key => nextProps[key] !== prevProps[key] && !isEmitListener(emits, key))', 'return false'),
+      js: sub(SOL_3, SHOULD_BODY, '  return false\n'),
       why: '永远不更新。props 真的变了的子组件（A 的 id）也不会更新，页面就是旧的。',
       expectFail: /A 的 id 变了|B 每次收到新对象/
     }

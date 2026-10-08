@@ -24,7 +24,7 @@ import ReactivityClinic from '../labs/27-reactivity-pitfalls/ReactivityClinic.vu
 :::
 
 ::: rt
-阅读主线约 16 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 16 分钟，深入内容约 2 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -83,7 +83,7 @@ onRenderTracked(e => console.log('渲染收集', e.type, e.key))
 onRenderTriggered(e => console.log('渲染被触发', e.type, e.key, e.newValue))
 ```
 
-事件对象有 `target`（被读写的对象）、`type`（`get`、`set` 等）和 `key`。这四个钩子**只在开发构建里被调用**。我们用 `vue.cjs.prod.js` 实测过：注册了钩子，一次也不会收到事件。所以用它们诊断时，要在开发服务器里跑。
+事件对象有 `target`（被读写的对象）、`type`（`get`、`set` 等）和 `key`。这四个钩子**只在开发构建里被调用**。在生产构建（`vue.cjs.prod.js`）里注册了钩子，一次也不会收到事件。所以用它们诊断时，要在开发服务器里跑。
 
 **没有日志本身就是线索。**如果某个组件的 `onRenderTracked` 一条记录也没有，说明渲染函数没有通过响应式对象读取任何数据。下面的实验台先带你看一遍这个现象，后面每个病例会回到对应的页签。
 
@@ -122,7 +122,7 @@ onRenderTriggered(e => console.log('渲染被触发', e.type, e.key, e.newValue)
 | `let n = count.value` | 同上，`.value` 的读取发生在 `setup` 里，没有副作用函数在运行 | 保留 ref，到用的地方再 `.value` |
 | `state = { a: 2 }`，或 `state = reactive({ a: 2 })` | 依赖挂在“对象和属性”上，不挂在变量名上。副作用函数订阅的还是旧对象 | 对象用 `Object.assign(state, next)`；数组用 `arr.splice(0, arr.length, ...next)`；或者整个换成 `ref`，赋值 `.value = next` |
 
-我们验证过：`Object.assign` 之后，读取 `a` 和 `b` 的副作用函数会重新运行；重新赋值变量之后，旧订阅者不再运行。
+`Object.assign` 之后，读取 `a` 和 `b` 的副作用函数会重新运行；重新赋值变量之后，旧订阅者不再运行。
 
 还有一个边界：`ref` 放进 `reactive` 的对象属性里会自动解包，放进数组或 `Map` 里不会。
 
@@ -172,6 +172,14 @@ reactive({ chart: markRaw(new Chart()) }).chart.x   // 1
 
 方法里的 `this` 是代理，私有字段只属于原始对象。处方是 `markRaw`，或者用 `shallowRef` 保存实例（第 3 章 3.3 节）。`Date` 这样的内置对象本来就不会被代理。实验台的“身份不相等”页签可以逐行运行这些表达式。
 
+**外部状态。**状态放在 Vue 之外的库里（自己写的 store、每次返回新对象的不可变状态库）时，用 `shallowRef` 接进来：库通知变化，就整体替换 `.value`，读取它的副作用函数随之重新运行。不要用 `reactive` 或深层 `ref` 包它，那会给整份状态套上代理，也就回到了上面的身份问题。订阅要在作用域停止时取消：
+
+```js
+const state = shallowRef(store.getState())
+const stop = store.subscribe(() => { state.value = store.getState() })   // 库通知时整体替换
+onScopeDispose(stop)                                                      // 组件卸载时取消订阅
+```
+
 ### 27.4 病例组 3：读到旧值
 
 Vue 版的“闭包陷阱”。**症状：**界面或回调里的值比数据旧。第二问“副作用函数运行了吗”回答是，第三问“读到的是新值吗”回答否。
@@ -196,14 +204,14 @@ setInterval(() => console.log(n), 1000)               // 永远是创建时的�
 setInterval(() => console.log(count.value), 1000)     // 总是最新
 ```
 
-**③ `watch` 回调里的新值和旧值是同一个对象。**深度侦听对象时，修改发生在原对象上，新值和旧值是同一个引用。我们验证过：侦听 `reactive` 对象，或者 `deep: true` 侦听 `ref` 的对象，`newValue === oldValue` 都为真。要对比前后，让 getter 返回一个新结果：
+**③ `watch` 回调里的新值和旧值是同一个对象。**深度侦听对象时，修改发生在原对象上，新值和旧值是同一个引用。侦听 `reactive` 对象，或者 `deep: true` 侦听 `ref` 的对象，`newValue === oldValue` 都为真。要对比前后，让 getter 返回一个新结果：
 
 ```js
 watch(() => [state.a, state.b], ([a, b], [oldA, oldB]) => { /* 新旧不同 */ })
 watch(() => ({ ...state }), (now, before) => { /* 浅拷贝，前后是两个对象 */ })
 ```
 
-**3.5 的 props 解构为什么不丢响应。**解构 `defineProps` 的结果时，编译器把每一次使用改写成 `props.x`（第 6 章 6.1 节）。我们编译了下面的代码，验证过输出：
+**3.5 的 props 解构为什么不丢响应。**解构 `defineProps` 的结果时，编译器把每一次使用改写成 `props.x`（第 6 章 6.1 节）。下面是编译后的结果：
 
 ```js
 const { count } = defineProps(['count'])
@@ -229,7 +237,7 @@ watch(count, cb)                         // 编译报错：要写成 watch(() =>
 | 这一次运行没有走到的分支 | 这一次不收集；分支条件变化、重新运行后会收集。这不是病 |
 | 读取的不是响应式数据：`Date.now()`、`window.innerWidth`、`localStorage`、普通对象 | 没有可收集的 |
 
-我们验证过：`watchEffect(async () => { await ...; y.value })` 里的 `y` 改变后，函数不会重新运行。`computed(() => Date.now())` 读两次得到同一个值，因为它没有依赖，也就不会失效。
+`watchEffect(async () => { await ...; y.value })` 里的 `y` 改变后，函数不会重新运行。`computed(() => Date.now())` 读两次得到同一个值，因为它没有依赖，也就不会失效。
 
 **怎样确认：**用 `onTrack` 打印。日志里看不到的那个数据，就是没有被收集的。
 
@@ -252,27 +260,27 @@ watch(count, cb)                         // 编译报错：要写成 watch(() =>
 | 回调里读 DOM 是旧的 | 读到更新之前的页面 | 默认 `flush: 'pre'` 在 DOM 更新前运行（第 25 章） | `flush: 'post'` |
 | 页面一进来没有执行 | 首次不运行 | `watch` 默认惰性 | `immediate: true` |
 
-后三种我们都实测过：第一行的警告文字、`state.user.name` 的修改会触发 `deep` 的 getter 和对象数据源、整体替换之后对象数据源不再触发。
+这张表前三行的现象都可以在开发构建里复现：第一行会看到那条警告；第二行加 `deep` 之后，`state.user.name` 的修改就会触发；第三行整体替换 `state.user` 之后，对象数据源不再触发。
 
 ### 27.7 病例组 6：无限循环和重复触发
 
 **症状：**页面卡死，或者控制台出现 `Maximum recursive updates exceeded in component <X>`。第四问“次数合理吗”回答否。
 
-**根因：**副作用函数修改了自己依赖的数据，写入触发更新，更新又读取并写入。Vue 的保护是：同一个任务在一次刷新里运行超过 100 次，就抛出上面的错误。我们实测，下面几种写法都在 100 多次后停下：
+**根因：**副作用函数修改了自己依赖的数据，写入触发更新，更新又读取并写入。Vue 的保护是：同一个任务在一次刷新里运行超过 100 次，就抛出上面的错误。下面几种写法都会在 100 多次后停下：
 
 - `watch(items, () => { items.value = items.value.filter(Boolean) })`：`filter` 每次返回新数组，写入一定触发。
 - 两个 `watch` 互相修改对方的数据源。
 - `onUpdated` 或渲染函数里修改渲染依赖的数据。
 
-**生产构建里没有这道保护**：源码里的检查在生产构建中被编译掉了。所以这类问题在开发时报错。在线上，同步循环的写法（带回调的 `watch`、渲染函数里写数据、两个 `watch` 互相修改）会占满主线程，页面卡死；`onUpdated` 里的循环会在几千次后以栈溢出报错结束（见第 25 章 25.7 节），页面之后还能用。
+**生产构建里没有这道保护**：源码里的检查在生产构建中被编译掉了。所以这类问题在开发时报错。在线上，同步循环的写法（带回调的 `watch`、渲染函数里写数据、两个 `watch` 互相修改）会占满主线程，页面卡死；`onUpdated` 里的循环会在几千次后以栈溢出报错结束（第 25 章），页面之后还能用。
 
 **处方：**把“算出来再写回”改成 `computed`；写回前判断是否真的不同，保证收敛；不要让两个侦听器互相写。
 
 ::: deep 为什么 watchEffect 里读了又写同一个 ref 不会死循环
-副作用函数在运行期间收到自己的通知时，默认直接忽略，除非它带 `ALLOW_RECURSE` 标志。`watchEffect` 的函数就是副作用函数本身，所以读了又写同一个 ref 时，写入的通知被忽略。带回调的 `watch` 不同：回调不在副作用函数里运行，它是调度器里的一个任务，这个任务带 `ALLOW_RECURSE` 标志，允许在运行期间再次排队，所以会循环。组件的更新任务也带这个标志。我们验证过：`watchEffect(() => { c.value++ })` 只运行 1 次，`c.value` 是 1。注意这不等于安全：它不会“追上”自己的写入，结果停在中间状态。
+副作用函数在运行期间收到自己的通知时，默认直接忽略，除非它带 `ALLOW_RECURSE` 标志。`watchEffect` 的函数就是副作用函数本身，所以读了又写同一个 ref 时，写入的通知被忽略。带回调的 `watch` 不同：回调不在副作用函数里运行，它是调度器里的一个任务，这个任务带 `ALLOW_RECURSE` 标志，允许在运行期间再次排队，所以会循环。组件的更新任务也带这个标志。例如 `watchEffect(() => { c.value++ })` 只运行 1 次，`c.value` 是 1。注意这不等于安全：它不会“追上”自己的写入，结果停在中间状态。
 :::
 
-**`computed` 里的副作用。**`computed` 不一定造成循环，但它的写入只在有人读取它时才发生。我们验证过：`computed` 里写 `total.value = ...`，没有人读它之前 `total` 一直是 0；在 `computed` 里 `list.sort()` 会原地修改源数组，页面上显示同一份数据的别处也被改了顺序。`computed` 要保持纯：排序写 `[...list.value].sort()`。
+**`computed` 里的副作用。**`computed` 不一定造成循环，但它的写入只在有人读取它时才发生。`computed` 里写 `total.value = ...`，没有人读它之前 `total` 一直是 0；在 `computed` 里 `list.sort()` 会原地修改源数组，页面上显示同一份数据的别处也被改了顺序。`computed` 要保持纯：排序写 `[...list.value].sort()`。
 
 **重复触发。**一次操作里对同一个数据修改多次，只会触发一次回调，修改被合并（第 25 章）。回调运行次数多，先查有没有连锁的 `watch`、`deep` 范围是否过大。更多性能病例见第 40 章。
 
@@ -282,7 +290,7 @@ watch(count, cb)                         // 编译报错：要写成 watch(() =>
 
 **根因：**`watch`、`watchEffect` 创建时，会登记到“当前活动的组件作用域”，组件卸载时作用域一起停止其中的副作用。登记只在创建的那一刻发生。异步回调运行时，`setup` 早已结束，没有当前组件，创建的侦听器不属于任何人。
 
-我们实测了这些情况：
+分别试过这些情况：
 
 - `setTimeout` 回调里创建的 `watch`：卸载后继续运行。
 - 手写的 `async setup()` 里，`await` 之后创建的 `watch`：继续运行。
@@ -298,7 +306,7 @@ watch(count, cb)                         // 编译报错：要写成 watch(() =>
 
 ### 27.9 病例组 8：模板里的边界
 
-三个常见的误会，我们都在浏览器里验证过。
+三个常见的误会。
 
 **① 只有顶层的 ref 会自动解包。**`o` 是普通对象 `{ r: ref(5) }` 时：
 

@@ -1,6 +1,7 @@
 import type { Exercise } from './types'
 import { sub } from './types'
 import { h } from 'vue'
+import { answer, build, PARTS, region } from '../mini'
 
 // 判题辅助：沿输出区挂载根的 vnode 树，收集满足条件的 vnode（生产构建里也可用 _vnode）
 function collectVNodes(T: any, pred: (v: any) => boolean): any[] {
@@ -58,7 +59,7 @@ const TagList = {
 const tags = ref(['vue', 'h()'])
 return { tags, components: { TagList } }`,
   hints: [
-    'h(type, props, children) 创建虚拟节点。v-for 写为 map，每一项要有 key。事件写为 on 加首字母大写，例如 onClick。第 28 章开头的 h() 参数说明和 28.2 节的对照表讲了它。',
+    'h(type, props, children) 创建虚拟节点。v-for 写为 map，每一项要有 key。事件写为 on 加首字母大写，例如 onClick。28.2 节的 h() 参数说明和 28.4 节的对照表讲了它。',
     '只改 null 这一行。返回 h(\'li\', props对象, t)。props 对象中写 key: t，以及 onClick。onClick 是一个函数，它给 picked.value 赋值 t。',
     "h('li', { key: t, onClick: () => { picked.value = t } }, t)"
   ],
@@ -86,7 +87,7 @@ export const renderFn: Exercise = {
   js: 'const { h } = Vue   // 从全局 Vue 中取出\n\n// TODO 1：返回 h(\'h\' + props.level, ...)，内容是 slots.default()\nconst Heading = {\n  props: [\'level\'],\n  setup(props, { slots }) {\n    return () => h(\'div\', \'请改写我\')\n  }\n}\n\n// TODO 2：返回 h(\'ul\', ...)，每一项是 h(\'li\', { key }, 文字)\nconst TagList = {\n  props: [\'items\'],\n  setup(props) {\n    return () => h(\'ul\')\n  }\n}\n\nconst level = ref(2)\nconst tags = ref([\'vue\', \'h()\'])\nreturn { level, tags, components: { Heading, TagList } }',
   solJs: 'const { h } = Vue   // 从全局 Vue 中取出\n\nconst Heading = {\n  props: [\'level\'],\n  setup(props, { slots }) {\n    // 在渲染函数内部读取 props.level，level 改变时重新渲染\n    return () => h(\'h\' + props.level, { class: \'title\' }, slots.default?.())\n  }\n}\n\nconst TagList = {\n  props: [\'items\'],\n  setup(props) {\n    return () => h(\'ul\', props.items.map(t => h(\'li\', { key: t }, t)))\n  }\n}\n\nconst level = ref(2)\nconst tags = ref([\'vue\', \'h()\'])\nreturn { level, tags, components: { Heading, TagList } }',
   hints: [
-    '渲染函数调用 h(标签, 属性, 子节点)。第 28 章“28.1 在 setup 中返回渲染函数”和“28.2 模板语法的对应写法”讲了它。在返回的函数内部读取 props，否则 props 改变时不重新渲染。',
+    '渲染函数调用 h(标签, 属性, 子节点)。28.3 节“用渲染函数写组件”和 28.4 节的对照表讲了它。在返回的函数内部读取 props，否则 props 改变时不重新渲染。',
     '1. Heading：标签是 \'h\' + props.level，属性是 { class: \'title\' }，子节点是 slots.default()。2. TagList：h(\'ul\', …)，子节点用 props.items.map(…) 生成，每个 li 带 key。',
     'Heading：return () => h(\'h\' + props.level, { class: \'title\' }, slots.default?.())\nTagList：return () => h(\'ul\', props.items.map(t => h(\'li\', { key: t }, t)))'
   ],
@@ -109,7 +110,7 @@ export const renderFn: Exercise = {
 
 export const fnComp: Exercise = {
   title: '补全：表格单元格的函数式组件', ch: 28,
-  task: '<p>这是第 28.4 节的任务表格。列配置是 JavaScript 数据。有 render 的列用它返回的 VNode 显示，没有 render 的列显示原始字段。只补全两行 TODO。</p><ol><li>TODO 1：写函数式组件 Cell 的返回值。</li><li>TODO 2：操作列的 render 返回一个按钮。文字是“删除”。点击时调用 removeTask(row.id)。</li><li>点击第一行的“删除”。确认其他行的状态徽章没有重新挂载。</li></ol><p>运行器的参数中没有 h。脚本第一行从全局 Vue 中取出它。</p>',
+  task: '<p>这是 28.6 节的任务表格。列配置是 JavaScript 数据。有 render 的列用它返回的 VNode 显示，没有 render 的列显示原始字段。只补全两行 TODO。</p><ol><li>TODO 1：写函数式组件 Cell 的返回值。</li><li>TODO 2：操作列的 render 返回一个按钮。文字是“删除”。点击时调用 removeTask(row.id)。</li><li>点击第一行的“删除”。确认其他行的状态徽章没有重新挂载。</li></ol><p>运行器的参数中没有 h。脚本第一行从全局 Vue 中取出它。</p>',
   tpl: '<TaskTable :rows="tasks" :columns="columns" />',
   js: `const { h } = Vue   // 从全局 Vue 中取出
 
@@ -186,7 +187,7 @@ const columns = [
 
 return { tasks, columns, components: { TaskTable } }`,
   hints: [
-    '函数式组件是一个普通函数。它收到 props，返回要显示的内容：VNode 或文字。列配置是 JavaScript 数据，不能写模板，所以用 h() 创建按钮。第 28 章“28.4 函数式组件”的任务表格场景讲了它。',
+    '函数式组件是一个普通函数。它收到 props，返回要显示的内容：VNode 或文字。列配置是 JavaScript 数据，不能写模板，所以用 h() 创建按钮。28.6 节“函数式组件”的任务表格场景讲了它。',
     'TODO 1：只改 => 后面的 null。用条件运算符：col.render 存在时，返回 col.render(row)；否则返回 row[col.key]。TODO 2：把 null 改为 h(\'button\', 属性对象, \'删除\')。属性对象中写 onClick，它调用 removeTask(row.id)。',
     "const Cell = ({ col, row }) => (col.render ? col.render(row) : row[col.key])\n\n{ key: 'actions', render: row => h('button', { onClick: () => removeTask(row.id) }, '删除') }"
   ],
@@ -310,171 +311,105 @@ fnComp.faded = {
     "render: row => h('button', { /* ✏️ 点击时删除这一行 */ }, /* ✏️ 按钮文字 */)")
 }
 
-// ===== 实现级:简化的 h() =====
-const MH_HEAD = `// ===== 已给出:shapeFlag 的位、判断函数、要展示的调用 =====
-const ShapeFlags = { ELEMENT: 1, FUNCTIONAL_COMPONENT: 2, STATEFUL_COMPONENT: 4, TEXT_CHILDREN: 8, ARRAY_CHILDREN: 16, SLOTS_CHILDREN: 32 }
-const isVNode = v => !!(v && v.__v_isVNode)
-const isPlainObject = v => v !== null && typeof v === 'object' && !Array.isArray(v)
+// ===== 实现级:零件 4,迷你 Vue 的 vnode 与 h(全课程共用的一套,见 course/mini)=====
+// 学习者写 createVNode、normalizeChildren、h 三个区域。常量(Text、ShapeFlags、isVNode、isSameVNodeType)已给出。
+// 第 30 章用这里的 h 造 vnode,第 31 章的 createApp 用它造根 vnode。
+const MH_STARTS = {
+  createVNode: `function createVNode(type, props = null, children = null) {
+  // TODO 1:按 type 算出类型位:字符串是元素,函数是函数式组件,对象是有状态组件
+  const vnode = {
+    __v_isVNode: true, type, props, children: null,
+    key: props && props.key != null ? props.key : null,
+    shapeFlag: 0, el: null, component: null
+  }
+  normalizeChildren(vnode, children)
+  return vnode
+}`,
+  normalizeChildren: `function normalizeChildren(vnode, children) {
+  // TODO 2:规范化 children,并把子节点位加到 vnode.shapeFlag 上(用位或,不能覆盖类型位)
+  //   null:没有子节点;数组:ARRAY_CHILDREN(数组里的字符串、数字、null、布尔值先变成文本 vnode);
+  //   函数:包成 { default: fn },SLOTS_CHILDREN;普通对象:当作插槽对象,SLOTS_CHILDREN;
+  //   其余(字符串、数字):转成字符串,TEXT_CHILDREN
+}`,
+  h: `function h(type, propsOrChildren, children) {
+  // TODO 3:两个参数时,第二个是普通对象就当 props(但 vnode 要当成唯一的子节点),否则当 children
+  //        三个以上参数时,第三个起都是 children;第三个参数是单个 vnode 时包成数组
+  return createVNode(type)
+}`
+}
 
-`
-const MH_TAIL = `
+const MH_DEMO = `
 
-// ===== 已给出:用 miniH 创建 vnode,把结果列在表格里 =====
+// ===== 已给出:用 h 创建 vnode,把结果列在表格里 =====
+// 每一行同时调用你的 h 和真实的 Vue.h,最后一列 same 表示两者的 shapeFlag、子节点形态、props 是否一致
 const C = { render() {} }            // 有状态组件(对象)
 const F = () => null                 // 函数式组件(函数)
 const cases = [
-  ["miniH('div')", () => miniH('div')],
-  ["miniH('div', 'hi')", () => miniH('div', 'hi')],
-  ["miniH('div', { id: 1 })", () => miniH('div', { id: 1 })],
-  ["miniH('div', [miniH('p')])", () => miniH('div', [miniH('p')])],
-  ["miniH('div', miniH('p'))", () => miniH('div', miniH('p'))],
-  ["miniH('div', null, 'a', 'b')", () => miniH('div', null, 'a', 'b')],
-  ["miniH('div', null, miniH('p'))", () => miniH('div', null, miniH('p'))],
-  ["miniH('div', null, 5)", () => miniH('div', null, 5)],
-  ["miniH(C, null, () => 'x')", () => miniH(C, null, () => 'x')],
-  ["miniH(C, { a: 1 }, { default: f, foot: g })", () => miniH(C, { a: 1 }, { default: () => 'x', foot: () => 'y' })],
-  ["miniH(F, { a: 1 })", () => miniH(F, { a: 1 })],
-  ["miniH(C, null, 'text')", () => miniH(C, null, 'text')]
+  ["h('div')", h => h('div')],
+  ["h('div', 'hi')", h => h('div', 'hi')],
+  ["h('div', { id: 1 })", h => h('div', { id: 1 })],
+  ["h('div', [h('p')])", h => h('div', [h('p')])],
+  ["h('div', h('p'))", h => h('div', h('p'))],
+  ["h('div', null, 'a', 'b')", h => h('div', null, 'a', 'b')],
+  ["h('div', null, h('p'))", h => h('div', null, h('p'))],
+  ["h('div', null, 5)", h => h('div', null, 5)],
+  ["h(C, null, () => 'x')", h => h(C, null, () => 'x')],
+  ["h(C, { a: 1 }, { default: f, foot: g })", h => h(C, { a: 1 }, { default: () => 'x', foot: () => 'y' })],
+  ["h(F, { a: 1 })", h => h(F, { a: 1 })],
+  ["h(C, null, 'text')", h => h(C, null, 'text')]
 ]
-const rows = cases.map(([label, make]) => {
-  const v = make()
+const describe = v => {
   const c = v.children
   return {
-    label, flag: v.shapeFlag, props: v.props == null ? 'null' : JSON.stringify(v.props),
-    kids: c == null ? 'none' : typeof c === 'string' ? 'text:' + c : Array.isArray(c) ? 'array:' + c.length : 'slots:' + Object.keys(c).join('+')
+    flag: v.shapeFlag, props: v.props == null ? 'null' : JSON.stringify(v.props),
+    kids: c == null ? 'none' : typeof c === 'string' ? 'text:' + c : Array.isArray(c) ? 'array:' + c.length : 'slots:' + Object.keys(c).filter(k => k[0] !== '_').join('+')
   }
+}
+const rows = cases.map(([label, make]) => {
+  const mine = describe(make(h)), real = describe(make(Vue.h))
+  return { label, ...mine, realFlag: real.flag, same: mine.flag === real.flag && mine.kids === real.kids && mine.props === real.props ? '一致' : '不一致' }
 })
 
 return { rows }`
 const MH_TPL = `<table>
+  <tr><th>调用</th><th>shapeFlag</th><th>真实 Vue</th><th>children</th><th>props</th><th></th></tr>
   <tr v-for="r in rows" :key="r.label" class="case">
-    <td class="label">{{ r.label }}</td><td class="flag">{{ r.flag }}</td><td class="kids">{{ r.kids }}</td><td class="props">{{ r.props }}</td>
+    <td class="label">{{ r.label }}</td><td class="flag">{{ r.flag }}</td><td class="real">{{ r.realFlag }}</td><td class="kids">{{ r.kids }}</td><td class="props">{{ r.props }}</td><td class="same">{{ r.same }}</td>
   </tr>
 </table>`
-const MH_START = `// ===== 要实现:createMiniVNode 和 miniH =====
-function createMiniVNode(type, props, children) {
-  // TODO 1:按 type 算出类型位:字符串是元素,函数是函数式组件,对象是有状态组件
-  let shapeFlag = 0
-  const vnode = { __v_isVNode: true, type, props, children: null, shapeFlag }
-  // TODO 2:规范化 children,并把子节点位加到 vnode.shapeFlag 上
-  //   null:没有子节点;数组:ARRAY_CHILDREN;函数:包成 { default: fn },SLOTS_CHILDREN;
-  //   普通对象:当作插槽对象,SLOTS_CHILDREN;其余:转成字符串,TEXT_CHILDREN
-  return vnode
-}
-
-function miniH(type, propsOrChildren, children) {
-  // TODO 3:两个参数时,第二个是普通对象就当 props(但 vnode 要当成只有一个子节点),否则当 children
-  //        三个以上参数时,第三个起都是 children;第三个参数是单个 vnode 时包成数组
-  return createMiniVNode(type, null, null)
-}`
-const MH_SOL = `// ===== 要实现:createMiniVNode 和 miniH =====
-function createMiniVNode(type, props, children) {
-  const shapeFlag = typeof type === 'string' ? ShapeFlags.ELEMENT
-    : typeof type === 'function' ? ShapeFlags.FUNCTIONAL_COMPONENT
-    : typeof type === 'object' ? ShapeFlags.STATEFUL_COMPONENT : 0
-  const vnode = { __v_isVNode: true, type, props, children: null, shapeFlag }
-  if (children == null) {
-    // 没有子节点
-  } else if (Array.isArray(children)) {
-    vnode.children = children
-    vnode.shapeFlag |= ShapeFlags.ARRAY_CHILDREN
-  } else if (typeof children === 'function') {
-    vnode.children = { default: children }
-    vnode.shapeFlag |= ShapeFlags.SLOTS_CHILDREN
-  } else if (typeof children === 'object') {
-    vnode.children = children
-    vnode.shapeFlag |= ShapeFlags.SLOTS_CHILDREN
-  } else {
-    vnode.children = String(children)
-    vnode.shapeFlag |= ShapeFlags.TEXT_CHILDREN
-  }
-  return vnode
-}
-
-function miniH(type, propsOrChildren, children) {
-  const argc = arguments.length
-  if (argc === 2) {
-    if (isPlainObject(propsOrChildren)) {
-      return isVNode(propsOrChildren)
-        ? createMiniVNode(type, null, [propsOrChildren])
-        : createMiniVNode(type, propsOrChildren, null)
-    }
-    return createMiniVNode(type, null, propsOrChildren)
-  }
-  if (argc > 3) {
-    children = Array.prototype.slice.call(arguments, 2)
-  } else if (argc === 3 && isVNode(children)) {
-    children = [children]
-  }
-  return createMiniVNode(type, propsOrChildren, children)
-}`
-const MH_FADED = `// ===== 要实现:createMiniVNode 和 miniH =====
-function createMiniVNode(type, props, children) {
-  const shapeFlag = typeof type === 'string' ? ShapeFlags.ELEMENT
-    : typeof type === 'function' ? /* ✏️ 函数是哪一种组件 */ 0
-    : typeof type === 'object' ? ShapeFlags.STATEFUL_COMPONENT : 0
-  const vnode = { __v_isVNode: true, type, props, children: null, shapeFlag }
-  if (children == null) {
-    // 没有子节点
-  } else if (Array.isArray(children)) {
-    vnode.children = children
-    vnode.shapeFlag /* ✏️ 把子节点位加到已有的类型位上,不能覆盖它 */ = ShapeFlags.ARRAY_CHILDREN
-  } else if (typeof children === 'function') {
-    vnode.children = { default: children }
-    vnode.shapeFlag |= ShapeFlags.SLOTS_CHILDREN
-  } else if (typeof children === 'object') {
-    vnode.children = children
-    vnode.shapeFlag |= ShapeFlags.SLOTS_CHILDREN
-  } else {
-    vnode.children = String(children)
-    vnode.shapeFlag |= ShapeFlags.TEXT_CHILDREN
-  }
-  return vnode
-}
-
-function miniH(type, propsOrChildren, children) {
-  const argc = arguments.length
-  if (argc === 2) {
-    if (isPlainObject(propsOrChildren)) {
-      return /* ✏️ 第二个参数本身是 vnode 时,它是唯一的子节点 */ false
-        ? createMiniVNode(type, null, [propsOrChildren])
-        : createMiniVNode(type, propsOrChildren, null)
-    }
-    return createMiniVNode(type, null, propsOrChildren)
-  }
-  if (/* ✏️ 什么时候第三个起的所有参数都是 children */ false) {
-    children = Array.prototype.slice.call(arguments, 2)
-  } else if (argc === 3 && isVNode(children)) {
-    children = [children]
-  }
-  return createMiniVNode(type, propsOrChildren, children)
-}`
+const MH_START = build(PARTS.vnode, MH_STARTS) + MH_DEMO
+const MH_SOL = answer(PARTS.vnode) + MH_DEMO
 const MH_EXPECT: Record<string, [string, string, string]> = {
-  "miniH('div')": ['1', 'none', 'null'],
-  "miniH('div', 'hi')": ['9', 'text:hi', 'null'],
-  "miniH('div', { id: 1 })": ['1', 'none', '{"id":1}'],
-  "miniH('div', [miniH('p')])": ['17', 'array:1', 'null'],
-  "miniH('div', miniH('p'))": ['17', 'array:1', 'null'],
-  "miniH('div', null, 'a', 'b')": ['17', 'array:2', 'null'],
-  "miniH('div', null, miniH('p'))": ['17', 'array:1', 'null'],
-  "miniH('div', null, 5)": ['9', 'text:5', 'null'],
-  "miniH(C, null, () => 'x')": ['36', 'slots:default', 'null'],
-  "miniH(C, { a: 1 }, { default: f, foot: g })": ['36', 'slots:default+foot', '{"a":1}'],
-  "miniH(F, { a: 1 })": ['2', 'none', '{"a":1}'],
-  "miniH(C, null, 'text')": ['12', 'text:text', 'null']
+  "h('div')": ['1', 'none', 'null'],
+  "h('div', 'hi')": ['9', 'text:hi', 'null'],
+  "h('div', { id: 1 })": ['1', 'none', '{"id":1}'],
+  "h('div', [h('p')])": ['17', 'array:1', 'null'],
+  "h('div', h('p'))": ['17', 'array:1', 'null'],
+  "h('div', null, 'a', 'b')": ['17', 'array:2', 'null'],
+  "h('div', null, h('p'))": ['17', 'array:1', 'null'],
+  "h('div', null, 5)": ['9', 'text:5', 'null'],
+  "h(C, null, () => 'x')": ['36', 'slots:default', 'null'],
+  "h(C, { a: 1 }, { default: f, foot: g })": ['36', 'slots:default+foot', '{"a":1}'],
+  "h(F, { a: 1 })": ['2', 'none', '{"a":1}'],
+  "h(C, null, 'text')": ['12', 'text:text', 'null']
 }
 
 export const miniH: Exercise = {
-  title: '手写一个简化的 h()', ch: 28,
-  task: '<p>脚本里的 <code>miniH(type, propsOrChildren, children)</code> 要像真实的 <code>h()</code> 那样创建 vnode。完成 <code>createMiniVNode</code> 和 <code>miniH</code>:</p><ol><li><code>createMiniVNode</code>:按 <code>type</code> 算出类型位(字符串是元素 1,函数是函数式组件 2,对象是有状态组件 4)。再规范化 <code>children</code> 并加上子节点位:文本 8,数组 16,插槽对象 32。函数当作默认插槽,包成 <code>{ default: fn }</code>。</li><li><code>miniH</code>:两个参数时,第二个参数是普通对象就当 props,是 vnode 就当唯一的子节点,否则当 children。三个以上参数时,第三个起都是 children。</li></ol><p>表格列出了 12 个调用的结果。让每一行的 shapeFlag、children 和 props 都和真实 Vue 一致。</p>',
+  title: '手写迷你 Vue 的 vnode 和 h()', ch: 28,
+  task: '<p>这是迷你 Vue 的第一块零件:vnode 和 <code>h()</code>。第 30、31 章还会用到你在这里写的代码。<code>Text</code>、<code>ShapeFlags</code>、<code>isVNode</code> 已经给出。你来写三个函数:</p><ol><li><code>createVNode</code>:按 <code>type</code> 算出类型位(字符串是元素 1,函数是函数式组件 2,对象是有状态组件 4),存进 <code>shapeFlag</code>。</li><li><code>normalizeChildren</code>:规范化 <code>children</code>,并用位或把子节点位加到 <code>shapeFlag</code> 上:文本 8,数组 16,插槽对象 32。函数当作默认插槽,包成 <code>{ default: fn }</code>。数组里的字符串、数字先变成文本 vnode(用 <code>createVNode(Text, null, 文字)</code>)。</li><li><code>h</code>:两个参数时,第二个参数是普通对象就当 props,是 vnode 就当唯一的子节点,否则当 children。三个以上参数时,第三个起都是 children。</li></ol><p>表格列出了 12 个调用的结果。让每一行的 shapeFlag、children 和 props 都和真实 Vue 一致。</p>',
   tpl: MH_TPL,
-  js: MH_HEAD + MH_START + MH_TAIL,
-  solJs: MH_HEAD + MH_SOL + MH_TAIL,
-  faded: { js: MH_HEAD + MH_FADED + MH_TAIL },
+  js: MH_START,
+  solJs: MH_SOL,
+  faded: {
+    js: sub(sub(sub(MH_SOL,
+      "typeof type === 'function' ? ShapeFlags.FUNCTIONAL_COMPONENT", "typeof type === 'function' ? /* ✏️ 函数是哪一种组件 */ 0"),
+      "vnode.shapeFlag |= childFlag", "vnode.shapeFlag /* ✏️ 把子节点位加到已有的类型位上,不能覆盖它 */ = childFlag"),
+      "if (l > 3) children", "if (/* ✏️ 什么时候第三个起的所有参数都是 children */ false) children")
+  },
   hints: [
-    '对照 28.7 和 28.8 节。shapeFlag 是一个整数,每一位表示一个事实:类型位来自 type,子节点位来自 children。两部分用位或(|)合并。',
-    'createMiniVNode:先用 typeof type 选出类型位,存进 vnode.shapeFlag;再按 children 的种类设置 vnode.children,并用 vnode.shapeFlag |= … 加上子节点位。miniH:用 arguments.length 区分参数个数。两个参数时,先判断第二个参数是不是普通对象,再判断它是不是 vnode。',
-    MH_SOL
+    '对照 28.2 节。shapeFlag 是一个整数,每一位表示一个事实:类型位来自 type,子节点位来自 children。两部分用位或(|)合并。表格里「真实 Vue」一列是对照,「一致」说明你的结果和它相同。',
+    'createVNode:用 typeof type 选出类型位,写进 vnode 的 shapeFlag(把 0 换成算出来的值)。normalizeChildren:按 children 的种类设置 vnode.children,并用 vnode.shapeFlag |= … 加上子节点位。h:用 arguments.length 区分参数个数。两个参数时,先判断第二个参数是不是普通对象,再判断它是不是 vnode。',
+    ['createVNode', 'normalizeChildren', 'h'].map(n => region(PARTS.vnode, n)).join('\n\n')
   ],
   async check(T) {
     const rows = T.$$('tr.case')
@@ -487,15 +422,15 @@ export const miniH: Exercise = {
       T.ok(q('.flag') === exp[0], label + ' 的 shapeFlag 应为 ' + exp[0] + '(当前 ' + q('.flag') + ')')
       T.ok(q('.kids') === exp[1], label + ' 的 children 应为 ' + exp[1] + '(当前 ' + q('.kids') + ')')
       T.ok(q('.props') === exp[2], label + ' 的 props 应为 ' + exp[2] + '(当前 ' + q('.props') + ')')
+      T.ok(q('.real') === exp[0], label + ':真实 Vue 的 shapeFlag 也是 ' + exp[0] + '(当前 ' + q('.real') + ')')
     }
   },
   wrong: [
-    { js: MH_HEAD + MH_SOL.replaceAll('vnode.shapeFlag |= ', 'vnode.shapeFlag = ') + MH_TAIL, why: '用赋值(=)而不是位或(|=)加子节点位,类型位被覆盖。元素带文本子节点得到 8,而不是 1 | 8 = 9。patch 就不知道它是元素了。', expectFail: /shapeFlag/ },
-    { js: MH_HEAD + sub(MH_SOL, `      return isVNode(propsOrChildren)
-        ? createMiniVNode(type, null, [propsOrChildren])
-        : createMiniVNode(type, propsOrChildren, null)`, `      return createMiniVNode(type, propsOrChildren, null)`) + MH_TAIL, why: '第二个参数是对象就当 props,没有排除 vnode。h(\'div\', h(\'p\')) 会把子 vnode 当成 props,children 丢失。', expectFail: /children|shapeFlag/ },
-    { js: MH_HEAD + sub(MH_SOL, 'if (argc > 3) {', 'if (false) {') + MH_TAIL, why: '没有处理三个以上参数。h(\'div\', null, \'a\', \'b\') 只取到第一个 children,得到文本 a,而不是两项的数组。', expectFail: /shapeFlag|children/ },
-    { js: MH_HEAD + sub(MH_SOL, 'vnode.children = { default: children }', 'vnode.children = children') + MH_TAIL, why: '函数 children 没有包成插槽对象。组件收到的 children 是函数本身,子组件没法按名字取插槽。', expectFail: /children/ }
+    { js: sub(MH_SOL, 'vnode.shapeFlag |= childFlag', 'vnode.shapeFlag = childFlag'), why: '用赋值(=)而不是位或(|=)加子节点位,类型位被覆盖。元素带文本子节点得到 8,而不是 1 | 8 = 9。patch 就不知道它是元素了。', expectFail: /shapeFlag/ },
+    { js: sub(MH_SOL, "      if (isVNode(propsOrChildren)) return createVNode(type, null, [propsOrChildren])   // 唯一的子节点\n", ''), why: '第二个参数是对象就当 props,没有排除 vnode。h(\'div\', h(\'p\')) 会把子 vnode 当成 props,children 丢失。', expectFail: /children|shapeFlag/ },
+    { js: sub(MH_SOL, 'if (l > 3) children', 'if (false) children'), why: '没有处理三个以上参数。h(\'div\', null, \'a\', \'b\') 只取到第一个 children,得到文本 a,而不是两项的数组。', expectFail: /shapeFlag|children/ },
+    { js: sub(MH_SOL, 'children = { default: children }', 'children = children'), why: '函数 children 没有包成插槽对象。组件收到的 children 是函数本身,子组件没法按名字取插槽。', expectFail: /children/ },
+    { js: sub(MH_SOL, "typeof type === 'function' ? ShapeFlags.FUNCTIONAL_COMPONENT", "typeof type === 'function' ? ShapeFlags.STATEFUL_COMPONENT"), why: '把函数式组件当成了有状态组件。有状态组件的 type 是对象,函数是函数式组件(2)。', expectFail: /shapeFlag/ }
   ]
 }
 
@@ -589,7 +524,7 @@ export const scopedSlotForward: Exercise = {
   solJs: SF_SOL,
   faded: { js: SF_FADED },
   hints: [
-    '28.9 节:插槽是函数。子组件调用 slots.item(参数) 得到 vnode,父组件那边的函数用参数渲染内容。转发就是在中间再包一层函数,把参数原样交给下一层。',
+    '28.5 节:插槽是函数。子组件调用 slots.item(参数) 得到 vnode,父组件那边的函数用参数渲染内容。转发就是在中间再包一层函数,把参数原样交给下一层。',
     'TaskList:slots.item ? slots.item({ item, index }) : item。FancyList:给 TaskList 的第三个参数写成对象 { item: slotProps => slots.item?.(slotProps) }。注意插槽名是 item,不是 default。',
     SF_SOL
   ],

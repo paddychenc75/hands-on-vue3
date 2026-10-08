@@ -1,11 +1,11 @@
-// 实验台用的迷你表单库：第 39 章正文的 useForm / useField。
-// 和 vee-validate、TanStack Form 等库相比，这里只保留设计上的关键决定，没有处理 IME、文件输入、嵌套 schema 的异步等细节。
+// 第 39 章的迷你表单库：useForm + useField。正文各节的代码片段都取自这个文件，实验台运行的也是它。
+// 和 vee-validate、TanStack Form 等库相比，只保留设计上的关键决定，没有处理 IME、文件输入、异步 schema 等细节。
 import {
   reactive, ref, shallowRef, shallowReactive, computed, watch, toRaw, provide, inject,
   toValue, onScopeDispose
 } from 'vue'
 
-// ---------- 路径读写 ----------
+// ---------- 39.2 路径读写 ----------
 const parse = p => p.split(/[.\[\]]/).filter(Boolean)
 export const getPath = (obj, path) => parse(path).reduce((o, k) => o?.[k], obj)
 export function setPath(obj, path, value) {
@@ -19,11 +19,11 @@ export function setPath(obj, path, value) {
   cur[last] = value
 }
 
-const clone = v => structuredClone(toRaw(v))
+const clone = v => structuredClone(toRaw(v))          // reactive 对象不能直接 structuredClone，先 toRaw
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 const FORM = Symbol('form')
 
-// ---------- 表单 ----------
+// ---------- 39.1 表单：状态 ----------
 export function useForm({ initialValues, schema, onSubmit }) {
   const initial = shallowRef(clone(initialValues))
   const values = reactive(clone(initialValues))
@@ -33,8 +33,9 @@ export function useForm({ initialValues, schema, onSubmit }) {
   const validating = reactive({})
   const submitCount = ref(0)
   const isSubmitting = ref(false)
-  const fields = shallowReactive(new Map())
+  const fields = shallowReactive(new Map())                    // 已注册的字段（39.3）
 
+  // ---------- 39.1 派生状态；39.5 错误怎样合并 ----------
   const schemaErrors = computed(() => (schema ? schema(values) : {}))
   const errorOf = p => {
     const f = fields.get(p)
@@ -46,9 +47,11 @@ export function useForm({ initialValues, schema, onSubmit }) {
     () => [...fields.keys()].every(p => !errorOf(p) && !validating[p]) && Object.keys(schemaErrors.value).length === 0
   )
 
+  // ---------- 39.3 字段注册 ----------
   function register(path, meta) { fields.set(path, meta) }
   function unregister(path, meta) { if (fields.get(path) === meta) fields.delete(path) }
 
+  // ---------- 39.1 重置 ----------
   function reset(next) {
     if (next) initial.value = clone(next)
     Object.keys(values).forEach(k => delete values[k])
@@ -57,7 +60,7 @@ export function useForm({ initialValues, schema, onSubmit }) {
     submitCount.value = 0
   }
 
-  // 数组操作：改完数组，把按路径存的状态也搬到新的下标上
+  // ---------- 39.7 字段数组：改完数组，把按路径存的状态也搬到新的下标上 ----------
   function remap(arr, mapIndex) {
     const re = new RegExp('^' + arr.replace(/[.\[\]]/g, '\\$&') + '\\[(\\d+)\\]')
     for (const store of [touched, asyncErrors, serverErrors]) {
@@ -93,6 +96,7 @@ export function useForm({ initialValues, schema, onSubmit }) {
     }
   })
 
+  // ---------- 39.8 提交 ----------
   function setErrors(map) {
     Object.keys(serverErrors).forEach(k => delete serverErrors[k])
     Object.assign(serverErrors, map)
@@ -128,18 +132,19 @@ export function useForm({ initialValues, schema, onSubmit }) {
   return form
 }
 
-// ---------- 字段 ----------
+// ---------- 39.3 字段 ----------
 export const useFormContext = () => inject(FORM)
 
-export function useField(name, { rules = [], asyncRules = [], delay = 300, clearOnUnmount = false }: any = {}) {
+export function useField(name, { rules = [], asyncRules = [], delay = 300, clearOnUnmount = false } = {}) {
   const form = inject(FORM)
   if (!form) throw new Error('useField 必须在 useForm 的后代组件里调用')
-  const path = () => toValue(name)
+  const path = () => toValue(name)                        // name 可以是 getter：数组的下标会变
 
   const value = computed({
     get: () => getPath(form.values, path()),
     set: v => setPath(form.values, path(), v)
   })
+  // ---------- 39.5 字段自己的同步规则 ----------
   const syncError = computed(() => {
     for (const rule of rules) {
       const msg = rule(value.value, form.values)
@@ -148,7 +153,7 @@ export function useField(name, { rules = [], asyncRules = [], delay = 300, clear
     return ''
   })
 
-  // 异步校验：每次调用领一个序号，只有最新的一次可以写结果
+  // ---------- 39.6 异步校验：每次检查领一个序号，只有最新的一次可以写结果 ----------
   let seq = 0, timer, ctrl, checked
   const meta = { syncError, el: null, flush }
   function cancel() { checked = undefined; seq++; clearTimeout(timer); ctrl?.abort(); delete form.validating[path()] }
@@ -186,6 +191,7 @@ export function useField(name, { rules = [], asyncRules = [], delay = 300, clear
     }
   })
 
+  // ---------- 39.3 注册与卸载 ----------
   watch(path, (p, _old, onCleanup) => {
     form.register(p, meta)
     onCleanup(() => form.unregister(p, meta))
@@ -200,6 +206,7 @@ export function useField(name, { rules = [], asyncRules = [], delay = 300, clear
     }
   })
 
+  // ---------- 39.4 何时显示错误 ----------
   const error = computed(() => (form.touched[path()] || form.submitCount.value > 0 ? form.errorOf(path()) : ''))
   const onBlur = () => { form.touched[path()] = true }
   const setEl = el => { meta.el = el?.$el ?? el }

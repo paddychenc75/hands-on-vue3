@@ -1,545 +1,214 @@
+// 第 24 章的练习：全部用共享的迷你 Vue 零件 1（course/mini/src/01-reactivity.ts）。
+// 正文里写过的零件整体折叠、只读；每道题只露出要写的那一小段。
 import type { Exercise } from './types'
 import { sub } from './types'
+import { answer, fold, PARTS } from '../mini'
+
+// 把零件 1 按区域切成几段，方便折叠不用改的部分、挖空要写的部分
+const R = PARTS.reactivity
+const at = (s: string) => {
+  const i = R.indexOf(s)
+  if (i < 0) throw new Error('零件 1 里找不到：' + s)
+  return i
+}
+const HEAD = R.slice(0, at('//#region track'))
+const TRACK = R.slice(at('//#region track'), at('//#region trigger'))
+const MID = R.slice(at('//#region trigger'), at('//#region effect'))              // trigger + reactive
+const EFFECT = R.slice(at('//#region effect'), at('//#region cleanup'))
+const CLEANUP = R.slice(at('//#region cleanup'), at('// 运行 fn 的这一刻'))
+const TAIL = R.slice(at('// 运行 fn 的这一刻'), at('//#region computed'))        // untracked + ref
+const COMPUTED = R.slice(at('//#region computed'))
+
+// ===== 练习：computedFill、miniComputed =====
+const CP_EARLIER = fold('正文里写过的响应式零件（reactive、effect 等，不用改）', answer(HEAD + TRACK + MID + EFFECT + CLEANUP + TAIL))
+const CP_SOL = answer(COMPUTED)
+
+const CP_DEMO = `
+// ===== 已给出：使用 computed =====
+// 迷你版的 ref 不会驱动页面，所以页面上的数据用 Vue.ref
+const state = reactive({ price: 10, qty: 2 })
+let runs = 0
+let outer = 0
+const total = computed(() => {
+  runs++
+  return state.price * state.qty
+})
+
+const view = Vue.ref({ total: '未读取', runs, outer })
+const sync = t => { view.value = { total: t === undefined ? view.value.total : t, runs, outer } }
+function readTwice() {
+  total.value
+  sync(total.value)
+}
+function changePrice() {
+  state.price += 10
+  sync()
+}
+function watchTotal() {
+  effect(() => { outer++; sync(total.value) })   // 外层 effect：读取 total.value
+}
+
+return { view, readTwice, changePrice, watchTotal }`
+
+const CP_TPL = '<p>total：{{ view.total }}</p>\n<p>getter 运行次数：{{ view.runs }}</p>\n<p>外层 effect 运行次数：{{ view.outer }}</p>\n<button @click="readTwice">读取两次 total.value</button>\n<button @click="changePrice">price 加 10</button>\n<button @click="watchTotal">挂上读取 total 的外层 effect</button>'
+
+async function computedCheck(T: any) {
+  const num = (re: RegExp) => { const m = T.text().match(re); return m ? +m[1] : -1 }
+  const runs = () => num(/getter 运行次数：\s*(\d+)/)
+  const outer = () => num(/外层 effect 运行次数：\s*(\d+)/)
+  const total = () => { const p = T.$$('p').find((x: Element) => /total：/.test(x.textContent || '')); return p ? (p.textContent || '').replace(/^\s*total：\s*/, '').trim() : '' }
+  T.ok(runs() === 0, '创建后 getter 运行 0 次（当前 ' + runs() + ' 次）')
+  const read = T.btn('读取两次'), change = T.btn('price 加 10'), watch = T.btn('挂上')
+  if (!read || !change || !watch) { T.ok(false, '找到“读取两次”“price 加 10”“挂上”三个按钮'); return }
+  await T.click(read)
+  T.ok(total() === '20', '第一次读取：total = 20（当前 ' + total() + '）')
+  T.ok(runs() === 1, '读取两次，getter 只运行 1 次（当前 ' + runs() + ' 次）')
+  await T.click(T.btn('price 加 10'))
+  T.ok(runs() === 1, '修改 price 后，getter 不立即运行（当前 ' + runs() + ' 次）')
+  await T.click(T.btn('读取两次'))
+  T.ok(total() === '40', '修改后读取：total = 40（当前 ' + total() + '）')
+  T.ok(runs() === 2, '修改后读取，getter 共运行 2 次（当前 ' + runs() + ' 次）')
+  await T.click(T.btn('挂上'))
+  T.ok(outer() === 1 && runs() === 2, '挂上外层 effect：它运行 1 次，读到缓存，getter 仍是 2 次（外层 ' + outer() + '，getter ' + runs() + '）')
+  await T.click(T.btn('price 加 10'))
+  T.ok(outer() === 2, '依赖变了，外层 effect 重新运行（外层 effect 当前 ' + outer() + ' 次）')
+  T.ok(total() === '60' && runs() === 3, '外层 effect 读到新值 60，getter 共 3 次（当前 ' + total() + '，' + runs() + ' 次）')
+}
 
 export const computedFill: Exercise = {
   title: '补全：迷你 computed 的缓存标记', ch: 24,
-  task: '<p>脚本中的 miniComputed 只差两行。它用 dirty 标记决定是否重新计算。只补全两行 TODO。</p><ol><li>TODO 1：依赖改变时，scheduler 把 dirty 设为 true。它不计算。</li><li>TODO 2：重新计算后，把 dirty 设为 false。原因：否则每次读取都运行 getter，没有缓存。</li></ol>',
-  tpl: '<p>total：{{ view.total }}</p>\n<p>getter 运行次数：{{ view.runs }}</p>\n<button @click="readTwice">读取两次 total.value</button>\n<button @click="changePrice">price 加 10</button>',
-  js: `// ===== 已给出：迷你响应式系统（不用修改） =====
-let activeEffect = null
-const targetMap = new WeakMap()
-
-function track(target, key) {
-  if (!activeEffect) return
-  let depsMap = targetMap.get(target)
-  if (!depsMap) targetMap.set(target, (depsMap = new Map()))
-  let dep = depsMap.get(key)
-  if (!dep) depsMap.set(key, (dep = new Set()))
-  dep.add(activeEffect)
-}
-
-function trigger(target, key) {
-  const dep = targetMap.get(target)?.get(key)
-  if (!dep) return
-  // 有 scheduler 时调用 scheduler，否则重新运行
-  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())
-}
-
-function effect(fn, options = {}) {
-  const e = {
-    scheduler: options.scheduler,
-    run() {
-      const prev = activeEffect
-      activeEffect = e
-      try { return fn() } finally { activeEffect = prev }
-    }
-  }
-  if (!options.lazy) e.run()   // lazy: true 时不立即运行
-  return e
-}
-
-function miniReactive(obj) {
-  return new Proxy(obj, {
-    get(t, k) { track(t, k); return t[k] },
-    set(t, k, v) { t[k] = v; trigger(t, k); return true }
-  })
-}
-
-// ===== miniComputed：补全两行 TODO =====
-function miniComputed(getter) {
-  let value
-  let dirty = true                 // true：下次读取时要重新计算
-  const runner = effect(getter, {
-    lazy: true,                    // 创建时不运行 getter
-    scheduler() {
-      // TODO 1：依赖改变时，只做标记
-    }
-  })
-  return {
-    get value() {
-      if (dirty) {
-        value = runner.run()       // 运行 getter，同时收集依赖
-        // TODO 2：计算完成，清除标记
-      }
-      return value
-    }
-  }
-}
-
-// ===== 已给出：使用 miniComputed =====
-const state = miniReactive({ price: 10, qty: 2 })
-let runs = 0
-const total = miniComputed(() => {
-  runs++
-  return state.price * state.qty
-})
-
-const view = ref({ total: '未读取', runs })
-function readTwice() {
-  total.value
-  view.value = { total: total.value, runs }
-}
-function changePrice() {
-  state.price += 10
-  view.value = { total: view.value.total, runs }
-}
-
-return { view, readTwice, changePrice }`,
-  solJs: `// ===== 已给出：迷你响应式系统（不用修改） =====
-let activeEffect = null
-const targetMap = new WeakMap()
-
-function track(target, key) {
-  if (!activeEffect) return
-  let depsMap = targetMap.get(target)
-  if (!depsMap) targetMap.set(target, (depsMap = new Map()))
-  let dep = depsMap.get(key)
-  if (!dep) depsMap.set(key, (dep = new Set()))
-  dep.add(activeEffect)
-}
-
-function trigger(target, key) {
-  const dep = targetMap.get(target)?.get(key)
-  if (!dep) return
-  // 有 scheduler 时调用 scheduler，否则重新运行
-  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())
-}
-
-function effect(fn, options = {}) {
-  const e = {
-    scheduler: options.scheduler,
-    run() {
-      const prev = activeEffect
-      activeEffect = e
-      try { return fn() } finally { activeEffect = prev }
-    }
-  }
-  if (!options.lazy) e.run()   // lazy: true 时不立即运行
-  return e
-}
-
-function miniReactive(obj) {
-  return new Proxy(obj, {
-    get(t, k) { track(t, k); return t[k] },
-    set(t, k, v) { t[k] = v; trigger(t, k); return true }
-  })
-}
-
-// ===== miniComputed：补全两行 TODO =====
-function miniComputed(getter) {
-  let value
-  let dirty = true                 // true：下次读取时要重新计算
-  const runner = effect(getter, {
-    lazy: true,                    // 创建时不运行 getter
-    scheduler() {
-      dirty = true                 // 只做标记，不计算
-    }
-  })
-  return {
-    get value() {
-      if (dirty) {
-        value = runner.run()       // 运行 getter，同时收集依赖
-        dirty = false              // 依赖不变时，直接返回 value
-      }
-      return value
-    }
-  }
-}
-
-// ===== 已给出：使用 miniComputed =====
-const state = miniReactive({ price: 10, qty: 2 })
-let runs = 0
-const total = miniComputed(() => {
-  runs++
-  return state.price * state.qty
-})
-
-const view = ref({ total: '未读取', runs })
-function readTwice() {
-  total.value
-  view.value = { total: total.value, runs }
-}
-function changePrice() {
-  state.price += 10
-  view.value = { total: view.value.total, runs }
-}
-
-return { view, readTwice, changePrice }`,
+  task: '<p>脚本里的 <code>computed</code>（零件 1）只差两处。它用 <code>stale</code> 标记决定要不要重新计算，用 <code>effect</code> 的 <code>lazy</code> 和调度函数 <code>scheduler</code> 实现惰性。补全 2 处 TODO：</p><ol><li>TODO 1：依赖改变时，<code>scheduler</code> 作废缓存。如果缓存原来是有效的，再通知读过 <code>.value</code> 的副作用函数（<code>trigger(c, \'value\')</code>）。它不计算。</li><li>TODO 2：重新计算后，标记缓存已是最新。原因：否则每次读取都运行 getter，没有缓存。</li></ol><p>页面上的按钮会检查：创建时不计算、读取两次只算一次、改数据后不立即计算、外层 effect 能收到通知。</p>',
+  tpl: CP_TPL,
+  js: CP_EARLIER + sub(CP_SOL, '    scheduler() { if (!stale) { stale = true; trigger(c, \'value\') } }   // 依赖变了：作废缓存，通知读过它的副作用函数',
+    '    scheduler() {\n      // TODO 1：作废缓存；原来有效的话，通知读过 .value 的副作用函数\n    }') .replace('      if (stale) { value = runner.run(); stale = false }', '      if (stale) {\n        value = runner.run()\n        // TODO 2：标记缓存已是最新\n      }') + CP_DEMO,
+  solJs: CP_EARLIER + CP_SOL + CP_DEMO,
   faded: {
-    js: `// ===== 已给出：迷你响应式系统（不用修改） =====
-let activeEffect = null
-const targetMap = new WeakMap()
-
-function track(target, key) {
-  if (!activeEffect) return
-  let depsMap = targetMap.get(target)
-  if (!depsMap) targetMap.set(target, (depsMap = new Map()))
-  let dep = depsMap.get(key)
-  if (!dep) depsMap.set(key, (dep = new Set()))
-  dep.add(activeEffect)
-}
-
-function trigger(target, key) {
-  const dep = targetMap.get(target)?.get(key)
-  if (!dep) return
-  // 有 scheduler 时调用 scheduler，否则重新运行
-  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())
-}
-
-function effect(fn, options = {}) {
-  const e = {
-    scheduler: options.scheduler,
-    run() {
-      const prev = activeEffect
-      activeEffect = e
-      try { return fn() } finally { activeEffect = prev }
-    }
-  }
-  if (!options.lazy) e.run()   // lazy: true 时不立即运行
-  return e
-}
-
-function miniReactive(obj) {
-  return new Proxy(obj, {
-    get(t, k) { track(t, k); return t[k] },
-    set(t, k, v) { t[k] = v; trigger(t, k); return true }
-  })
-}
-
-// ===== miniComputed：补全两行 TODO =====
-function miniComputed(getter) {
-  let value
-  let dirty = true                 // true：下次读取时要重新计算
-  const runner = effect(getter, {
-    lazy: true,                    // 创建时不运行 getter
-    scheduler() {
-      dirty = /* ✏️ 依赖改变了：下次读取要重新计算，该把标记设成什么 */ false
-    }
-  })
-  return {
-    get value() {
-      if (dirty) {
-        value = runner.run()       // 运行 getter，同时收集依赖
-        dirty = /* ✏️ 刚计算完：缓存已是最新，该把标记设成什么 */ true
-      }
-      return value
-    }
-  }
-}
-
-// ===== 已给出：使用 miniComputed =====
-const state = miniReactive({ price: 10, qty: 2 })
-let runs = 0
-const total = miniComputed(() => {
-  runs++
-  return state.price * state.qty
-})
-
-const view = ref({ total: '未读取', runs })
-function readTwice() {
-  total.value
-  view.value = { total: total.value, runs }
-}
-function changePrice() {
-  state.price += 10
-  view.value = { total: view.value.total, runs }
-}
-
-return { view, readTwice, changePrice }`
+    js: CP_EARLIER + sub(CP_SOL, '    scheduler() { if (!stale) { stale = true; trigger(c, \'value\') } }',
+      '    scheduler() { if (!stale) { stale = /* ✏️ 依赖改变了：缓存作废，该把标记设成什么 */ false; trigger(c, \'value\') } }').replace('      if (stale) { value = runner.run(); stale = false }',
+      '      if (stale) { value = runner.run(); stale = /* ✏️ 刚计算完：缓存已是最新，该把标记设成什么 */ true }') + CP_DEMO
   },
   hints: [
-    'computed 用一个 dirty 标记实现缓存：依赖改变时设为 true，计算后设为 false。第 24 章的实验台“手写响应式”讲了 effect 和 trigger。trigger 在依赖改变时调用 scheduler。',
-    'TODO 1 在 scheduler() 中，给 dirty 赋一个值。TODO 2 在 value = runner.run() 的下一行，给 dirty 赋另一个值。两行都只有一个赋值语句。',
-    'scheduler() { dirty = true }\n…\nvalue = runner.run()\ndirty = false'
+    'computed 用一个 stale 标记实现缓存：依赖改变时设为 true，计算后设为 false。effect 的 lazy 选项让 getter 创建时不运行，scheduler 选项让“依赖变了”时调用它，而不是直接重新运行。',
+    'TODO 1 在 scheduler() 里：先判断 !stale，再把 stale 设为 true，并调用 trigger(c, \'value\')。TODO 2 在 value = runner.run() 的下一行，给 stale 赋另一个值。',
+    'scheduler() { if (!stale) { stale = true; trigger(c, \'value\') } }\n…\nif (stale) { value = runner.run(); stale = false }'
   ],
-  async check(T) {
-    const runs = () => { const m = T.text().match(/运行次数：\s*(\d+)/); return m ? +m[1] : -1; };
-    const total = () => { const p = T.$$('p').find(x => /total：/.test(x.textContent)); return p ? p.textContent.replace(/^\s*total：\s*/, '').trim() : ''; };
-    T.ok(runs() === 0, '创建后 getter 运行 0 次（当前 ' + runs() + ' 次）');
-    const read = T.btn('读取两次'), change = T.btn('price 加 10');
-    if (!read || !change) { T.ok(false, '找到“读取两次”和“price 加 10”按钮'); return; }
-    await T.click(read);
-    T.ok(total() === '20', '第一次读取：total = 20');
-    T.ok(runs() === 1, '读取两次，getter 只运行 1 次（当前 ' + runs() + ' 次）');
-    await T.click(T.btn('price 加 10'));
-    T.ok(runs() === 1, '修改 price 后，getter 不立即运行（当前 ' + runs() + ' 次）');
-    await T.click(T.btn('读取两次'));
-    T.ok(total() === '40', '修改后读取：total = 40（当前 ' + total() + '）');
-    T.ok(runs() === 2, '修改后读取，getter 共运行 2 次（当前 ' + runs() + ' 次）');
-  },
+  check: computedCheck,
   wrong: [
-    { js: '// ===== 已给出：迷你响应式系统（不用修改） =====\nlet activeEffect = null\nconst targetMap = new WeakMap()\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const dep = targetMap.get(target)?.get(key)\n  if (!dep) return\n  // 有 scheduler 时调用 scheduler，否则重新运行\n  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())\n}\n\nfunction effect(fn, options = {}) {\n  const e = {\n    scheduler: options.scheduler,\n    run() {\n      const prev = activeEffect\n      activeEffect = e\n      try { return fn() } finally { activeEffect = prev }\n    }\n  }\n  if (!options.lazy) e.run()   // lazy: true 时不立即运行\n  return e\n}\n\nfunction miniReactive(obj) {\n  return new Proxy(obj, {\n    get(t, k) { track(t, k); return t[k] },\n    set(t, k, v) { t[k] = v; trigger(t, k); return true }\n  })\n}\n\n// ===== miniComputed：补全两行 TODO =====\nfunction miniComputed(getter) {\n  let value\n  let dirty = true                 // true：下次读取时要重新计算\n  const runner = effect(getter, {\n    lazy: true,                    // 创建时不运行 getter\n    scheduler() {\n      value = runner.run()           // 立即重新计算\n    }\n  })\n  return {\n    get value() {\n      if (dirty) {\n        value = runner.run()       // 运行 getter，同时收集依赖\n        dirty = false              // 依赖不变时，直接返回 value\n      }\n      return value\n    }\n  }\n}\n\n// ===== 已给出：使用 miniComputed =====\nconst state = miniReactive({ price: 10, qty: 2 })\nlet runs = 0\nconst total = miniComputed(() => {\n  runs++\n  return state.price * state.qty\n})\n\nconst view = ref({ total: \'未读取\', runs })\nfunction readTwice() {\n  total.value\n  view.value = { total: total.value, runs }\n}\nfunction changePrice() {\n  state.price += 10\n  view.value = { total: view.value.total, runs }\n}\n\nreturn { view, readTwice, changePrice }', why: 'scheduler 里立即重新计算。依赖一改变 getter 就运行，而不是等到下次读取，没有“惰性”，也浪费计算。scheduler 只应该做标记。' },
-    { js: '// ===== 已给出：迷你响应式系统（不用修改） =====\nlet activeEffect = null\nconst targetMap = new WeakMap()\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const dep = targetMap.get(target)?.get(key)\n  if (!dep) return\n  // 有 scheduler 时调用 scheduler，否则重新运行\n  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())\n}\n\nfunction effect(fn, options = {}) {\n  const e = {\n    scheduler: options.scheduler,\n    run() {\n      const prev = activeEffect\n      activeEffect = e\n      try { return fn() } finally { activeEffect = prev }\n    }\n  }\n  if (!options.lazy) e.run()   // lazy: true 时不立即运行\n  return e\n}\n\nfunction miniReactive(obj) {\n  return new Proxy(obj, {\n    get(t, k) { track(t, k); return t[k] },\n    set(t, k, v) { t[k] = v; trigger(t, k); return true }\n  })\n}\n\n// ===== miniComputed：补全两行 TODO =====\nfunction miniComputed(getter) {\n  let value\n  let dirty = true                 // true：下次读取时要重新计算\n  const runner = effect(getter, {\n    lazy: true,                    // 创建时不运行 getter\n    scheduler() {\n      dirty = true                 // 只做标记，不计算\n    }\n  })\n  return {\n    get value() {\n      if (dirty) {\n        value = runner.run()       // 运行 getter，同时收集依赖\n      }\n      return value\n    }\n  }\n}\n\n// ===== 已给出：使用 miniComputed =====\nconst state = miniReactive({ price: 10, qty: 2 })\nlet runs = 0\nconst total = miniComputed(() => {\n  runs++\n  return state.price * state.qty\n})\n\nconst view = ref({ total: \'未读取\', runs })\nfunction readTwice() {\n  total.value\n  view.value = { total: total.value, runs }\n}\nfunction changePrice() {\n  state.price += 10\n  view.value = { total: view.value.total, runs }\n}\n\nreturn { view, readTwice, changePrice }', why: '计算后没有清除 dirty。dirty 一直是 true，每次读取都重新运行 getter，缓存没有生效。' }
+    {
+      js: CP_EARLIER + sub(CP_SOL, 'scheduler() { if (!stale) { stale = true; trigger(c, \'value\') } }', 'scheduler() { value = runner.run(); trigger(c, \'value\') }') + CP_DEMO,
+      why: '在调度函数里立即重新计算。依赖一改变 getter 就运行，而不是等到下次读取，没有“惰性”，也浪费计算。调度函数只应该做标记和通知。',
+      expectFail: /不立即运行/
+    },
+    {
+      js: CP_EARLIER + sub(CP_SOL, 'stale = false }', '}') + CP_DEMO,
+      why: '计算后没有清除 stale。标记一直是 true，每次读取都重新运行 getter，缓存没有生效。',
+      expectFail: /读取两次/
+    }
   ]
 }
+
+const COMPUTED_STUB = `// ===== 你来写：computed =====
+function computed(getter) {
+  // 现在：每次读取 .value 都运行 getter，没有缓存，也没有依赖。
+  // TODO：用 effect 的 lazy 和 scheduler 选项，加一个标记，写出有缓存、能被外层 effect 订阅的 computed
+  return {
+    __v_isRef: true,
+    get value() { return getter() }
+  }
+}
+`
 
 export const miniComputed: Exercise = {
-  title: '手写一个迷你 computed', ch: 24,
-  task: '<p>脚本中已有一个迷你响应式系统：<code>effect</code>、<code>track</code>、<code>trigger</code>。effect 支持两个选项：<code>lazy</code> 和 <code>scheduler</code>。完成 <code>miniComputed</code>，满足下面三个要求：</p><ol><li>创建时，不运行 getter。</li><li>依赖不变时，读取 .value 返回缓存的值，不运行 getter。</li><li>依赖改变后，不立即计算。下次读取时，重新运行 getter。</li></ol><p>只修改 TODO 部分。</p>',
-  tpl: '<p>total：{{ view.total }}</p>\n<p>getter 运行次数：{{ view.runs }}</p>\n<button @click="readTwice">读取两次 total.value</button>\n<button @click="changePrice">price 加 10</button>',
-  js: `// ===== 已给出：迷你响应式系统（不用修改） =====
-let activeEffect = null
-const targetMap = new WeakMap()
-
-function track(target, key) {
-  if (!activeEffect) return
-  let depsMap = targetMap.get(target)
-  if (!depsMap) targetMap.set(target, (depsMap = new Map()))
-  let dep = depsMap.get(key)
-  if (!dep) depsMap.set(key, (dep = new Set()))
-  dep.add(activeEffect)
-}
-
-function trigger(target, key) {
-  const dep = targetMap.get(target)?.get(key)
-  if (!dep) return
-  // 有 scheduler 时调用 scheduler，否则重新运行
-  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())
-}
-
-function effect(fn, options = {}) {
-  const e = {
-    scheduler: options.scheduler,
-    run() {
-      const prev = activeEffect
-      activeEffect = e
-      try { return fn() } finally { activeEffect = prev }
-    }
-  }
-  if (!options.lazy) e.run()   // lazy: true 时不立即运行
-  return e
-}
-
-function miniReactive(obj) {
-  return new Proxy(obj, {
-    get(t, k) { track(t, k); return t[k] },
-    set(t, k, v) { t[k] = v; trigger(t, k); return true }
-  })
-}
-
-// ===== TODO：完成 miniComputed =====
-function miniComputed(getter) {
-  // 现在：每次读取 .value，都运行 getter
-  return {
-    get value() {
-      return getter()
-    }
-  }
-}
-
-// ===== 已给出：使用 miniComputed =====
-const state = miniReactive({ price: 10, qty: 2 })
-let runs = 0
-const total = miniComputed(() => {
-  runs++
-  return state.price * state.qty
-})
-
-const view = ref({ total: '未读取', runs })
-function readTwice() {
-  total.value
-  view.value = { total: total.value, runs }
-}
-function changePrice() {
-  state.price += 10
-  view.value = { total: view.value.total, runs }
-}
-
-return { view, readTwice, changePrice }`,
+  title: '手写迷你 computed：惰性、缓存和依赖', ch: 24,
+  task: '<p>脚本里的 <code>computed</code> 现在每次读取都运行 getter。用零件 1 里的 <code>effect</code>、<code>track</code>、<code>trigger</code> 把它写完整，让它同时做到：</p><ol><li>惰性：创建时不运行 getter。</li><li>缓存：依赖没变时，再读取不运行 getter。</li><li>依赖：外层 effect 读取 <code>.value</code> 后，依赖改变时外层 effect 会重新运行。</li></ol><p>页面上的 3 个按钮会检查这三点。</p>',
+  tpl: CP_TPL,
+  js: CP_EARLIER + COMPUTED_STUB + CP_DEMO,
+  solJs: CP_EARLIER + CP_SOL + CP_DEMO,
   faded: {
-    js: `// ===== 已给出：迷你响应式系统（不用修改） =====
-let activeEffect = null
-const targetMap = new WeakMap()
-
-function track(target, key) {
-  if (!activeEffect) return
-  let depsMap = targetMap.get(target)
-  if (!depsMap) targetMap.set(target, (depsMap = new Map()))
-  let dep = depsMap.get(key)
-  if (!dep) depsMap.set(key, (dep = new Set()))
-  dep.add(activeEffect)
-}
-
-function trigger(target, key) {
-  const dep = targetMap.get(target)?.get(key)
-  if (!dep) return
-  // 有 scheduler 时调用 scheduler，否则重新运行
-  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())
-}
-
-function effect(fn, options = {}) {
-  const e = {
-    scheduler: options.scheduler,
-    run() {
-      const prev = activeEffect
-      activeEffect = e
-      try { return fn() } finally { activeEffect = prev }
-    }
-  }
-  if (!options.lazy) e.run()   // lazy: true 时不立即运行
-  return e
-}
-
-function miniReactive(obj) {
-  return new Proxy(obj, {
-    get(t, k) { track(t, k); return t[k] },
-    set(t, k, v) { t[k] = v; trigger(t, k); return true }
-  })
-}
-
-// ===== TODO：完成 miniComputed =====
-function miniComputed(getter) {
+    js: CP_EARLIER + `// ===== 你来写：computed =====
+function computed(getter) {
   let value
-  let dirty = true                 // true：下次读取时要重新计算
+  let stale = true
   const runner = effect(getter, {
-    /* ✏️ 创建时不要运行 getter：给 effect 传什么选项 */
+    /* ✏️ 创建时不运行 getter */
     scheduler() {
-      /* ✏️ 依赖改变时，只做标记，不重新计算 */
+      /* ✏️ 作废缓存；原来有效的话，通知读过 .value 的副作用函数 */
     }
   })
-  return {
+  const c = {
+    __v_isRef: true,
     get value() {
-      if (/* ✏️ 什么情况下需要重新计算 */ false) {
-        value = runner.run()       // 运行 getter，同时收集依赖
-        /* ✏️ 计算完成，更新标记 */
+      /* ✏️ 让外层副作用函数订阅 c */
+      if (stale) {
+        value = runner.run()
+        stale = false
       }
       return value
     }
   }
+  return c
 }
-
-// ===== 已给出：使用 miniComputed =====
-const state = miniReactive({ price: 10, qty: 2 })
-let runs = 0
-const total = miniComputed(() => {
-  runs++
-  return state.price * state.qty
-})
-
-const view = ref({ total: '未读取', runs })
-function readTwice() {
-  total.value
-  view.value = { total: total.value, runs }
-}
-function changePrice() {
-  state.price += 10
-  view.value = { total: view.value.total, runs }
-}
-
-return { view, readTwice, changePrice }`
+` + CP_DEMO
   },
   hints: [
-    'computed 用 lazy 的 effect 加一个 dirty 标记实现缓存。依赖改变时，scheduler 只设置 dirty，不计算。第 24 章的实验台“手写响应式”讲了 effect、track 和 trigger。本题的 effect 多了 lazy 和 scheduler 两个选项。',
-    '在 miniComputed 中：1. 声明 let value 和 let dirty = true。2. 用 effect(getter, { lazy: true, scheduler() { … } }) 创建 runner。3. 在 get value() 中，dirty 为 true 时运行 runner.run()，保存结果，把 dirty 设为 false。',
-    'let value\nlet dirty = true\nconst runner = effect(getter, {\n  lazy: true,\n  scheduler() { dirty = true }\n})\nreturn {\n  get value() {\n    if (dirty) { value = runner.run(); dirty = false }\n    return value\n  }\n}'
+    'computed 要同时做三件事。惰性和缓存靠 effect(getter, { lazy: true, scheduler }) 加一个 stale 标记。依赖靠第 24.5 节讲的两个角色：读取 .value 时 track(c, \'value\')，依赖改变时 trigger(c, \'value\')。',
+    '1. 声明 let value、let stale = true。2. 用 effect(getter, { lazy: true, scheduler() { … } }) 得到 runner。3. 返回对象 c：get value() 里先 track(c, \'value\')，stale 为 true 时运行 runner.run() 并把 stale 设为 false。4. scheduler 里，stale 原来是 false 时，把它设为 true 并 trigger(c, \'value\')。',
+    'function computed(getter) {\n  let value\n  let stale = true\n  const runner = effect(getter, {\n    lazy: true,\n    scheduler() { if (!stale) { stale = true; trigger(c, \'value\') } }\n  })\n  const c = {\n    __v_isRef: true,\n    get value() {\n      track(c, \'value\')\n      if (stale) { value = runner.run(); stale = false }\n      return value\n    }\n  }\n  return c\n}'
   ],
-  async check(T) {
-    const runs = () => { const m = T.text().match(/运行次数：\s*(\d+)/); return m ? +m[1] : -1; };
-    const total = () => { const p = T.$$('p').find(x => /total：/.test(x.textContent)); return p ? p.textContent.replace(/^\s*total：\s*/, '').trim() : ''; };
-    T.ok(runs() === 0, '创建后 getter 运行 0 次（当前 ' + runs() + ' 次）');
-    const read = T.btn('读取两次'), change = T.btn('price 加 10');
-    if (!read || !change) { T.ok(false, '找到“读取两次”和“price 加 10”按钮'); return; }
-    await T.click(read);
-    T.ok(total() === '20', '第一次读取：total = 20');
-    T.ok(runs() === 1, '读取两次，getter 只运行 1 次（当前 ' + runs() + ' 次）');
-    await T.click(T.btn('读取两次'));
-    T.ok(runs() === 1, '依赖不变时再读取，getter 仍是 1 次（当前 ' + runs() + ' 次）');
-    await T.click(T.btn('price 加 10'));
-    T.ok(runs() === 1, '修改 price 后，getter 不立即运行（当前 ' + runs() + ' 次）');
-    await T.click(T.btn('读取两次'));
-    T.ok(total() === '40', '修改后读取：total = 40（当前 ' + total() + '）');
-    T.ok(runs() === 2, '修改后读取，getter 共运行 2 次（当前 ' + runs() + ' 次）');
-  },
+  check: computedCheck,
   wrong: [
-    { js: '// ===== 已给出：迷你响应式系统（不用修改） =====\nlet activeEffect = null\nconst targetMap = new WeakMap()\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const dep = targetMap.get(target)?.get(key)\n  if (!dep) return\n  // 有 scheduler 时调用 scheduler，否则重新运行\n  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())\n}\n\nfunction effect(fn, options = {}) {\n  const e = {\n    scheduler: options.scheduler,\n    run() {\n      const prev = activeEffect\n      activeEffect = e\n      try { return fn() } finally { activeEffect = prev }\n    }\n  }\n  if (!options.lazy) e.run()   // lazy: true 时不立即运行\n  return e\n}\n\nfunction miniReactive(obj) {\n  return new Proxy(obj, {\n    get(t, k) { track(t, k); return t[k] },\n    set(t, k, v) { t[k] = v; trigger(t, k); return true }\n  })\n}\n\n// ===== TODO：完成 miniComputed =====\nfunction miniComputed(getter) {\n  let value\n  let done = false\n  return {\n    get value() {\n      if (!done) { value = getter(); done = true }\n      return value\n    }\n  }\n}\n\n// ===== 已给出：使用 miniComputed =====\nconst state = miniReactive({ price: 10, qty: 2 })\nlet runs = 0\nconst total = miniComputed(() => {\n  runs++\n  return state.price * state.qty\n})\n\nconst view = ref({ total: \'未读取\', runs })\nfunction readTwice() {\n  total.value\n  view.value = { total: total.value, runs }\n}\nfunction changePrice() {\n  state.price += 10\n  view.value = { total: view.value.total, runs }\n}\n\nreturn { view, readTwice, changePrice }', why: '只缓存，不失效：第一次读取后永远返回缓存。依赖改变时，没有任何机制通知它重新计算，结果变旧。' },
-    { js: '// ===== 已给出：迷你响应式系统（不用修改） =====\nlet activeEffect = null\nconst targetMap = new WeakMap()\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const dep = targetMap.get(target)?.get(key)\n  if (!dep) return\n  // 有 scheduler 时调用 scheduler，否则重新运行\n  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())\n}\n\nfunction effect(fn, options = {}) {\n  const e = {\n    scheduler: options.scheduler,\n    run() {\n      const prev = activeEffect\n      activeEffect = e\n      try { return fn() } finally { activeEffect = prev }\n    }\n  }\n  if (!options.lazy) e.run()   // lazy: true 时不立即运行\n  return e\n}\n\nfunction miniReactive(obj) {\n  return new Proxy(obj, {\n    get(t, k) { track(t, k); return t[k] },\n    set(t, k, v) { t[k] = v; trigger(t, k); return true }\n  })\n}\n\n// ===== TODO：完成 miniComputed =====\nfunction miniComputed(getter) {\n  let value\n  let dirty = true                 // true：下次读取时要重新计算\n  const runner = effect(getter, {\n    lazy: true,                    // 创建时不运行 getter\n    scheduler() { dirty = false; value = runner.run() }   // 依赖改变时立即重算\n  })\n  return {\n    get value() {\n      if (dirty) {\n        value = runner.run()       // 运行 getter，同时收集依赖\n        dirty = false\n      }\n      return value\n    }\n  }\n}\n\n// ===== 已给出：使用 miniComputed =====\nconst state = miniReactive({ price: 10, qty: 2 })\nlet runs = 0\nconst total = miniComputed(() => {\n  runs++\n  return state.price * state.qty\n})\n\nconst view = ref({ total: \'未读取\', runs })\nfunction readTwice() {\n  total.value\n  view.value = { total: total.value, runs }\n}\nfunction changePrice() {\n  state.price += 10\n  view.value = { total: view.value.total, runs }\n}\n\nreturn { view, readTwice, changePrice }', why: '依赖改变时，scheduler 立即重算。要求是“不立即计算，下次读取时再算”。这样 price 一改 getter 就运行。' },
-    { js: '// ===== 已给出：迷你响应式系统（不用修改） =====\nlet activeEffect = null\nconst targetMap = new WeakMap()\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const dep = targetMap.get(target)?.get(key)\n  if (!dep) return\n  // 有 scheduler 时调用 scheduler，否则重新运行\n  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())\n}\n\nfunction effect(fn, options = {}) {\n  const e = {\n    scheduler: options.scheduler,\n    run() {\n      const prev = activeEffect\n      activeEffect = e\n      try { return fn() } finally { activeEffect = prev }\n    }\n  }\n  if (!options.lazy) e.run()   // lazy: true 时不立即运行\n  return e\n}\n\nfunction miniReactive(obj) {\n  return new Proxy(obj, {\n    get(t, k) { track(t, k); return t[k] },\n    set(t, k, v) { t[k] = v; trigger(t, k); return true }\n  })\n}\n\n// ===== TODO：完成 miniComputed =====\nfunction miniComputed(getter) {\n  let value\n  let dirty = true                 // true：下次读取时要重新计算\n  const runner = effect(getter, {\n    lazy: false,\n    scheduler() { dirty = true }   // 依赖改变时只做标记\n  })\n  return {\n    get value() {\n      if (dirty) {\n        value = runner.run()       // 运行 getter，同时收集依赖\n        dirty = false\n      }\n      return value\n    }\n  }\n}\n\n// ===== 已给出：使用 miniComputed =====\nconst state = miniReactive({ price: 10, qty: 2 })\nlet runs = 0\nconst total = miniComputed(() => {\n  runs++\n  return state.price * state.qty\n})\n\nconst view = ref({ total: \'未读取\', runs })\nfunction readTwice() {\n  total.value\n  view.value = { total: total.value, runs }\n}\nfunction changePrice() {\n  state.price += 10\n  view.value = { total: view.value.total, runs }\n}\n\nreturn { view, readTwice, changePrice }', why: '没有用 lazy。effect 创建时就运行了 getter，还没有人读取就计算了一次。' }
+    {
+      js: CP_EARLIER + `function computed(getter) {
+  let value
+  let done = false
+  return {
+    __v_isRef: true,
+    get value() {
+      if (!done) { value = getter(); done = true }
+      return value
+    }
+  }
+}
+` + CP_DEMO,
+      why: '只缓存，不失效：第一次读取后永远返回缓存。依赖改变时没有任何机制让它重新计算，结果变旧。',
+      expectFail: /total = 40/
+    },
+    {
+      js: CP_EARLIER + sub(CP_SOL, 'scheduler() { if (!stale) { stale = true; trigger(c, \'value\') } }', 'scheduler() { stale = true }') + CP_DEMO,
+      why: '调度函数只作废缓存，没有通知读过 .value 的外层 effect。缓存对了，但它还不是一个依赖：外层 effect 不会重新运行，页面不会更新。',
+      expectFail: /外层 effect/
+    },
+    {
+      js: CP_EARLIER + sub(CP_SOL, '      track(c, \'value\')\n', '') + CP_DEMO,
+      why: '读取 .value 时没有 track(c, \'value\')。没有人记录外层 effect 读过 computed，trigger 找不到要通知的对象。',
+      expectFail: /外层 effect/
+    },
+    {
+      js: CP_EARLIER + sub(CP_SOL, '    lazy: true,\n', '') + CP_DEMO,
+      why: '没有用 lazy。创建时 effect 就运行了 getter，还没有人读取就计算了一次。',
+      expectFail: /创建后/
+    }
   ]
 }
 
-// 旧脚本在对象外面补充的字段（原样保留，需要的话可以整理进上面的对象）
-miniComputed.solJs = miniComputed.js.replace(`function miniComputed(getter) {
-  // 现在：每次读取 .value，都运行 getter
-  return {
-    get value() {
-      return getter()
-    }
-  }
-}`, `function miniComputed(getter) {
-  let value
-  let dirty = true                 // true：下次读取时要重新计算
-  const runner = effect(getter, {
-    lazy: true,                    // 创建时不运行 getter
-    scheduler() { dirty = true }   // 依赖改变时只做标记
-  })
-  return {
-    get value() {
-      if (dirty) {
-        value = runner.run()       // 运行 getter，同时收集依赖
-        dirty = false
-      }
-      return value
-    }
-  }
-}`);
+// ===== 练习：depCleanup =====
+const DC_PUSH = '  activeEffect.deps.push(dep)\n'
+const dcTrack = (line: string) => sub(answer(TRACK), DC_PUSH, '  ' + line + '\n')
+const dcCleanup = (body: string) => 'function cleanup(e) {\n  ' + body + '\n}\n'
+const dcEffect = (line: string) => sub(answer(EFFECT), '      cleanup(e)\n      const prev = activeEffect', (line ? '      ' + line + '\n' : '') + '      const prev = activeEffect')
+const dcBuild = (track: string, cleanup: string, effect: string) =>
+  fold('已给出：全局状态（不用改）', answer(HEAD)) +
+  track +
+  fold('已给出：trigger 和 reactive（不用改）', answer(MID)) +
+  effect +
+  cleanup +
+  fold('已给出：untracked、ref、computed（不用改）', answer(TAIL + COMPUTED))
 
-
-// ===== 练习：给迷你响应式加上依赖清理 =====
-const CLEANUP_JS = (t1: string, t2: string, t3: string) => `// ===== 已给出：迷你响应式系统（reactive 和 trigger 不用修改） =====
-let activeEffect = null
-const targetMap = new WeakMap()
-
-function track(target, key) {
-  if (!activeEffect) return
-  let depsMap = targetMap.get(target)
-  if (!depsMap) targetMap.set(target, (depsMap = new Map()))
-  let dep = depsMap.get(key)
-  if (!dep) depsMap.set(key, (dep = new Set()))
-  dep.add(activeEffect)
-  ${t1}
-}
-
-function trigger(target, key) {
-  const dep = targetMap.get(target)?.get(key)
-  if (!dep) return
-  ;[...dep].forEach(e => e.run())   // 先复制一份：run() 会修改 dep 本身
-}
-
-function reactive(obj) {
-  return new Proxy(obj, {
-    get(t, k, r) { track(t, k); return Reflect.get(t, k, r) },
-    set(t, k, v, r) {
-      const old = t[k]
-      const ok = Reflect.set(t, k, v, r)
-      if (!Object.is(old, v)) trigger(t, k)
-      return ok
-    }
-  })
-}
-
-// ===== 补全：依赖清理 =====
-function cleanup(e) {
-  ${t2}
-}
-
-function effect(fn) {
-  const e = {
-    deps: [],   // 这个 effect 订阅过的所有 dep（Set）
-    run() {
-      ${t3}
-      const prev = activeEffect
-      activeEffect = e
-      try { fn() } finally { activeEffect = prev }
-    }
-  }
-  e.run()
-  return e
-}
-
+const DC_DEMO = `
 // ===== 已给出：使用 =====
 const state = reactive({ useA: true, a: 1, b: 1 })
 let runs = 0
-const view = ref({ runs: 0, shown: '' })
+const view = Vue.ref({ runs: 0, shown: '' })
 
 effect(() => {
   runs++
@@ -553,31 +222,35 @@ const incB = () => { state.b++ }
 
 return { view, toggle, incA, incB }`
 
-const CLEANUP_SOL_1 = 'activeEffect.deps.push(dep)   // 反向记录：这个 effect 订阅了 dep'
-const CLEANUP_SOL_2 = 'for (const dep of e.deps) dep.delete(e)   // 先从每个 dep 里退订\n  e.deps.length = 0                       // 再清空自己的记录'
-const CLEANUP_SOL_3 = 'cleanup(e)   // 运行 fn 之前清理，运行时重新收集'
+const DC_SOL_PUSH = 'activeEffect.deps.push(dep)   // 反向记录：这个 effect 订阅了 dep'
+const DC_SOL_CLEAN = 'e.deps.forEach(dep => dep.delete(e))   // 先从每个 dep 里退订\n  e.deps.length = 0                       // 再清空自己的记录'
+const DC_SOL_RUN = 'cleanup(e)   // 运行 fn 之前清理，运行时重新收集'
 
 export const depCleanup: Exercise = {
   title: '给迷你响应式加上依赖清理', ch: 24,
-  task: '<p>脚本里的 <code>effect</code> 读取 <code>state.useA ? state.a : state.b</code>。它还没有依赖清理，所以 <code>useA</code> 变成 false 以后，改 <code>a</code> 仍然会让它运行。补全 3 处 TODO：</p><ol><li>TODO 1：<code>track</code> 里让 effect 记住它订阅了哪个 dep（<code>activeEffect.deps</code> 是数组）。</li><li>TODO 2：<code>cleanup(e)</code> 把 e 从它订阅过的每个 dep 里删掉，再清空 <code>e.deps</code>。</li><li>TODO 3：<code>run</code> 在运行 <code>fn</code> 之前调用清理。</li></ol><p>目标：切换分支后，旧分支读过的属性不再触发这个 effect。</p>',
+  task: '<p>脚本里的 <code>effect</code> 读取 <code>state.useA ? state.a : state.b</code>。零件 1 的 <code>effect</code> 本来有依赖清理，这里把它去掉了，所以 <code>useA</code> 变成 false 以后，改 <code>a</code> 仍然会让它运行。补全 3 处 TODO：</p><ol><li>TODO 1：<code>track</code> 里让 effect 记住它订阅了哪个 dep（<code>activeEffect.deps</code> 是数组）。</li><li>TODO 2：<code>cleanup(e)</code> 把 e 从它订阅过的每个 dep 里删掉，再清空 <code>e.deps</code>。</li><li>TODO 3：<code>run</code> 在运行 <code>fn</code> 之前调用清理。</li></ol><p>目标：切换分支后，旧分支读过的属性不再触发这个 effect。</p>',
   tpl: '<p>{{ view.shown }}</p>\n<p>effect 运行次数：{{ view.runs }}</p>\n<button @click="toggle">切换 useA</button>\n<button @click="incA">a + 1</button>\n<button @click="incB">b + 1</button>',
-  js: CLEANUP_JS('// TODO 1：让 activeEffect 记住这个 dep', '// TODO 2：把 e 从它订阅过的每个 dep 里删掉，再清空 e.deps', '// TODO 3：运行 fn 之前，先清理旧依赖'),
-  solJs: CLEANUP_JS(CLEANUP_SOL_1, CLEANUP_SOL_2, CLEANUP_SOL_3),
+  js: dcBuild(
+    dcTrack('// TODO 1：让 activeEffect 记住这个 dep'),
+    dcCleanup('// TODO 2：把 e 从它订阅过的每个 dep 里删掉，再清空 e.deps'),
+    dcEffect('// TODO 3：运行 fn 之前，先清理旧依赖')
+  ) + DC_DEMO,
+  solJs: dcBuild(dcTrack(DC_SOL_PUSH), dcCleanup(DC_SOL_CLEAN), dcEffect(DC_SOL_RUN)) + DC_DEMO,
   faded: {
-    js: CLEANUP_JS(
-      'activeEffect.deps.push(/* ✏️ 要记住的 dep */)',
-      'for (const dep of e.deps) {\n    /* ✏️ 把 e 从这个 dep 里删掉 */\n  }\n  /* ✏️ 清空 e.deps，下一次运行重新收集 */',
-      '/* ✏️ 运行 fn 之前，先做什么 */'
-    )
+    js: dcBuild(
+      dcTrack('activeEffect.deps.push(/* ✏️ 要记住的 dep */)'),
+      dcCleanup('for (const dep of e.deps) {\n    /* ✏️ 把 e 从这个 dep 里删掉 */\n  }\n  /* ✏️ 清空 e.deps，下一次运行重新收集 */'),
+      dcEffect('/* ✏️ 运行 fn 之前，先做什么 */')
+    ) + DC_DEMO
   },
   hints: [
     '清理要做两件事：一是把 effect 从它订阅过的每个 dep（Set）里删掉，二是清空 effect 自己记的 deps。要做第一件事，effect 得先知道它订阅过哪些 dep，所以 track 要反向记录。',
     'track 里 dep.add(activeEffect) 之后，再 activeEffect.deps.push(dep)。cleanup 里遍历 e.deps，对每个 dep 调用 dep.delete(e)，最后 e.deps.length = 0。run 里第一件事是 cleanup(e)。',
-    'track：activeEffect.deps.push(dep)\ncleanup：for (const dep of e.deps) dep.delete(e); e.deps.length = 0\nrun：在 const prev = activeEffect 之前调用 cleanup(e)'
+    'track：activeEffect.deps.push(dep)\ncleanup：e.deps.forEach(dep => dep.delete(e)); e.deps.length = 0\nrun：在 const prev = activeEffect 之前调用 cleanup(e)'
   ],
   async check(T) {
     const runs = () => { const m = T.text().match(/运行次数：\s*(\d+)/); return m ? +m[1] : -1 }
-    const shown = () => { const p = T.$$('p')[0]; return p ? p.textContent.trim() : '' }
+    const shown = () => { const p = T.$$('p')[0]; return p ? (p.textContent || '').trim() : '' }
     const press = async (name: string) => { const b = T.btn(name); if (b) await T.click(b); return !!b }
     for (const n of ['切换 useA', 'a + 1', 'b + 1']) if (!T.btn(n)) { T.ok(false, '找到按钮“' + n + '”'); return }
     T.ok(runs() === 1, '创建时运行 1 次（当前 ' + runs() + ' 次）')
@@ -598,175 +271,19 @@ export const depCleanup: Exercise = {
   },
   wrong: [
     {
-      js: CLEANUP_JS(CLEANUP_SOL_1, 'e.deps.length = 0   // 清空记录', CLEANUP_SOL_3),
+      js: dcBuild(dcTrack(DC_SOL_PUSH), dcCleanup('e.deps.length = 0   // 清空记录'), dcEffect(DC_SOL_RUN)) + DC_DEMO,
       why: '只清空了 effect 自己的数组，没有从 dep 里退订。dep 里仍然有这个 effect，旧依赖照样触发它。',
       expectFail: /旧依赖/
     },
     {
-      js: CLEANUP_JS('// 忘了反向记录', CLEANUP_SOL_2, CLEANUP_SOL_3),
+      js: dcBuild(dcTrack('// 忘了反向记录'), dcCleanup(DC_SOL_CLEAN), dcEffect(DC_SOL_RUN)) + DC_DEMO,
       why: 'track 没有把 dep 记进 activeEffect.deps，cleanup 遍历的是空数组，什么也删不掉。',
       expectFail: /旧依赖/
     },
     {
-      js: sub(CLEANUP_JS(CLEANUP_SOL_1, CLEANUP_SOL_2, '// 不在这里清理'), 'try { fn() } finally { activeEffect = prev }', 'try { fn() } finally { activeEffect = prev; cleanup(e) }'),
+      js: sub(dcBuild(dcTrack(DC_SOL_PUSH), dcCleanup(DC_SOL_CLEAN), dcEffect('')), 'try { return fn() } finally { activeEffect = prev }', 'try { return fn() } finally { activeEffect = prev; cleanup(e) }') + DC_DEMO,
       why: '在 fn 运行之后清理，会把刚收集到的依赖删光。effect 之后不再被任何数据触发。',
       expectFail: /切换后运行第 2 次/
-    }
-  ]
-}
-
-
-// ===== 练习：带版本号的 computed 缓存 =====
-const VC_JS = (body: string) => `// ===== 已给出：带版本号的迷你响应式（不用修改） =====
-let globalVersion = 0         // 任何数据改变，加 1
-let collecting = null         // 正在运行的 getter 把读到的 dep 记在这里
-class Dep { version = 0 }     // 这个数据改变一次，加 1
-
-function miniRef(initial) {
-  const dep = new Dep()
-  let value = initial
-  return {
-    get value() {
-      if (collecting) collecting.set(dep, dep.version)   // 记下：读到了哪个 dep，当时的 version
-      return value
-    },
-    set value(next) {
-      if (Object.is(next, value)) return                 // 值没变：什么都不加
-      value = next
-      dep.version++
-      globalVersion++
-    }
-  }
-}
-
-// 运行 getter。返回 { value, deps }，deps 是 Map(dep -> 读取时的 version)
-function collect(getter) {
-  const prev = collecting
-  collecting = new Map()
-  try { return { value: getter(), deps: collecting } }
-  finally { collecting = prev }
-}
-
-// ===== 补全：只靠版本号做缓存。没有 dirty 标记，没有 scheduler =====
-function miniComputed(getter) {
-  let cached
-  let deps = null        // 上次计算时的 Map(dep -> version)
-  let seenGlobal = -1    // 上次检查时的 globalVersion
-  return {
-    get value() {
-${body}
-      return cached
-    }
-  }
-}
-
-// ===== 已给出：使用 =====
-const a = miniRef(1)
-const b = miniRef(2)
-const c = miniRef(0)          // 和 total 无关
-let runs = 0
-const total = miniComputed(() => { runs++; return a.value + b.value })
-
-const view = ref({ total: '未读取', runs: 0 })
-const read = () => { view.value = { total: total.value, runs } }
-const incA = () => { a.value++ }
-const incB = () => { b.value++ }
-const incC = () => { c.value++ }
-const sameA = () => { a.value = a.value }
-
-return { view, read, incA, incB, incC, sameA }`
-
-const VC_SOL = `      if (seenGlobal === globalVersion) return cached     // 1. 整个世界没变过：直接用缓存
-      seenGlobal = globalVersion
-      // 2. 世界变了，但只在 dep 的 version 真的变了才重算
-      const stale = !deps || [...deps].some(([dep, v]) => dep.version !== v)
-      if (stale) {
-        const r = collect(getter)                          // 3. 重算，同时换成新的依赖记录
-        cached = r.value
-        deps = r.deps
-      }`
-
-export const versionComputed: Exercise = {
-  title: '实现带版本号的 computed 缓存', ch: 24,
-  task: '<p>Vue 3.5 的 computed 不靠 <code>scheduler</code> 打脏标记，而是靠版本号判断缓存能不能用。脚本里已经有 <code>globalVersion</code>、每个数据的 <code>dep.version</code>，以及 <code>collect(getter)</code>（运行 getter，并返回读到的 dep 和当时的 version）。补全 <code>miniComputed</code> 的 <code>value</code>：</p><ol><li>TODO 1：<code>globalVersion</code> 和上次检查时相同，直接返回 <code>cached</code>。</li><li>TODO 2：不同时，记下新的 <code>seenGlobal</code>。</li><li>TODO 3：从没算过，或任何一个依赖的 <code>dep.version</code> 和记录的不同，才重新计算，并更新 <code>cached</code> 和 <code>deps</code>。</li></ol><p>目标：无关数据 <code>c</code> 改变时，getter 不运行。</p>',
-  tpl: '<p>total：{{ view.total }}</p>\n<p>getter 运行次数：{{ view.runs }}</p>\n<button @click="read">读取 total.value</button>\n<button @click="incA">a + 1</button>\n<button @click="incB">b + 1</button>\n<button @click="incC">c + 1（无关）</button>\n<button @click="sameA">把 a 设成相同的值</button>',
-  js: VC_JS('      // TODO 1：globalVersion 没变，直接返回 cached\n      // TODO 2：否则，记下 seenGlobal\n      // TODO 3：从没算过，或有 dep 的 version 变了，才用 collect(getter) 重算，并更新 cached 和 deps'),
-  solJs: VC_JS(VC_SOL),
-  faded: {
-    js: VC_JS(`      if (/* ✏️ 什么条件下可以直接返回缓存 */ false) return cached
-      seenGlobal = globalVersion
-      const stale = !deps || [...deps].some(([dep, v]) => /* ✏️ 一个依赖「变了」的条件 */ false)
-      if (stale) {
-        const r = collect(getter)
-        cached = r.value
-        /* ✏️ 换成这次读到的依赖记录 */
-      }`)
-  },
-  hints: [
-    'computed 不需要知道「是谁改了数据」，只需要比较版本号。先比较 globalVersion（便宜，一个数字）。它没变，什么都不用做。',
-    'globalVersion 变了，只说明某个数据变过，不说明 total 的依赖变过。再遍历 deps（Map），把每个 dep.version 和记录的 version 比较，有一个不同才重算。重算后用 collect 返回的新 deps 覆盖旧的。',
-    'if (seenGlobal === globalVersion) return cached\nseenGlobal = globalVersion\nconst stale = !deps || [...deps].some(([dep, v]) => dep.version !== v)\nif (stale) { const r = collect(getter); cached = r.value; deps = r.deps }'
-  ],
-  async check(T) {
-    const runs = () => { const m = T.text().match(/运行次数：\s*(\d+)/); return m ? +m[1] : -1 }
-    const total = () => { const p = T.$$('p').find(x => /total：/.test(x.textContent)); return p ? p.textContent.replace(/^\s*total：\s*/, '').trim() : '' }
-    for (const n of ['读取', 'a + 1', 'b + 1', 'c + 1', '相同的值']) if (!T.btn(n)) { T.ok(false, '找到按钮“' + n + '”'); return }
-    const press = async (name: string) => { await T.click(T.btn(name)) }
-    T.ok(runs() === 0, '创建时 getter 不运行（当前 ' + runs() + ' 次）')
-    await press('读取')
-    T.ok(total() === '3' && runs() === 1, '第一次读取：total = 3，getter 运行 1 次（当前 ' + total() + '，' + runs() + ' 次）')
-    await press('读取')
-    T.ok(runs() === 1, '依赖没变，再读取一次不重算（当前 ' + runs() + ' 次）')
-    await press('c + 1')
-    await press('读取')
-    T.ok(runs() === 1, '无关数据 c 改变后，globalVersion 变了但依赖的 version 没变，不重算（当前 ' + runs() + ' 次）')
-    await press('a + 1')
-    await press('读取')
-    T.ok(total() === '4' && runs() === 2, 'a 改变后重算：total = 4，共 2 次（当前 ' + total() + '，' + runs() + ' 次）')
-    await press('相同的值')
-    await press('读取')
-    T.ok(runs() === 2, '把 a 设成相同的值，version 不变，不重算（当前 ' + runs() + ' 次）')
-    await press('b + 1')
-    await press('读取')
-    T.ok(total() === '5' && runs() === 3, 'b 改变后重算：total = 5，共 3 次（当前 ' + total() + '，' + runs() + ' 次）')
-    await press('c + 1')
-    await press('读取')
-    T.ok(runs() === 3, '重算后换了新的依赖记录，无关数据 c 再改变，仍然不重算（当前 ' + runs() + ' 次）')
-  },
-  wrong: [
-    {
-      js: VC_JS(`      if (seenGlobal === globalVersion) return cached
-      seenGlobal = globalVersion
-      const r = collect(getter)
-      cached = r.value
-      deps = r.deps`),
-      why: '只看 globalVersion：任何数据改变都重算。无关数据 c 一变，getter 就白白运行一次。',
-      expectFail: /无关数据 c/
-    },
-    {
-      js: VC_JS(`      if (seenGlobal === globalVersion) return cached
-      seenGlobal = globalVersion
-      const first = deps && [...deps][0]
-      const stale = !deps || first[0].version !== first[1]
-      if (stale) {
-        const r = collect(getter)
-        cached = r.value
-        deps = r.deps
-      }`),
-      why: '只比较了第一个依赖。b 是第二个依赖，它变了却没被发现，读到的是过期的缓存。',
-      expectFail: /b 改变后/
-    },
-    {
-      js: VC_JS(`      if (seenGlobal === globalVersion) return cached
-      seenGlobal = globalVersion
-      const stale = !deps || [...deps].some(([dep, v]) => dep.version !== v)
-      if (stale) {
-        const r = collect(getter)
-        cached = r.value
-        if (!deps) deps = r.deps
-      }`),
-      why: '重算后没有换成新的依赖记录，记录里还是第一次的 version。a 改过以后，记录永远落后，之后无论哪个数据改变，都被认为「有依赖变了」。',
-      expectFail: /换了新的依赖记录/
     }
   ]
 }

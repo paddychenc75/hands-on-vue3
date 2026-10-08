@@ -3,7 +3,7 @@ title: 组件运行时：从 vnode 到组件实例
 id: runtime
 stage: 5
 chapter: 31
-desc: patch 的分发、mountComponent 三步、渲染副作用、shouldUpdateComponent，最后拼出迷你 Vue
+desc: patch 的分发、mountComponent 三步、渲染副作用函数、shouldUpdateComponent，最后拼成迷你 Vue
 ---
 
 <script setup>
@@ -16,14 +16,14 @@ import MountUpdateStepper from '../labs/31-runtime/MountUpdateStepper.vue'
 
 ::: goals
 <Goal checks="sc:0,sc:1">说明挂载组件的顺序：patch 怎样分发到 mountComponent，它的三步各做什么，setup 为什么只运行一次。</Goal>
-<Goal checks="sc:2,sc:3,ex:miniMount">写出 setupRenderEffect 的挂载和更新两条路径，说明渲染副作用怎样把响应式和更新队列接起来。</Goal>
+<Goal checks="sc:2,sc:3,ex:miniMount,ex:miniUpdateEffect">写出 setupRenderEffect 的挂载和更新两条路径，说明渲染副作用函数怎样把响应式和更新队列接起来。</Goal>
 <Goal checks="sc:4,sc:5,ex:miniShouldUpdate">写出 shouldUpdateComponent，判断父组件重新渲染时哪些子组件会更新。</Goal>
 <Goal checks="sc:6,sc:7,sc:8">说明 provides 怎样用原型链继承，以及钩子的调用位置和顺序。</Goal>
 
 :::
 
 ::: rt
-阅读主线约 18 分钟，深入内容约 4 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 14 分钟，深入内容约 4 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -53,8 +53,10 @@ shouldUpdateComponent
 
 原因：父组件每次渲染，都会给子组件创建一个新的 vnode。Vue 用 `shouldUpdateComponent` 比较新旧 vnode 的 props，用 `!==` 逐个比较。新建的对象和旧对象不是同一个，比较结果是“变了”。
 
-前面几章各讲了一块：响应式（第 24 章）、更新队列（第 25 章）、vnode（第 28 章）、编译标记（第 29 章）、列表 diff（第 30 章）。本章讲它们怎样接起来：一个组件 vnode 怎样变成组件实例和 DOM，数据变化时又怎样更新。最后你会拼出一个能运行的迷你 Vue。
+前面几章各讲了一块：响应式（第 24 章）、更新队列（第 25 章）、vnode 和 `h`（第 28 章）、编译标记（第 29 章）、列表 diff（第 30 章）。本章把它们接成一条线：一个组件 vnode 怎样变成组件实例和 DOM，数据变化时又怎样更新。你在这些章里写的零件，会在本章的练习里合在一起运行。
 :::
+
+下面的代码来自 `runtime-core` 的 `renderer.ts` 等文件，是去掉边角情形的简化版，函数名和真实代码一致。本章的输出都在 Vue 3.5.43 上运行过。
 
 ### 31.1 全景：render、patch、mountComponent
 
@@ -69,7 +71,7 @@ shouldUpdateComponent
 <MountComponentFlow />
 </Figure>
 
-之后的更新不再经过 `render`。每个组件有自己的渲染副作用函数，数据变化时它直接重新运行。本章后面的代码来自 `runtime-core/renderer.ts`，都是简化版，函数名和真实代码一致。
+之后的更新不再经过 `render`。每个组件有自己的渲染副作用函数，数据变化时它直接重新运行。
 
 ### 31.2 patch 怎样分发
 
@@ -79,7 +81,7 @@ shouldUpdateComponent
 // runtime-core/renderer.ts（简化）
 function patch(n1, n2, container, anchor = null, parentComponent = null) {
   if (n1 === n2) return
-  if (n1 && !isSameVNodeType(n1, n2)) {   // type 或 key 不同（30.3 节）
+  if (n1 && !isSameVNodeType(n1, n2)) {   // type 或 key 不同（第 30 章）
     anchor = getNextHostNode(n1)          // 新节点要插在旧节点原来的位置
     unmount(n1)
     n1 = null
@@ -93,8 +95,8 @@ function patch(n1, n2, container, anchor = null, parentComponent = null) {
     default:
       if (shapeFlag & ShapeFlags.ELEMENT) processElement(n1, n2, container, anchor, parentComponent)
       else if (shapeFlag & ShapeFlags.COMPONENT) processComponent(n1, n2, container, anchor, parentComponent)
-      else if (shapeFlag & ShapeFlags.TELEPORT) type.process(/* … */)   // Teleport 和 Suspense
-      else if (shapeFlag & ShapeFlags.SUSPENSE) type.process(/* … */)   // 自带 process
+      else if (shapeFlag & ShapeFlags.TELEPORT) type.process(/* … */)   // Teleport 和 Suspense 自带 process（第 33 章）
+      else if (shapeFlag & ShapeFlags.SUSPENSE) type.process(/* … */)
   }
 }
 ```
@@ -105,13 +107,14 @@ function patch(n1, n2, container, anchor = null, parentComponent = null) {
 |---|---|---|
 | 文本 | `processText` | 创建文本节点，插入 |
 | Fragment | `processFragment` | 插入两个空文本节点，作为首尾的锚点，再挂载子节点 |
-| 元素 | `processElement` → `mountElement` | 见下面 |
+| 元素 | `processElement` → `mountElement` | 先建元素和子树，最后一次性插入页面 |
 | 组件 | `processComponent` → `mountComponent` | 31.3 节 |
 
-**anchor 从哪来。**anchor 是 `insertBefore` 的参照节点。`null` 表示追加到末尾。列表里的 anchor 来自 30.2 节的“后面那个新节点”。组件更新时，anchor 是旧子树最后一个 DOM 节点的下一个兄弟（`getNextHostNode`）。Fragment 没有单个 DOM 节点，所以它用首尾两个空文本节点标出范围：`getNextHostNode` 取的是 `vnode.anchor || vnode.el`。
+**anchor 从哪来。**anchor 是 `insertBefore` 的参照节点，`null` 表示追加到末尾。列表里的 anchor 来自第 30 章的“后面那个新节点”。组件更新时，anchor 是旧子树最后一个 DOM 节点的下一个兄弟（`getNextHostNode`）。Fragment 没有单个 DOM 节点，所以用首尾两个空文本节点标出范围。
 
 anchor 解决的问题是：子树的根换了类型，例如 `v-if` 让根从 `div` 变成 `p`。旧节点卸载后，新节点必须插在原来的位置，不能追加到父元素末尾。
 
+::: deep mountElement 与 unmount 的顺序
 `mountElement` 的顺序是固定的。第 10 章的指令钩子就在这些位置被调用：
 
 1. 创建元素（`createElement`）。
@@ -121,8 +124,6 @@ anchor 解决的问题是：子树的根换了类型，例如 `v-if` 让根从 `
 5. 指令的 `beforeMount`。
 6. 把元素插入页面（`hostInsert`）。**整棵子树只插入一次。**
 7. 指令的 `mounted` 放进后置队列。
-
-下面的代码是同样的顺序，只保留了主干：
 
 ```js
 function mountElement(vnode, container, anchor, parentComponent) {
@@ -137,15 +138,16 @@ function mountElement(vnode, container, anchor, parentComponent) {
 }
 ```
 
-`hostPatchProp` 来自 `runtime-dom`（第 32 章讲）。它决定一个属性怎样写到元素上：`class`、`style` 和事件各有专门的处理。其余的属性，普通 HTML 元素上 `key in el` 为真就写 DOM 属性，否则用 `setAttribute`；SVG 元素上几乎都写成 attribute。少数属性例外，例如 `<input list>` 和 `form` 总是写成 attribute。
+`hostPatchProp` 来自 `runtime-dom`（第 32 章讲）。`class`、`style` 和事件各有专门的处理。其余的属性，普通 HTML 元素上 `key in el` 为真就写 DOM 属性，否则用 `setAttribute`；SVG 元素上几乎都写成 attribute。少数属性例外，例如 `<input list>` 和 `form` 总是写成 attribute。
 
-**卸载**的顺序也值得记住。这是 `unmount` 对一个元素 vnode 的处理：
+**卸载**的顺序也值得记住。`unmount` 对一个元素 vnode 做五件事：
 
 1. 把模板 ref 置空。
 2. 指令的 `beforeUnmount`。这时 ref 已经是 `null`，DOM 还在页面上。
 3. 卸载子节点。
 4. 把元素从页面移除。
 5. 指令的 `unmounted` 放进后置队列。
+:::
 
 ### 31.3 mountComponent 的三步和组件实例
 
@@ -163,21 +165,17 @@ const mountComponent = (initialVNode, container, anchor, parentComponent) => {
 }
 ```
 
-第 ① 步创建的组件实例是一个普通对象。下表列出常用的字段。你可以在 `getCurrentInstance()` 的返回值上看到它们。
+第 ① 步创建的组件实例是一个普通对象。你可以在 `getCurrentInstance()` 的返回值上看到它。下表只列本章用到的字段：
 
 | 字段 | 内容 |
 |---|---|
-| `uid` | 创建顺序的编号。父组件比子组件小。更新队列用它排序（25.1 节） |
+| `uid` | 创建顺序的编号。父组件比子组件小。更新队列用它排序（25.3 节） |
 | `vnode`、`type` | 当前对应的组件 vnode，和组件的定义对象。更新时 `vnode` 会换成新的 |
-| `parent`、`root` | 父实例和根实例 |
 | `props`、`attrs`、`slots` | 解析后的 props（浅响应式），没有声明的 attrs，插槽函数 |
-| `setupState` | `setup()` 返回对象，用 `proxyRefs` 包过。模板里读 ref 不写 `.value` 就是因为它 |
-| `render` | 渲染函数。可能来自 `setup()` 的返回值，也可能是编译好的模板 |
-| `subTree` | 最近一次渲染得到的 vnode 树 |
-| `effect`、`update`、`job` | 渲染副作用函数、手动更新它的函数、调度器放进队列的任务 |
+| `render`、`subTree` | 渲染函数；最近一次渲染得到的 vnode 树 |
+| `effect`、`update`、`job` | 渲染副作用函数、直接运行它的函数、放进更新队列的更新任务 |
 | `next` | 父组件要更新它时，临时放新 vnode 的地方（31.5 节） |
 | `provides` | 31.6 节 |
-| `isMounted`、`isUnmounted` | 状态标记 |
 | `bm`、`m`、`bu`、`u`、`bum`、`um` | 六种钩子的函数数组（31.7 节） |
 | `scope` | 一个 effectScope。`setup()` 里创建的 watch 和 watchEffect 都收集在这里，卸载时一起停止（computed 不登记在作用域里） |
 
@@ -185,17 +183,15 @@ const mountComponent = (initialVNode, container, anchor, parentComponent) => {
 
 1. `initProps`：把 vnode 的 props 按组件声明的 `props` 分成两份。声明过的放进 `instance.props`，其余放进 `instance.attrs`（第 6 章的透传属性）。
 2. `initSlots`：把子节点整理成 `instance.slots`。
-3. 运行 `setup(shallowReadonly(props), context)`。返回函数时，它成为 `instance.render`。返回对象时，它成为 `setupState`。没有 `setup` 时，用编译出的模板渲染函数。
+3. 运行 `setup(shallowReadonly(props), context)`。返回函数时，它成为 `instance.render`。返回对象时，它成为 `setupState`（用 `proxyRefs` 包过，所以模板里读 ref 不写 `.value`）。没有 `setup` 时，用编译出的模板渲染函数。
 
-运行 `setup` 时，Vue 先调用 `pauseTracking()`，并把 `currentInstance` 设为这个实例（第 7.1 节的深入块）。这有一个后果：**setup 里读取的响应式数据不会成为任何东西的依赖。**
-
-原因在于子组件的 `setup` 运行在父组件的渲染副作用函数里。不暂停的话，子组件 `setup` 里读到的数据会被收集到父组件头上。第 28 章说“不要在 setup 顶层保存 `props.level`”，原因也在这里：`setup` 只运行一次，里面读到的值只是当时的快照。
+运行 `setup` 时，Vue 先调用 `pauseTracking()`，并把 `currentInstance` 设为这个实例（第 7 章的深入块）。后果是：**setup 里读取的响应式数据不会成为任何东西的依赖。**原因在于子组件的 `setup` 运行在父组件的渲染副作用函数里，不暂停的话，子组件 `setup` 里读到的数据会被收集到父组件头上。第 28 章说“不要在 setup 顶层保存 `props.level`”，原因也在这里：`setup` 里读到的值只是当时的快照。
 
 这也回答了一个常见问题：**`setup` 为什么只运行一次，渲染函数却运行很多次？**`setup` 在第 ② 步被调用，它不在任何副作用函数里。第 ③ 步创建的副作用函数只包着“渲染函数加 patch”。数据变化时，重新运行的只是这个副作用函数。
 
 ### 31.4 setupRenderEffect：把响应式和更新队列接起来
 
-第 ③ 步创建渲染副作用函数。第 1 章的深入块给过骨架。下面是完整的两条路径。
+第 ③ 步创建渲染副作用函数。下面是完整的两条路径。
 
 ```js
 // runtime-core/renderer.ts（简化）
@@ -241,8 +237,8 @@ const setupRenderEffect = (instance, initialVNode, container, anchor) => {
 四个名字要分清：
 
 - `effect`：渲染副作用函数，是第 24 章的 `ReactiveEffect`。`renderComponentRoot` 运行渲染函数，读到的所有响应式数据都成为它的依赖。
-- `scheduler`：数据变化时，`trigger` 找到这个 effect，发现它有 scheduler，就调用 scheduler，不直接运行。scheduler 只做一件事：`queueJob(job)`（25.1 节）。
-- `job`：放进队列的任务。3.5 里它是 `effect.runIfDirty`：先检查依赖的版本号，没有真的变化就不运行（第 24 章 24.6 节）。`job.id` 是 `uid`，父组件先于子组件。
+- 调度函数（`effect.scheduler`）：数据变化时，`trigger` 找到这个 effect，发现它有调度函数，就调用调度函数，不直接运行。调度函数只做一件事：`queueJob(job)`（25.1 节）。
+- `job`：放进更新队列的更新任务。3.5 里它是 `effect.runIfDirty`：先检查依赖的版本号，没有真的变化就不运行（24.6 节）。`job.id` 是 `uid`，父组件先于子组件。
 - `update`：直接运行 effect，不检查依赖有没有变。`$forceUpdate` 把它放进队列，31.5 节的子组件更新则同步调用它。
 
 两条路径的差别：
@@ -257,18 +253,26 @@ const setupRenderEffect = (instance, initialVNode, container, anchor) => {
 渲染函数里读取的数据变了，页面怎样更新，现在可以走完全程：
 
 1. 渲染函数读取 `state.count`，`track` 把渲染副作用函数记进 `state.count` 的依赖（24.1 节）。
-2. `state.count++`，`trigger` 找到这个副作用函数，调用它的 `scheduler`。
+2. `state.count++`，`trigger` 找到这个副作用函数，调用它的调度函数。
 3. `queueJob(job)` 按 id 把任务放进队列。同一个任务不会重复入队（25.1 节）。
 4. 同步代码结束，微任务里运行 `flushJobs`，调用 `job`。
 5. `job` 运行 `componentUpdateFn` 的更新分支：渲染新子树，和旧子树 patch，DOM 才改变。
 6. 队列清空后，运行后置队列里的 `onUpdated`（25.4 节）。
 
-在开发版里，用 `onRenderTracked` 和 `onRenderTriggered` 可以看到第 1、2 步：前者在渲染函数读取数据、收集依赖时调用，后者在数据变化、触发渲染时调用。参数里有 `type`（`get`、`set`）和 `key`。
+下面的两道练习分别写这两条路径。你写的是迷你 Vue 里的同一个函数：响应式、更新队列、`h`、元素与 diff 是你在第 24、25、28、30 章写过的，练习里已折叠，只露出本章要写的那一段。先写 `mountComponent` 和首次渲染，能看到页面：
+
+<Exercise id="miniMount" />
+
+再写更新分支和更新队列，让数据变化能更新页面：
+
+<Exercise id="miniUpdateEffect" />
 
 ::: deep 更新 props 为什么不会让组件再排一次队
 更新分支里，`updateComponentPreRender` 会修改 `instance.props`。`props` 是浅响应式对象，渲染函数读过它，所以这次修改会触发这个组件自己的渲染副作用函数，似乎要再排一次队。
 
 Vue 在这一段前后关闭了“允许递归”：`toggleRecurse(instance, false)`，处理完 props 和 `onBeforeUpdate` 之后再 `toggleRecurse(instance, true)`。副作用函数正在运行，又被自己触发时，只要不允许递归，触发就被忽略。你可以验证：父组件改一次 prop，子组件的渲染函数只运行一次。
+
+在开发版里，用 `onRenderTracked` 和 `onRenderTriggered` 可以看到上面第 1、2 步：前者在渲染函数读取数据、收集依赖时调用，后者在数据变化、触发渲染时调用。参数里有 `type`（`get`、`set`）和 `key`。
 :::
 
 ### 31.5 父组件更新时，子组件要不要更新
@@ -322,11 +326,11 @@ function hasPropsChanged(prevProps, nextProps, emitsOptions) {
 }
 ```
 
-要点只有两个。一是**浅比较**：逐个属性用 `!==`，不比较对象的内容。二是**已声明的事件监听不参与比较**：父组件每次渲染都会创建新的回调函数，如果这也算变化，所有带事件的子组件都会总是更新（第 29.4 节讲的 emits 声明，背后就是这个 `isEmitListener`）。
+要点只有两个。一是**浅比较**：逐个属性用 `!==`，不比较对象的内容。二是**已声明的事件监听不参与比较**：父组件每次渲染都会创建新的回调函数，如果这也算变化，所有带事件的子组件都会总是更新（第 29 章讲的 emits 声明，背后就是这个 `isEmitListener`）。
 
-编译后的模板有更多信息可用（第 29 章）。子组件 vnode 的 `patchFlag` 说明动态的部分：有 `PROPS` 时，只检查 `dynamicProps` 列出的属性。有 `FULL_PROPS` 时，调用 `hasPropsChanged`。有 `DYNAMIC_SLOTS` 时，总是更新。完全没有动态绑定的子组件，根本不在父 Block 的 `dynamicChildren` 里，patch 不会走到它。
+编译后的模板有更多信息可用（第 29 章）：子组件 vnode 的 `patchFlag` 说明动态的部分，只检查 `dynamicProps` 列出的属性，完全没有动态绑定的子组件根本不在父 Block 的 `dynamicChildren` 里。细节见本节末尾的深入块。
 
-下表是用 Vue 3.5.43 实测的结果。父组件因为别的数据变化而重新渲染，子组件会更新吗：
+下表是实测的结果。父组件因为别的数据变化而重新渲染，子组件会更新吗：
 
 | 父组件传给子组件的内容 | 子组件更新？ |
 |---|---|
@@ -337,18 +341,19 @@ function hasPropsChanged(prevProps, nextProps, emitsOptions) {
 | 手写 `h()` 传插槽函数，没有 `$stable: true` | **是** |
 | 模板里的静态插槽内容 | 否 |
 
-最后一行的反面值得注意。模板里的插槽内容，如果读了响应式数据，例如 `<Child><p>{{ other }}</p></Child>`，那个数据变化时，更新的是子组件，而不是父组件。原因是插槽函数在**子组件的渲染函数里**运行，`other` 被收集到子组件的渲染副作用函数上。实测：`other` 变化后，父组件的渲染函数运行 0 次，子组件运行 1 次。这也是第 28.3 节说“插槽必须写为函数，子组件才能单独更新插槽”的实现原因。
+最后一行的反面值得注意。模板里的插槽内容，如果读了响应式数据，例如 `<Child><p>{{ other }}</p></Child>`，那个数据变化时，更新的是子组件，而不是父组件。原因是插槽函数在**子组件的渲染函数里**运行，`other` 被收集到子组件的渲染副作用函数上。实测：`other` 变化后，父组件的渲染函数运行 0 次，子组件运行 1 次。这也是第 28 章说“插槽必须写为函数，子组件才能单独更新插槽”的实现原因。
 
-**为什么不更新时也要 `instance.vnode = n2`。**子组件调用 `emit('save')` 时，Vue 从 `instance.vnode.props` 里找 `onSave`。声明过的事件监听虽然不触发更新，但回调函数在每次父组件渲染时都是新的。把 `vnode` 换成最新的，`emit` 才会调用最新的回调。
+两个小细节：
 
-**`instance.next` 做什么。**更新子组件前，新的 vnode 先放在 `instance.next` 上。子组件的更新分支看到 `next`，就先调用 `updateComponentPreRender`：把 `instance.vnode` 换成 `next`，清空 `next`，再用新 vnode 的 props 更新 `instance.props` 和插槽。所以在 `onBeforeUpdate` 里，props 已经是新的。子组件自己的数据变化触发的更新，`next` 是 `null`。
+- **不更新时也要 `instance.vnode = n2`。**子组件调用 `emit('save')` 时，Vue 从 `instance.vnode.props` 里找 `onSave`。声明过的事件监听虽然不触发更新，但回调函数在每次父组件渲染时都是新的。把 `vnode` 换成最新的，`emit` 才会调用最新的回调。
+- **`instance.next` 做什么。**更新子组件前，新的 vnode 先放在 `next` 上。子组件的更新分支看到 `next`，就先调用 `updateComponentPreRender`：把 `instance.vnode` 换成 `next`，清空 `next`，再更新 `instance.props` 和插槽。所以在 `onBeforeUpdate` 里，props 已经是新的。子组件自己的数据变化触发的更新，`next` 是 `null`。
 
 这也解释了 25.4 节的两条观察：
 
 - 子组件在父组件的 patch 里**同步**更新（`instance.update()`），所以它先于父组件完成，`onUpdated` 先入队。
-- 父组件和子组件的任务可能同时在队列里。父组件先运行，把子组件同步更新了。子组件的任务随后运行时，3.5 的 `runIfDirty` 发现它已经不是“脏”的，就跳过。子组件只渲染一次。
+- 父组件和子组件的任务可能同时在队列里。父组件先运行，把子组件同步更新了。子组件的任务随后运行时，`runIfDirty` 发现它已经不是“脏”的，就跳过。子组件只渲染一次。
 
-<Lab id="demo-runtime-step" title="实验台：单步看组件的挂载和更新" note="迷你 Vue 的逐步回放，函数名对应真实的 runtime-core">
+<Lab id="demo-runtime-step" title="实验台：单步看组件的挂载和更新" note="运行的就是练习里的迷你 Vue，函数名对应真实的 runtime-core">
 <template #predict>
 <Sc predict :a="1">
 
@@ -360,7 +365,7 @@ function hasPropsChanged(prevProps, nextProps, emitsOptions) {
 
 <template #explain>
 
-解析：App 的渲染函数运行了，所以 Counter 的 vnode 被创建出来（第三项错）。patch 到它时，shouldUpdateComponent 比较新旧 props：属性个数相同，每个值都相等，返回 false。Counter 只更新 vnode 的记录，渲染函数不运行（第一项是常见的误解）。打开实验台，选“父组件改了与子组件无关的数据”，点“运行到底”，看 Counter 一行的“render 次数”。
+解析：App 的渲染函数运行了，所以 Counter 的 vnode 被创建出来（第三项错）。patch 到它时，shouldUpdateComponent 比较新旧 props：属性个数相同，每个值都相等，返回 false。Counter 只更新 vnode 的记录，渲染函数不运行（第一项是常见的误解）。打开实验台，选“父组件改了与子组件无关的数据”，点“运行到底”，看 Counter 一行的“渲染”次数。
 
 </template>
 </Sc>
@@ -369,7 +374,7 @@ function hasPropsChanged(prevProps, nextProps, emitsOptions) {
 <MountUpdateStepper />
 </Lab>
 
-下面的练习实现这个判断函数。它放在一个完整的迷你 Vue 里，页面上的五个子组件各自显示渲染次数。
+下面的练习实现这个判断函数。迷你 Vue 的其余部分都已经写好，页面上的五个子组件各自显示渲染次数。
 
 <Exercise id="miniShouldUpdate" />
 
@@ -396,7 +401,7 @@ return false
 
 ### 31.6 provide 和 inject：原型链上的 provides
 
-第 6.6 节的深入块给过 `provide` 和 `inject` 的实现。这里补充它的设计，并验证四个细节。
+第 6 章的深入块给过 `provide` 和 `inject` 的实现。这里补充它的设计，并验证四个细节。
 
 每个实例有一个 `provides` 对象。创建实例时，子组件**直接使用父组件的 `provides`**，不复制。根组件的 `provides` 以应用级的 provides（`app.provide`）为原型。组件第一次调用 `provide` 时，才为自己创建一个以父级 `provides` 为原型的新对象：
 
@@ -420,7 +425,7 @@ function inject(key, defaultValue) {
 }
 ```
 
-在 3.5.43 里实测这棵树：A 调用 `provide('theme', 'A')`，B 是 A 的子组件，什么也没提供，C 是 B 的子组件，调用 `provide('theme', 'C')`，D 是 C 的子组件，A 还有一个兄弟子组件 Sib。
+实测这棵树：A 调用 `provide('theme', 'A')`，B 是 A 的子组件，什么也没提供，C 是 B 的子组件，调用 `provide('theme', 'C')`，D 是 C 的子组件，A 还有一个兄弟子组件 Sib。
 
 | 观察 | 结果 |
 |---|---|
@@ -435,13 +440,13 @@ function inject(key, defaultValue) {
 2. 子组件覆盖祖先的值，只影响自己的后代，不影响兄弟（Sib 仍是 `'A'`）。
 3. 祖先在 `setup` 里提供的值，之后创建的所有后代都能读到，不需要逐层传递。
 
-“读不到自己提供的”不是缺陷。第 34 章的递归组件正是依赖它：每一层先 `inject` 上一层的深度，再 `provide` 深度加 1 给下一层。如果 `inject` 能读到自己提供的值，这个写法就会读到自己刚写的值。
+“读不到自己提供的”不是缺陷。递归组件（第 34 章）正是依赖它：每一层先 `inject` 上一层的深度，再 `provide` 深度加 1 给下一层。
 
 `provide`、`inject` 和 `onMounted` 都靠 `currentInstance` 工作，所以只能在 `setup` 里同步调用。异步回调里 `currentInstance` 已经是 `null`，Vue 在开发版会警告 `provide() can only be used inside setup()`。
 
 ### 31.7 生命周期钩子在流程里的位置
 
-第 7.1 节的深入块说过 `onMounted(fn)` 只是把 `fn` 存进实例的数组。现在可以看到这些数组在哪里被调用：
+第 7 章的深入块说过 `onMounted(fn)` 只是把 `fn` 存进实例的数组。现在可以看到这些数组在哪里被调用：
 
 | 钩子 | 数组 | 调用位置 | 怎样调用 |
 |---|---|---|---|
@@ -452,8 +457,6 @@ function inject(key, defaultValue) {
 | `onBeforeUnmount` | `bum` | `unmountComponent` 开头 | 同步 |
 | `onUnmounted` | `um` | `unmountComponent` 里，子树卸载之后 | 放进后置队列 |
 
-注册时 Vue 把你的函数包了一层（`injectHook`）。包装函数调用前后做三件事：`pauseTracking()`，把 `currentInstance` 设成这个组件，用 `callWithAsyncErrorHandling` 调用。所以钩子里的错误会交给 `onErrorCaptured`（第 11 章），钩子里可以调用 `inject`，钩子里读到的响应式数据不会被收集到外层的副作用函数上。
-
 **`onMounted` 为什么是子先父后。**看挂载分支的顺序：
 
 1. 父组件的副作用函数开始运行，`bm` 同步调用（所以 `onBeforeMount` 是父先子后）。
@@ -461,9 +464,9 @@ function inject(key, defaultValue) {
 3. 子组件的副作用函数**整个运行完**，它的 `m` 先放进后置队列。
 4. 回到父组件，patch 完成，父组件的 `m` 才放进后置队列。
 
-后置队列里的函数按入队顺序运行。后置队列会按 `id` 排序，但钩子数组没有 `id`，排序是稳定的，所以保持入队顺序。结果是子先父后。
+后置队列里的函数按入队顺序运行（钩子数组没有 `id`，排序是稳定的，所以保持入队顺序）。结果是子先父后。
 
-用 `m` 而不用同步调用有一个理由：子组件的 `m` 运行时，它的 DOM 必须已经在页面上。同步调用的话，子组件 patch 完就会运行，这时父组件的元素还在内存里，没有插入页面。练习 `miniMount` 里的一个错误解法就是这样。
+用 `m` 而不用同步调用有一个理由：子组件的 `m` 运行时，它的 DOM 必须已经在页面上。同步调用的话，子组件 patch 完就会运行，这时父组件的元素还在内存里，没有插入页面。第一道练习里的一个错误解法就是这样。
 
 **卸载的顺序**是 `bum` 先于子树，`um` 后于子树：
 
@@ -473,52 +476,25 @@ function inject(key, defaultValue) {
 
 结果是 `父 bum → 子 bum → 子 um → 父 um`。
 
-### 31.8 拼一个迷你 Vue
+::: deep 钩子注册时多包的一层
+注册时 Vue 把你的函数包了一层（`injectHook`）。包装函数调用前后做三件事：`pauseTracking()`，把 `currentInstance` 设成这个组件，用 `callWithAsyncErrorHandling` 调用。所以钩子里的错误会交给 `onErrorCaptured`（第 11 章），钩子里可以调用 `inject`，钩子里读到的响应式数据不会被收集到外层的副作用函数上。迷你版没有这一层，直接把函数存进数组。
+:::
 
-现在所有零件都有了。下表说明每一块来自哪里：
+### 31.8 拼成迷你 Vue
 
-| 零件 | 来自 | 在清单里 |
+练习里的迷你 Vue 不是一份本章专用的代码，而是整门课一路写出来的同一套零件（源码在 `course/mini`）。你在第 24 到 30 章写过其中一半，本章把组件接上去，它就能运行 `createApp(App).mount(...)`。下表说明每一块来自哪一章，对应真实源码的哪个文件：
+
+| 零件 | 来自 | 对应真实源码（`packages/…/src/`） |
 |---|---|---|
-| `reactive`、`effect`、`track`、`trigger` | 24.2 节，`effect` 加 `scheduler` 和 `lazy` 两个选项 | 开头一段 |
-| `queueJob`、`flushJobs` | 25.1 节的深入块，加了后置队列 | 第二段 |
-| `h`、vnode | 第 28 章 | 第三段 |
-| 没有 key 的子节点比较 | 30.4 节 | `patchElement` |
-| `patch`、`mountElement`、`patchElement`、`unmount` | 31.2 节 | 第四段 |
-| 组件实例、`setupComponent`、`mountComponent`、`setupRenderEffect` | 31.3、31.4 节 | 第五段 |
-| `updateComponent`、`shouldUpdateComponent` | 31.5 节 | 第六段 |
-| `onMounted`、`provide`、`inject`、`render`、`createApp` | 31.6、31.7 节 | 最后一段 |
+| `reactive`、`effect`（带 `lazy` 和 `scheduler` 选项）、`track`、`trigger` | 第 24 章 | `reactivity/effect.ts`、`reactive.ts` |
+| `queueJob`、`flushJobs`、`queuePostFlushCb`、`nextTick` | 第 25 章 | `runtime-core/scheduler.ts` |
+| `watch`、`effectScope`，以及组件里 `watch` 的 `flush: 'pre'` 排在所属组件更新之前 | 第 26 章（本章设置 `currentInstance` 后生效） | `runtime-core/apiWatch.ts`、`reactivity/effectScope.ts` |
+| vnode、`shapeFlag`、`h` | 第 28 章 | `runtime-core/vnode.ts`、`h.ts` |
+| `patch`、`mountElement`、`patchElement`、`patchKeyedChildren`、`getSequence` | 第 30 章 | `runtime-core/renderer.ts` |
+| `createComponentInstance`、`setupComponent`、钩子、`provide`、`inject` | 31.3、31.6、31.7 节 | `runtime-core/component.ts`、`apiLifecycle.ts`、`apiInject.ts` |
+| `mountComponent`、`setupRenderEffect`、`updateComponent`、`shouldUpdateComponent`、`unmountComponent`、`render`、`createApp` | 31.2、31.4、31.5 节（本章练习） | `runtime-core/renderer.ts`、`componentRenderUtils.ts`、`apiCreateApp.ts` |
 
-24.2 节的 `effect` 只改两处。一处是 `trigger` 看到 `scheduler` 就调用它。另一处是 `effect` 接受 `{ scheduler, lazy }`：
-
-```js
-function trigger(target, key) {
-  const dep = targetMap.get(target)?.get(key)
-  dep && [...dep].forEach(e => e !== activeEffect && (e.scheduler ? e.scheduler() : e.run()))
-}
-
-function effect(fn, { scheduler, lazy } = {}) {
-  const e = { deps: [], scheduler, run() { /* 和 24.2 节相同：清理依赖，设置 activeEffect，运行 fn */ } }
-  if (!lazy) e.run()
-  return e
-}
-```
-
-队列只需要“按 id 插入”和“出队再运行”：
-
-```js
-function queueJob(job) {
-  if (queue.includes(job)) return
-  let i = queue.length
-  while (i > 0 && queue[i - 1].id > job.id) i--       // 按 id 排：父组件先更新
-  queue.splice(i, 0, job)
-  if (!pending) { pending = true; Promise.resolve().then(flushJobs) }
-}
-function flushJobs() {
-  while (queue.length) queue.shift()()
-  pending = false
-  flushPostCbs()                                      // 队列清空后运行 mounted、updated
-}
-```
+这样，第 28 章的 `h` 造出的 vnode 直接交给第 30 章的 `patch`，第 25 章的 `queueJob` 排的是本章的更新任务，第 24 章的 `effect` 建的是本章的渲染副作用函数。三道练习里折叠的“第 24、25、26、28、30 章你写过的零件”就是这些。
 
 用法和真实 Vue 一样。App 提供 `theme`，Counter 读它，也读 App 传来的 `count`：
 
@@ -547,25 +523,23 @@ state.count++; state.count++; state.count++
 // 微任务之后：<i>Counter 3 dark</i>，App 和 Counter 的渲染函数各只多运行一次
 ```
 
-下面的练习提供其余的全部代码，只留下最核心的两个函数。把它们补全，迷你 Vue 就能运行。
-
-<Exercise id="miniMount" />
-
-迷你版和真实 Vue 的关键差别如下。每一项都是你读真实源码时会遇到的：
-
-| 方面 | 迷你版 | 真实 Vue 3.5 |
+::: deep 迷你版和真实实现的差别
+| 方面 | 真实实现（3.5.43） | 迷你版 |
 |---|---|---|
-| 判断 vnode 类型 | `typeof type` | `shapeFlag` 位运算，一次位与 |
-| 节点类型 | 元素、文本、组件 | 另有 Fragment、Comment、Static、Teleport、Suspense |
-| 子节点比较 | 按下标比较 | 有 key 的五步加 LIS（第 30 章），加上 `patchFlag` 和 Block（第 29 章） |
-| 组件定义 | `setup` 返回渲染函数 | 选项式、`<script setup>`、模板编译、`setupState` 和 `ctx` 代理 |
-| props | 所有属性都是 props | `initProps` 分出 attrs，类型校验，默认值，attrs 透传到根元素（第 6 章） |
-| 插槽 | 没有 | `slots` 函数，`$stable` 判断 |
-| 更新队列 | 数组加 `includes`，出队再运行 | 带 flags 的队列，二分插入，pre、组件、post 三类任务，递归上限（第 25 章） |
-| 子组件已经更新过 | `updateComponent` 把它的任务从队列里删掉 | 任务是 `runIfDirty`，已更新的组件不再“脏”，自然跳过 |
-| `setup` 期间的依赖收集 | 不暂停，子组件 `setup` 读到的数据会被父组件的 effect 收集 | `pauseTracking()` |
-| 卸载 | 只处理 `um` 和 DOM | `bum`，`scope.stop()`，指令和过渡钩子，ref 置空 |
-| 错误处理 | 没有 | `callWithErrorHandling`，`onErrorCaptured`（第 11 章） |
+| 组件形式 | 选项式 API、`setup` 返回对象、`template`、`render` 选项 | `setup` 只能返回渲染函数；函数式组件是 `(props) => vnode` |
+| props | 声明、校验、默认值、`attrs` 透传、`shallowReactive` | 不声明，全部 `vnode.props`（去掉 `key`）进 `reactive`；没有 `attrs` 透传 |
+| 更新 props | `updateProps` 按声明处理 | 逐个赋值，旧的有新的没有就 `delete` |
+| 重复更新 | `runIfDirty`，用 Dep 的版本号判断 | `runIfDirty`，用 `dirty` 布尔值判断 |
+| 钩子 | 包一层让钩子里能用 `getCurrentInstance`，加上错误处理；还有 `onErrorCaptured`、`onRenderTracked` 等 | 直接存进数组；六个基本钩子 |
+| 卸载时的 mounted | `invalidateMount` 让还没运行的 mounted 失效 | 无（卸载后 mounted 仍会运行） |
+| 根 vnode 变了 | `updateHOCHostEl` 同步父组件 vnode 的 el | 无 |
+| `app` | `app.use / component / directive / provide / config` | 只有 `mount / unmount` |
+| `emit` | 校验 `emits`、`once`、`update:` 等 | 调用 `vnode.props.onXxx` |
+| 插槽 | `slots` 对象、`initSlots / updateSlots`，`$stable` 判断 | 不渲染 |
+| 编译优化 | `patchFlag` 决定只对比动态 props，`dynamicChildren` 只对比动态节点（第 29 章） | 总是对比全部 props 和全部子节点 |
+| 节点类型 | 另有 Fragment、Comment、Static、Teleport、Suspense | 元素、文本、组件 |
+| 错误处理 | `callWithErrorHandling`，`onErrorCaptured`（第 38 章） | 没有 |
+:::
 
 ::: pitfalls
 1. 不要每次渲染都给子组件传新建的对象，例如 `:style-config="{ a: 1, b: x }"`。原因：`shouldUpdateComponent` 用 `!==` 比较，新对象总是“变了”，子组件每次都更新。把对象放进 `ref`、`computed` 或模块常量里，让引用保持稳定。
@@ -626,7 +600,7 @@ const Child = {
 
 <Sc :a="2">
 
-一个组件的渲染副作用函数没有设置 `scheduler`（数据变化时直接运行 effect）。它的渲染函数读取 `count`。初始渲染一次后，同步执行 `count.value++` 三次。渲染函数一共运行几次？
+一个组件的渲染副作用函数没有设置调度函数（数据变化时直接运行 effect）。它的渲染函数读取 `count`。初始渲染一次后，同步执行 `count.value++` 三次。渲染函数一共运行几次？
 
 <Opt>2 次：初始一次，三次修改合并成一次</Opt>
 <Opt>3 次</Opt>
@@ -634,7 +608,7 @@ const Child = {
 
 <template #explain>
 
-解析：没有 scheduler 时，`trigger` 直接运行 effect，每次修改都立刻重新渲染。初始 1 次加 3 次修改，共 4 次。第一项描述的是有 scheduler 的情况：scheduler 把 `job` 放进更新队列，同一个任务只入队一次，三次修改合并成一次渲染。第二项漏掉了初始渲染。
+解析：没有调度函数时，`trigger` 直接运行 effect，每次修改都立刻重新渲染。初始 1 次加 3 次修改，共 4 次。第一项描述的是有调度函数的情况：调度函数把 `job` 放进更新队列，同一个任务只入队一次，三次修改合并成一次渲染。第二项漏掉了初始渲染。
 
 </template>
 </Sc>
@@ -649,7 +623,7 @@ const Child = {
 
 <template #explain>
 
-解析：`instance.next` 只在父组件触发更新时有值：`updateComponent` 把新 vnode 放到 `next` 上，再调用 `instance.update()`。更新分支看到 `next`，才调用 `updateComponentPreRender` 更新 props。子组件自己的数据变化经过 scheduler 和 `job`，没有新的 vnode，`next` 是 `null`，直接用 `instance.vnode` 继续。第三项是 `instance.vnode`，不是 `next`。
+解析：`instance.next` 只在父组件触发更新时有值：`updateComponent` 把新 vnode 放到 `next` 上，再调用 `instance.update()`。更新分支看到 `next`，才调用 `updateComponentPreRender` 更新 props。子组件自己的数据变化经过调度函数和 `job`，没有新的 vnode，`next` 是 `null`，直接用 `instance.vnode` 继续。第三项是 `instance.vnode`，不是 `next`。
 
 </template>
 </Sc>
@@ -748,9 +722,9 @@ const c = inject('theme')
 - `patch` 先按 `type` 处理 Text、Comment、Static、Fragment，再用 `shapeFlag` 分发到元素和组件。anchor 是 `insertBefore` 的参照，来自后面的兄弟节点。
 - `mountElement` 先建元素和子树，最后一次性插入页面。卸载时，ref 先置空，再卸载子节点，最后移除 DOM。
 - `mountComponent` 三步：`createComponentInstance`、`setupComponent`（props、插槽、`setup`）、`setupRenderEffect`。`setup` 只运行一次，运行期间不收集依赖。
-- `setupRenderEffect` 把渲染函数装进一个副作用函数：scheduler 把 `job` 放进更新队列（`job.id` 是 `uid`），第一次挂载，之后比较新旧 `subTree`。
+- `setupRenderEffect` 把渲染函数装进一个副作用函数：调度函数把 `job` 放进更新队列（`job.id` 是 `uid`），第一次挂载，之后比较新旧 `subTree`。
 - 父组件更新时，`shouldUpdateComponent` 对 props 浅比较，已声明的事件监听不算。要更新就设置 `instance.next` 并同步调用 `update()`，不更新就只换 `instance.vnode`。
 - `provides` 用原型链继承：没提供过的组件共用父级对象，第一次 `provide` 才创建新对象。`inject` 从父级开始读，读不到自己提供的值。
 - `onMounted` 放进后置队列，子先父后；`onBeforeMount` 同步调用，父先子后。卸载时 `bum` 父先子后，`um` 子先父后。
-- 迷你 Vue 把 12 到 16 章的零件加上本章的组件挂载、更新、provide 和钩子拼在一起，不到 300 行。
+- 迷你 Vue 是整门课写出来的同一套零件：第 24、25、26、28、30 章写的响应式、更新队列、watch、`h`、元素与 diff，加上本章的组件挂载、更新、provide 和钩子。
 :::

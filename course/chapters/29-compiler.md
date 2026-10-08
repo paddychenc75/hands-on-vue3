@@ -27,7 +27,7 @@ import SfcSplit from '../labs/29-compiler/SfcSplit.vue'
 :::
 
 ::: rt
-阅读主线约 18 分钟，深入内容约 4 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 13 分钟，深入内容约 6 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -70,7 +70,7 @@ Block
 2. transform：编译器分析 AST，并添加优化信息。
 3. generate：编译器生成渲染函数。
 4. 运行时调用渲染函数，得到虚拟节点树。
-5. patch：运行时比较新旧虚拟节点，并更新 DOM。
+5. patch：运行时比较新旧虚拟节点，并更新 DOM。渲染器会比较新旧虚拟节点树（第 28 章），具体算法在第 30 章。
 
 下图说明编译时和运行时的分工。
 
@@ -92,7 +92,7 @@ export default defineConfig({
 
 只在确实需要在浏览器中编译模板时这样做。SFC 中的 `<template>` 不需要它。
 
-transform 这一步加入三类优化信息：PatchFlags、Block Tree 和缓存。下面三节分别说明。29.5 节打开 parse、transform 和 generate 三步，29.6 节说明 `.vue` 文件怎样被拆开编译。
+transform 这一步加入三类优化信息：PatchFlags、Block Tree 和缓存。下面三节分别说明它们怎样让更新变快。29.5 节打开 parse、transform 和 generate 三步，29.6 节说明 `.vue` 文件怎样被拆开编译。
 
 ### 29.2 PatchFlags：标记节点的动态部分
 
@@ -174,6 +174,8 @@ function patchElement(n1, n2) {
 ```
 
 真实代码的条件还多检查一个 `optimized` 参数。它在 Block 更新时为 true，这里省略。
+
+手写 `h()` 没有 `patchFlag`，走的是 `else` 分支：总是比较全部属性和全部子节点。第 30 章的迷你渲染器就是这样，它没有这个优化，所以练习里用的是完整的比较。
 :::
 
 下面两道练习在迷你版 patchElement 中用按位与检查标记。
@@ -189,10 +191,10 @@ function patchElement(n1, n2) {
 所以 `dynamicChildren` 里有三类节点：
 
 - 带 PatchFlag 的元素。
-- 所有组件。组件 vnode 可以带 PatchFlag：有动态 props 时是 PROPS（8），例如 `<Comp :a="x" />` 编译出 `8 /* PROPS */` 和 dynamicProps `["a"]`。props 全是静态时没有 PatchFlag。不管有没有，组件都被收集。原因：父组件更新时，Vue 要把旧组件实例交给新的组件 vnode，以后才能正确卸载它。Vue 也要比较新旧 props，再决定要不要更新子组件（第 31 章 31.5 节）。
+- 所有组件。组件 vnode 可以带 PatchFlag：有动态 props 时是 PROPS（8），例如 `<Comp :a="x" />` 编译出 `8 /* PROPS */` 和 dynamicProps `["a"]`。props 全是静态时没有 PatchFlag。不管有没有，组件都被收集。原因：父组件更新时，Vue 要把旧组件实例交给新的组件 vnode，以后才能正确卸载它。Vue 也要比较新旧 props，再决定要不要更新子组件（第 31 章会讲）。
 - 嵌套的子 Block，例如 `v-if` 的分支和 `v-for` 的 Fragment。子 Block 内部的节点在它自己的 `dynamicChildren` 里，不平铺到外层。
 
-有一个例外：PatchFlag 恰好是 32（NEED_HYDRATION）的元素不收集。例如带事件监听的 `<input @input="f">`。这个标记只在服务端渲染的水合阶段（第 36 章）有用，更新时没有东西要比较。`@click` 不加这个标记。
+有一个例外：PatchFlag 恰好是 32（NEED_HYDRATION）的元素不收集。例如带事件监听的 `<input @input="f">`。这个标记只在服务端渲染的水合阶段（第 36 章会讲）有用，更新时没有东西要比较。`@click` 不加这个标记。
 
 更新时，Vue 只比较 `dynamicChildren`，不遍历整棵树。下图显示一个 Block 怎样收集动态节点。
 
@@ -203,7 +205,7 @@ function patchElement(n1, n2) {
 结构可能改变的地方必须创建新的 Block：
 
 - `v-if` 的每个分支是一个 Block。编译器给每个分支不同的 key。分支切换时，isSameVNodeType 返回 false。Vue 卸载旧分支，并挂载新分支。
-- `v-for` 的 Fragment 是一个 Block。列表项的数量会改变，所以 Vue 用 diff 比较列表项（第 30 章）。
+- `v-for` 的 Fragment 是一个 Block。列表项的数量会改变，所以 Vue 用 diff 比较列表项（第 30 章会讲）。
 
 下面的实验台挂载一个真实的组件，然后读取 `vm.$.subTree`，显示 Block 树。
 
@@ -278,7 +280,31 @@ PatchFlags 和 Block Tree 由编译器分析模板后生成。手写渲染函数
 | transform | 模板 AST | 带 `codegenNode` 的 AST | 遍历每个节点，运行节点转换。打 PatchFlag，处理 `v-if` 和 `v-for`，标出静态节点 |
 | generate | 转换后的 AST | 渲染函数的代码字符串 | 把 `codegenNode` 打印成 JavaScript |
 
-**第一步：parse。**下面的脚本在 Node 中分开调用三步（`@vue/compiler-dom` 3.5.43）。先看 parse：
+同一个模板 `<p :class="c">{{ msg }}</p>`，三步之后分别长这样：
+
+| 步骤之后 | 得到什么 |
+|---|---|
+| parse | 一个元素节点 `p`。它的 `props` 里有一个名叫 `bind` 的指令节点（`arg` 是 `class`，`exp` 是 `c`），`children` 里有一个插值节点。`p` 上没有 `codegenNode`：parse 只记录模板怎么写，不知道 class 有专门的 PatchFlag，也不知道 `c` 会变 |
+| transform | `p` 多了 `codegenNode`：它描述“怎样创建这个节点的 vnode”，包含 tag、props、children、`patchFlag`（这里是 3，即 TEXT \| CLASS）。`ast.helpers` 登记了生成的代码要从 `vue` 导入哪些函数 |
+| generate | 渲染函数的代码字符串：`_createElementBlock("p", { class: _normalizeClass(_ctx.c) }, _toDisplayString(_ctx.msg), 3 /* TEXT, CLASS */)`。末尾的 `3` 就是 transform 写在 `codegenNode` 上的数字 |
+
+generate 不做任何判断，只把 `codegenNode` 递归地打印成函数调用。所以 29.2 到 29.4 的优化信息都在 transform 里产生，parse 和 generate 只是在它前后搬运。
+
+transform 由一组**节点转换**组成。每个节点转换是一个函数，`traverseNode` 对每个节点按数组顺序调用它们。常用的有：
+
+- `transformExpression`：给表达式里的变量加前缀。`c` 变成 `_ctx.c`。在 SFC 中它按变量的来源改成 `$setup.c` 或 `$props.c`（29.6）。
+- `transformElement`：为元素和组件生成 `codegenNode`。它读取属性和子节点，算出 29.2 的 PatchFlag 和 dynamicProps。
+- `transformText`：把相邻的文字和插值合并成一个表达式，例如 `"a" + _toDisplayString(_ctx.b)`。
+- `vIf` 和 `vFor`：处理结构化指令。节点被换成 IF 或 FOR 节点，每个分支、每次循环生成一个 Block。`v-if` 的分支得到不同的 key（29.3）。
+
+所有节点转换运行完后，transform 还做两件事。如果 `hoistStatic` 为 true，`cacheStatic` 再遍历一次：静态子树的 PatchFlag 设为 -1，并放进 `_cache`（29.4）。然后 `createRootCodegen` 生成根节点：单个根元素变成 Block，多个根节点变成 Fragment（标记 64，STABLE_FRAGMENT）。
+
+静态的判断在 `getConstantType` 里。一个元素是静态的，需要同时满足三条：没有动态绑定，没有 `ref` 和运行时指令（`v-show`、自定义指令），所有子节点也是静态的。写了 `ref` 的元素得到 512（NEED_PATCH），不会被缓存。
+
+::: deep 用脚本分别调用三步
+下面的脚本在 Node 中分开调用三步（`@vue/compiler-dom` 3.5.43），用的模板是 `<div><h1>标题</h1><p :class="c" id="x">{{ msg }}</p></div>`。
+
+**parse：**
 
 ```js
 import { parse, NodeTypes } from '@vue/compiler-dom'
@@ -295,7 +321,7 @@ p.codegenNode // undefined：parse 之后还没有任何优化信息
 
 AST 节点是普通对象，用 `type` 区分种类。`:class="c"` 在这里只是一个名叫 `bind` 的指令节点。parse 不知道 class 有专门的 PatchFlag，也不知道 `c` 会变。它只记录模板怎么写。
 
-**第二步：transform。**接着对同一棵树调用 transform：
+**transform：**接着对同一棵树调用 transform：
 
 ```js
 import { transform, getBaseTransformPreset, DOMNodeTransforms, DOMDirectiveTransforms } from '@vue/compiler-dom'
@@ -318,18 +344,7 @@ ast.codegenNode.isBlock       // true：单个根元素变成 Block
 
 transform 之后，每个元素多了 `codegenNode`：它描述"怎样创建这个节点的 vnode"，包含 tag、props、children、patchFlag 和 dynamicProps。`ast.helpers` 登记了生成的代码要从 `vue` 导入哪些函数。
 
-transform 由一组**节点转换**组成。每个节点转换是一个函数，`traverseNode` 对每个节点按数组顺序调用它们。常用的有：
-
-- `transformExpression`：给表达式里的变量加前缀。`c` 变成 `_ctx.c`。在 SFC 中它按变量的来源改成 `$setup.c` 或 `$props.c`（29.6）。
-- `transformElement`：为元素和组件生成 `codegenNode`。它读取属性和子节点，算出 29.2 的 PatchFlag 和 dynamicProps。
-- `transformText`：把相邻的文字和插值合并成一个表达式，例如 `"a" + _toDisplayString(_ctx.b)`。
-- `vIf` 和 `vFor`：处理结构化指令。节点被换成 IF 或 FOR 节点，每个分支、每次循环生成一个 Block。`v-if` 的分支得到不同的 key（29.3）。
-
-所有节点转换运行完后，transform 还做两件事。如果 `hoistStatic` 为 true，`cacheStatic` 再遍历一次：静态子树的 PatchFlag 设为 -1，并放进 `_cache`（29.4）。然后 `createRootCodegen` 生成根节点：单个根元素变成 Block，多个根节点变成 Fragment（标记 64，STABLE_FRAGMENT）。
-
-静态的判断在 `getConstantType` 里。一个元素是静态的，需要同时满足三条：没有动态绑定，没有 `ref` 和运行时指令（`v-show`、自定义指令），所有子节点也是静态的。写了 `ref` 的元素得到 512（NEED_PATCH），不会被缓存。
-
-**第三步：generate。**
+**generate：**
 
 ```js
 import { generate } from '@vue/compiler-dom'
@@ -354,8 +369,7 @@ export function render(_ctx, _cache) {
 ```
 
 generate 不做任何判断。它先根据 `ast.helpers` 写 import 行，再写 `render` 函数，然后递归地把每个 `codegenNode` 打印成一个函数调用。`3` 和 `-1` 就是 transform 写在 `codegenNode` 上的数字。
-
-所以 29.2 到 29.4 的优化信息都在 transform 里产生。parse 和 generate 只是在它前后搬运。
+:::
 
 <Lab id="demo-steps" title="实验台：编译的三步" note="分别调用 parse、transform、generate。浏览器构建没有 Babel，不能加 _ctx. 前缀，所以用 with 模式；步骤和 SFC 编译用的是同一套代码。">
 <template #predict>
@@ -460,7 +474,7 @@ export default {
 }
 ```
 
-**`<script setup>` 的顶层变量全部放进 `__returned__`。**所以模板能读到它们，包括导入的组件。你不需要在 `components` 里注册。`defineProps` 和 `defineEmits` 这些宏在这一步被替换成 `props` 和 `emits` 选项，14.1 节已经讲过。
+**`<script setup>` 的顶层变量全部放进 `__returned__`。**所以模板能读到它们，包括导入的组件。你不需要在 `components` 里注册。`defineProps` 和 `defineEmits` 这些宏在这一步被替换成 `props` 和 `emits` 选项，第 14 章讲过。
 
 `compileTemplate` 拿到 `bindings`，知道 `count` 是 `setup-ref`，就把它编译成 `$setup.count`：
 
@@ -475,6 +489,9 @@ export function render(_ctx, _cache, $props, $setup, $data, $options) {
 
 注意 `onClick` 被缓存在 `_cache[0]`。这是 29.4 的事件缓存，SFC 编译默认开启。导入的组件 `Child` 被编译成 `$setup["Child"]`，直接引用变量，不走 `resolveComponent`。
 
+**scoped 样式分两处完成。**构建时，`compileStyle` 把选择器改写成 `.b[data-v-282e7235]`。运行时，渲染器读取组件的 `__scopeId`，给元素加上这个属性。`compileTemplate` 的结果里没有这个属性。选择器改写的规则见第 15 章。
+
+::: deep 插件怎样拼出模块，生产构建为什么内联模板
 最后插件把它们拼成一个模块（简化）：
 
 ```js
@@ -486,9 +503,8 @@ export default _export_sfc(_sfc_main, [['render', _sfc_render], ['__scopeId', 'd
 
 `_export_sfc` 把这些键值对复制到组件对象上，所以组件对象有了 `render` 和 `__scopeId`。开发模式下插件还会加上 `__file` 和热更新代码。`282e7235` 是插件根据文件路径算出的 8 位哈希（生产构建还加上源码）。
 
-**scoped 样式分两处完成。**构建时，`compileStyle` 把选择器改写成 `.b[data-v-282e7235]`。运行时，渲染器读取组件的 `__scopeId`，给元素加上这个属性。`compileTemplate` 的结果里没有这个属性。选择器改写的规则见 15.4 节。
-
 **生产构建用内联模板。**开发时模板单独编译成 `_sfc_render`，方便热更新。生产构建时（默认没有开发服务器，且组件使用 `<script setup>`），插件给 `compileScript` 传 `inlineTemplate: true`。渲染函数直接写在 `setup()` 里返回，变量按来源直接读取：已知的 ref 读 `count.value`，props 读 `__props.title`。这样省掉通过 `$setup` 代理查找的一层，也不需要返回 `__returned__`。
+:::
 
 <Lab id="demo-sfc" title="实验台：拆开编译一个 .vue 文件" note="调用 compiler-sfc 的 parse、compileScript、compileTemplate 和 compileStyle。你可以修改源码，也可以切换内联模板。">
 <template #predict>
@@ -510,6 +526,28 @@ export default _export_sfc(_sfc_main, [['render', _sfc_render], ['__scopeId', 'd
 
 <SfcSplit />
 </Lab>
+
+::: deep Vapor 模式：不经过虚拟 DOM 的编译策略
+本章讲的是“编译期标记加运行时 diff”：编译器把动态部分标出来，运行时仍然生成 vnode，再比较新旧 vnode，只是比较的范围小得多。Vapor 模式换了一条路：编译器直接生成操作真实 DOM 的代码，**不生成 vnode，也不做 diff**。更新由第 24 章的响应式直接驱动：每个动态绑定是一个小的渲染副作用函数，数据变了，只重新执行那一条 DOM 写入。
+
+同一个模板 `<button class="b" @click="count++">{{ count }}</button>`，在 3.6.0-rc.10 上用 `<script setup vapor>` 编译，`setup()` 里的主体是这样（省略 import）：
+
+```js
+const t0 = _template("<button class=b> ", 1)   // 静态结构：一段 HTML，运行时克隆
+// setup() 内部：
+const n0 = t0()                                  // 克隆出真实 DOM
+const x0 = _txt(n0)                              // 找到要写文字的位置
+_on(n0, "click", () => (count.value++))
+_renderEffect(() => _setText(x0, _toDisplayString(count.value)))   // 动态绑定：一个小 effect
+return n0
+```
+
+对照本章的产物：静态部分不再需要 PatchFlag 和静态缓存，它整体是一次 `template` 克隆；PatchFlag 要解决的“更新时比较哪些部分”，在 Vapor 里变成了“每个动态绑定自己订阅数据”，不需要运行时比较，也不再需要 Block。代价是：它只支持 `<script setup>` 和模板，不支持选项式 API 和手写渲染函数（手写的渲染函数没有模板可供编译，仍然是虚拟 DOM）；Vue 官方的 3.6 发布说明还列出了一些暂不支持的功能，使用前要读。
+
+Vapor 组件和虚拟 DOM 组件可以在同一个应用里嵌套：应用装上 `vaporInteropPlugin`，两种组件就能互相渲染。纯 Vapor 应用用 `createVaporApp`，可以不打包虚拟 DOM 的运行时。
+
+**当前状态（2026-10-09 核实）。**Vapor 模式随 Vue 3.6 提供。npm 上 `vue` 的 `latest` 标签仍是 3.5.43，`rc` 标签是 3.6.0-rc.10，`beta` 是 3.6.0-beta.17。官方 3.6.0-rc.1 的发布说明写明：3.6 进入候选发布阶段，Vapor 的预定功能集已经完成，它完全可选（opt-in）。启用方式是在组件里写 `<script setup vapor>`（或 `<script vapor>`）。3.6 稳定版发布前，Vapor 的细节可能变化，上面的编译产物只用来说明思路。第 21 章的深入块给过一句话的概述，这里是它的原理背景。
+:::
 
 ::: pitfalls
 1. 不要用浏览器中 `Vue.compile` 的结果判断 SFC 的输出。原因：它使用 with 模式，也不缓存事件。
@@ -683,5 +721,6 @@ scoped 样式里的 `.b { color: red }` 变成了 `.b[data-v-xxx]`，元素上�
 - Vue 缓存静态节点。SFC 还缓存事件处理函数。
 - 编译分三步：parse 把模板变成 AST，transform 用节点转换添加 PatchFlag、Block 和缓存，generate 把 `codegenNode` 打印成渲染函数。优化信息都在 transform 里产生。
 - 组件 vnode 可以有 PatchFlag（动态 props 时是 PROPS），不管有没有都被收集进 `dynamicChildren`。
+- Vapor 模式（Vue 3.6，可选）不生成 vnode，直接生成操作 DOM 的代码，动态绑定各自订阅数据；3.6 仍在候选发布阶段。
 - `.vue` 文件由 compiler-sfc 拆开编译：parse 拆块，compileScript 把 `<script setup>` 变成 `setup()` 和 `__returned__`，compileTemplate 按 bindings 引用变量，compileStyle 改写 scoped 选择器。
 :::

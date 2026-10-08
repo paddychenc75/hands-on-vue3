@@ -26,7 +26,7 @@ module.exports = [
     }
   },
   {
-    id: 'demo-scheduler-stepper', name: '入队 3、1、3、2:重复的被忽略,运行顺序 1、2、3;单步时运行中入队的任务插在后面', pick: 1,
+    id: 'demo-scheduler-stepper', name: '入队 3、1、3、2:重复的被忽略,运行顺序 1、2、3;单步回放时运行中入队的任务按 id 插进队列', pick: 1,
     async run(p, body, ok) {
       const btn = n => body.getByRole('button', { name: n, exact: true })
       await btn('修改组件 3(id 3)').click()
@@ -35,7 +35,7 @@ module.exports = [
       await btn('修改组件 2(id 2)').click()
       const q = await body.locator('[data-test=queue]').textContent()
       ok(/#1[\s\S]*#2[\s\S]*#3/.test(q) && (q.match(/#3/g) || []).length === 1, 'queue 按 id 排序且组件 3 只出现一次:' + q.replace(/\s+/g, ' '))
-      ok(/已有 QUEUED 标记/.test(await body.locator('[data-test=log]').textContent()), '日志里有“已有 QUEUED 标记”')
+      ok(/已有 queued 标记/.test(await body.locator('[data-test=log]').textContent()), '日志里有“已有 queued 标记”')
       await btn('全部运行').click()
       const log = (await body.locator('[data-test=log] > div').allTextContents()).reverse().join('|')
       const idx = k => log.indexOf(k)
@@ -44,12 +44,15 @@ module.exports = [
       await btn('重置').click()
       await body.getByLabel('#1 更新时又修改组件 3').check()
       await btn('修改组件 1(id 1)').click()
-      await btn('单步').click()
-      await btn('单步').click()
-      ok(/#3 更新/.test(await body.locator('[data-test=queue]').textContent()), '运行 #1 的过程中,组件 3 的 job 插进了 queue')
+      let seen = false
+      for (let k = 0; k < 8 && !seen; k++) {
+        await btn('单步').click()
+        seen = /#3 更新/.test(await body.locator('[data-test=queue]').textContent())
+      }
+      ok(seen, '回放 #1 的过程中,组件 3 的更新任务按 id 插进了 queue')
       await btn('全部运行').click()
       const log2 = (await body.locator('[data-test=log] > div').allTextContents()).reverse().join('|')
-      ok(log2.indexOf('运行 更新 #1') < log2.indexOf('运行 更新 #3'), '同一轮里 #3 在 #1 之后运行')
+      ok(log2.indexOf('运行 更新 #1') >= 0 && log2.indexOf('运行 更新 #1') < log2.indexOf('运行 更新 #3'), '同一轮里 #3 在 #1 之后运行')
     }
   }
 ]

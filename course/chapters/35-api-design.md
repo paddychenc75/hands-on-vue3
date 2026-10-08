@@ -14,15 +14,15 @@ import PatListbox from '../labs/35-api-design/PatListbox.vue'
 # 可复用 API 的设计
 
 ::: goals
-<Goal checks="sc:0,sc:1">说明组合式函数在输入、输出、清理和服务端渲染上的约定。</Goal>
-<Goal checks="sc:2,ex:useControllable">区分受控与非受控，并写出同时支持两种用法的状态。</Goal>
+<Goal checks="sc:0,sc:1">说明组合式函数在输入、输出、清理和服务端渲染上的约定，以及清理函数挂在哪个作用域上。</Goal>
+<Goal checks="sc:2,ex:useControllable">区分受控与非受控，说出同时支持两种用法的代价，并写出这样的状态。</Goal>
 <Goal checks="sc:3,ex:useListbox">把一个控件拆成三层，并实现键盘导航和 ARIA 属性。</Goal>
 <Goal checks="sc:4,sc:5">判断一次 API 改动是不是破坏性变化，并选择平滑过渡的做法。</Goal>
 
 :::
 
 ::: rt
-阅读主线约 15 分钟，深入内容约 2 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 15 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -42,6 +42,9 @@ import PatListbox from '../labs/35-api-design/PatListbox.vue'
 `aria-activedescendant`
 : 真实焦点留在容器上，用这个属性指向当前高亮的子项。
 
+属性 getter
+: 把“这个元素该有哪些属性”作为对象交给使用者，由使用者用 `v-bind` 绑上去的做法。
+
 roving tabindex
 : 同一时刻只有一个子项的 tabindex 是 0，方向键移动这个位置，并把真实焦点移过去。
 
@@ -50,11 +53,13 @@ roving tabindex
 :::
 
 ::: why
-你写了一个组合式函数或组件，同事开始用它，后来别的项目也用了它。参数怎么接、状态归谁、键盘怎么响应、改动会不会弄坏别人的代码，这些决定的是 API 的质量。
+你写了一个组合式函数或组件，同事开始用它，后来别的项目也用了它。你想改参数名，发现改不动：一改，所有使用者的页面一起坏。
 
-原因：发布之后，使用者会依赖你的每一个细节，包括你没打算承诺的那些。
+原因：发布之后，使用者会依赖你的每一个细节，包括你没打算承诺的那些。你不能再同时修改使用者和被使用者。
 
-本章讲写给别人用的 API：组合式函数的契约、受控与非受控、无渲染组件的三层、键盘与焦点，以及 API 怎样演进而不弄坏使用者。应用内部怎样拆分和组合组件，见[第 34 章](/chapters/34-patterns)。
+这是本章和[上一章](/chapters/34-patterns)的区别。上一章讲自己项目里的组件怎样拆分和组合，使用者就是你自己，接口随时可以改。本章讲写给**别人**用的组件和组合式函数：接口怎样设计才好用、可组合、可演进。
+
+本章分五步：组合式函数的契约（35.1），受控与非受控（35.2），无渲染组件的三层（35.3），键盘与焦点（35.4），API 怎样演进而不弄坏使用者（35.5）。它和[第 41 章](/chapters/41-lib)是上下篇：本章讲接口，第 41 章讲怎样把它构建、发布成一个库。
 :::
 
 ### 35.1 组合式函数的契约
@@ -87,7 +92,7 @@ const box = useTemplateRef('box')
 useEventListener(box, 'click', onClick)
 ```
 
-在 Vue 3.5.43 中实测：点击 `box` 时 `onClick` 运行一次。调用 stop 之后不再运行。传入 getter `() => (flag.value ? a.value : b.value)` 切换目标后，旧元素的监听被移除。组件卸载后，监听也被移除。
+实测：点击 `box` 时 `onClick` 运行一次。调用 stop 之后不再运行。传入 getter `() => (flag.value ? a.value : b.value)` 切换目标后，旧元素的监听被移除。组件卸载后，监听也被移除。
 
 **输入：用 `MaybeRefOrGetter<T>`，并且在响应式环境里读取。**
 
@@ -115,6 +120,16 @@ useEventListener(box, 'click', onClick)
 - 在服务端渲染（第 36 章）中，`onMounted` 和 `onUnmounted` 不运行，`onScopeDispose` 注册的回调在渲染结束后也没有被调用。所以在 setup 顶层启动的定时器、事件监听永远不会被清理。把启动副作用放进 `onMounted`，或者像上例那样放进 `watch`：服务端的模板引用是 null，回调什么也不做。
 - 不要在函数顶层访问 `window` 和 `document`。服务端没有它们。
 
+::: deep 清理从哪里来：作用域
+契约里的“清理放进 `onScopeDispose`”，背后是 effectScope（[第 26 章](/chapters/26-watch-impl) 26.7 节）。作用域像一本登记簿：`run(fn)` 期间同步创建的 `watch`、`watchEffect`、子作用域，和 `onScopeDispose` 登记的清理函数，都记在当前作用域上。`stop()` 时一起停止、依次调用。
+
+- **组件有自己的作用域，卸载时停止它。**所以组合式函数在 setup 里调用，不用使用者做任何事就会清理。
+- **组件之外调用，由调用方管作用域。**例如在一个全局函数里使用 `useEventListener`，要自己 `const scope = effectScope()`，用 `scope.run(() => useEventListener(…))`，不再需要时 `scope.stop()`。实测：`stop()` 之后监听被移除，事件不再触发。
+- **子作用域随父作用域停止。**`effectScope(true)` 创建的游离作用域不会。
+- **`onUnmounted` 属于组件，不属于作用域。**在 `effectScope().run()` 里调用它，只警告，回调不会注册。这就是组合式函数用 `onScopeDispose` 的原因（实测）。
+- **`computed` 不登记在作用域里。**`stop()` 之后它仍然能读到新值，也不需要停止。
+:::
+
 ::: deep 契约清单
 发布一个组合式函数之前，对着下面五问各回答一遍：
 
@@ -136,7 +151,7 @@ useEventListener(box, 'click', onClick)
 
 原生的 `<input>` 两种用法都支持：只写 `value` 加 `onInput` 就是受控，不写 `value` 就是非受控。设计一个组件时，要先决定它支持哪一种。
 
-Vue 的 `defineModel` 已经替你做了大部分工作。它判断“受控”的依据不是值，而是**父组件有没有同时传入这个 prop 和对应的更新监听**（`v-model` 会两个都传）。`defineModel` 编译后调用的是 `useModel`。在 3.5.43 中用它实测了五种情况：
+Vue 的 `defineModel` 已经替你做了大部分工作。它判断“受控”的依据不是值，而是**父组件有没有同时传入这个 prop 和对应的更新监听**（`v-model` 会两个都传）。`defineModel` 编译后调用的是 `useModel`。实测了五种情况：
 
 | 父组件的写法 | 子组件写入 `model.value = 'x'` 之后 | 说明 |
 |---|---|---|
@@ -323,7 +338,7 @@ function onKeydown(e) {
 </template>
 ```
 
-在 3.5.43 中实测这段代码：从前一个按钮按 Tab，焦点进入“资料”。按右方向键依次到“安全”“通知”，Home 回到“资料”，End 到“通知”。再按 Tab，焦点离开标签组，到后面的按钮。按 Shift+Tab 回来时，焦点落在 `tabindex="0"` 的那一项，也就是“通知”。
+实测这段代码：从前一个按钮按 Tab，焦点进入“资料”。按右方向键依次到“安全”“通知”，Home 回到“资料”，End 到“通知”。再按 Tab，焦点离开标签组，到后面的按钮。按 Shift+Tab 回来时，焦点落在 `tabindex="0"` 的那一项，也就是“通知”。
 
 标签页的方向键是左右，列表是上下。这是由控件的角色决定的，不是自由选择。W3C 的 [ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/patterns/) 对每种控件都列出了角色、键盘和属性，设计 API 之前先查一遍。
 
@@ -352,7 +367,7 @@ function onKeydown(e) {
 
 改默认值最危险：使用者什么都不用改就能编译通过，行为却变了。把它当成破坏性变化处理，哪怕“只是修正”。
 
-平滑过渡的三个例子，放在同一个组件里，在 3.5.43 中实测过：
+平滑过渡的三个例子，放在同一个组件里，实测过：
 
 ```vue
 <script setup>
@@ -455,7 +470,7 @@ export function useTicker() {
 
 <template #explain>
 
-解析：`setInterval` 是普通的 JavaScript，服务端照样执行。服务端渲染没有卸载阶段，`onScopeDispose` 注册的回调在渲染结束后没有被调用（用 Vue 3.5.43 实测）。每处理一个请求就多一个永远不停的定时器。把启动放进 `onMounted`，服务端不运行它。第一项以为渲染结束等于组件卸载，那是浏览器里的行为。
+解析：`setInterval` 是普通的 JavaScript，服务端照样执行。服务端渲染没有卸载阶段，`onScopeDispose` 注册的回调在渲染结束后没有被调用（实测）。每处理一个请求就多一个永远不停的定时器。把启动放进 `onMounted`，服务端不运行它。第一项以为渲染结束等于组件卸载，那是浏览器里的行为。
 
 </template>
 </Sc>
@@ -527,7 +542,7 @@ v1.4 把 Select 的 `closeOnSelect` 默认值从 false 改成 true。props 的�
 :::
 
 ::: summary
-- 组合式函数的契约：输入用 `MaybeRefOrGetter` 并在响应式环境里 `toValue`；返回 ref 组成的对象；清理放 `onScopeDispose`；写明能否在组件外、服务端渲染中调用。
+- 组合式函数的契约：输入用 `MaybeRefOrGetter` 并在响应式环境里 `toValue`；返回 ref 组成的对象；清理放 `onScopeDispose`（它挂在当前作用域上，`onUnmounted` 在作用域里无效）；写明能否在组件外、服务端渲染中调用。
 - 受控由父组件持有状态，非受控由组件持有。`defineModel` 看父组件有没有传 prop 和监听。组合式函数用 `undefined` 表示非受控，`null` 表示受控但没选。
 - 无渲染的三层：状态与行为的组合式函数、无渲染组件、带样式的组件。上层只用下层，键盘和 ARIA 只写在最底层。
 - 键盘最低要求：一个停靠点、方向键和 Home/End、Enter 和空格、角色与状态属性、可见的焦点。用 `aria-activedescendant` 或 roving tabindex 实现。

@@ -135,7 +135,7 @@ formCore.faded = {
     "  const isDirty = path => (path ? !same(getPath(values, path), getPath(initial, path)) : !same(values, initial))", "  const isDirty = path => /* ✏️ 当前值和初始值不同？不传 path 比较整个表单 */ false")
 }
 
-// ===================== 39.5 异步校验的竞态 =====================
+// ===================== 39.6 异步校验的竞态 =====================
 const RACE_HEAD = `// 模拟服务器：名字越短，查得越慢。ann 和 bobby 已被占用
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 async function checkName(name) {
@@ -223,7 +223,7 @@ formRace.faded = {
   js: sub(formRace.solJs, "  let seq = 0\n  watch(value, async v => {\n    const id = ++seq            // 每次检查领一个序号\n", "  /* ✏️ 需要一个在多次检查之间共享的变量 */\n  watch(value, async v => {\n    /* ✏️ 这次检查领一个序号 */\n").replace("    if (id !== seq) return      // 后面还有更新的一次：这个结果和它的“检查中”状态都不归我管\n", "    /* ✏️ 回来之后，怎样判断自己不是最新的？不是就直接返回 */\n")
 }
 
-// ===================== 39.6 字段数组：增删移动，状态跟着走 =====================
+// ===================== 39.7 字段数组：增删移动，状态跟着走 =====================
 const ARR_TPL = `<ul>
   <li v-for="(it, i) in values.items" :key="it.id" class="row" :data-id="it.id">
     <input class="p" v-model.number="it.price" @blur="touched[key(i)] = true">

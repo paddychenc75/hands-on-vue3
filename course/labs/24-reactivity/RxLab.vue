@@ -1,66 +1,52 @@
 <script setup lang="ts">
-// 实验台：手写响应式（旧版 #lab-rx，旧脚本“第 10 章：手写响应式实验台”）
-// 这里的 track / trigger / effect / reactive 是手写的迷你版本，和 Vue 自己的响应式互不相干，
-// 所以逻辑照搬旧版；只是把旧版“往 DOM 里直接写文字”的部分换成了模板。
+// 实验台：手写响应式。
+// 跑的是全课程共用的迷你 Vue 零件 1（course/mini），和正文、练习里的是同一份代码。
+// 实验台只在 track、trigger、cleanup 的入口记日志（runMini 的 traced 选项），不改零件。
 import { onMounted, ref } from 'vue'
-
-type Dep = Set<Eff>
-interface Eff { name: string; deps: Dep[]; runs: number; run: () => void }
-
-let activeEffect: Eff | null = null
-const targetMap = new WeakMap<object, Map<string | symbol, Dep>>()
+import { PARTS } from '../../mini'
+import { runMini } from '../../mini/load'
 
 const logs = ref<{ cls: string; msg: string }[]>([])
 function log(cls: string, msg: string) {
   logs.value.unshift({ cls, msg })
   if (logs.value.length > 60) logs.value.length = 60
 }
-function track(t: object, k: string | symbol) {
-  if (!activeEffect) return
-  let dm = targetMap.get(t)
-  if (!dm) targetMap.set(t, (dm = new Map()))
-  let dep = dm.get(k)
-  if (!dep) dm.set(k, (dep = new Set()))
-  if (!dep.has(activeEffect)) {
-    dep.add(activeEffect)
-    activeEffect.deps.push(dep)
-    log('tg', 'track   ' + String(k) + ' ← ' + activeEffect.name)
-  }
-}
-function trigger(t: object, k: string | symbol) {
-  const dep = targetMap.get(t) && targetMap.get(t)!.get(k)
-  const list = dep ? [...dep].filter(e => e !== activeEffect) : []
-  log('tr', 'trigger ' + String(k) + (list.length ? ' → ' + list.map(e => e.name).join('、') : ' → 无人依赖'))
-  list.forEach(e => e.run())
-}
-function reactive<T extends object>(obj: T): T {
-  return new Proxy(obj, {
-    get(t, k, r) { track(t, k); return Reflect.get(t, k, r) },
-    set(t, k, v, r) {
-      const old = (t as any)[k]
-      const ok = Reflect.set(t, k, v, r)
-      if (!Object.is(old, v)) trigger(t, k)
-      return ok
-    }
-  })
-}
-function effect(name: string, fn: () => void, onRun: (e: Eff) => void) {
-  const e: Eff = {
-    name, deps: [], runs: 0,
-    run() {
-      e.deps.forEach(d => d.delete(e)); e.deps.length = 0
-      const prev = activeEffect; activeEffect = e; e.runs++
-      log('rn', 'run     ' + name + '（第 ' + e.runs + ' 次，已清理旧依赖）')
-      try { fn() } finally { activeEffect = prev }
-      onRun(e)
+
+const names = new Map<unknown, string>()   // 副作用函数 e → 名字
+const runCounts = new Map<unknown, number>()
+const nameOf = (e: unknown) => names.get(e) || '?'
+
+const mini: any = runMini(PARTS.reactivity, {
+  lets: ['activeEffect'],
+  traced: ['track', 'trigger', 'cleanup'],
+  trace: ({ fn, args }) => {
+    const [a, b] = args as [any, any]
+    if (fn === 'track') {
+      const dep = mini.targetMap.get(a)?.get(b)
+      const e = mini.activeEffect
+      if (e && !(dep && dep.has(e))) log('tg', 'track   ' + String(b) + ' ← ' + nameOf(e))
+    } else if (fn === 'trigger') {
+      const dep = mini.targetMap.get(a)?.get(b)
+      const list = dep ? [...dep].filter(e => e !== mini.activeEffect) : []
+      log('tr', 'trigger ' + String(b) + (list.length ? ' → ' + list.map(nameOf).join('、') : ' → 无人依赖'))
+    } else if (fn === 'cleanup') {
+      const n = (runCounts.get(a) || 0) + 1
+      runCounts.set(a, n)
+      log('rn', 'run     ' + nameOf(a) + '（第 ' + n + ' 次，已清理旧依赖）')
     }
   }
+})
+
+function effect(name: string, fn: () => void, onRun: (runs: number) => void) {
+  // lazy：先登记名字，再第一次运行，日志里才有名字
+  const e = mini.effect(() => { fn(); onRun(runCounts.get(e) || 0) }, { lazy: true })
+  names.set(e, name)
   e.run()
   return e
 }
 
 const raw = { price: 10, qty: 2, discount: 0.1, showDiscount: true }
-const state = reactive(raw)
+const state = mini.reactive(raw)
 
 const outA = ref<string | number>('-')
 const outB = ref('-')
@@ -75,19 +61,19 @@ function flash(el: HTMLElement | null) {
   el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash')
 }
 function renderBucket() {
-  const dm = targetMap.get(raw) || new Map()
+  const dm = mini.targetMap.get(raw) || new Map()
   bucket.value = ['price', 'qty', 'discount', 'showDiscount'].map(k => {
     const dep = dm.get(k)
-    return { k, effs: dep ? [...dep].map((e: Eff) => e.name) : [] }
+    return { k, effs: dep ? [...dep].map((e: unknown) => nameOf(e)) : [] }
   })
 }
 
 onMounted(() => {
   log('m', '— 初始化：两个 effect 各执行一次 —')
-  effect('总价', () => { outA.value = state.price * state.qty }, e => { runsA.value = e.runs; flash(boxA.value) })
+  effect('总价', () => { outA.value = state.price * state.qty }, n => { runsA.value = n; flash(boxA.value) })
   effect('优惠提示', () => {
     outB.value = state.showDiscount ? '省 ' + +(state.price * state.qty * state.discount).toFixed(2) : '无优惠'
-  }, e => { runsB.value = e.runs; flash(boxB.value) })
+  }, n => { runsB.value = n; flash(boxB.value) })
   renderBucket()
 })
 

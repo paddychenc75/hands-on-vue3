@@ -411,13 +411,13 @@ function genNode(node) {
   return 'null'
 }
 
-// ===== 已给出：生成代码，并用假的 createElementVNode 运行它 =====
+// ===== 已给出：生成代码，并用假的 createElementVNode 运行它（返回的 vnode 字段和第 28 章的 vnode 一致：type、props、children，外加编译器写的 patchFlag） =====
 function generate(source) {
   const ast = parse(source)
   traverse(ast, [transformElement])
   return 'return ' + genNode(ast.children[0])
 }
-const fakeCreate = (tag, props, children, patchFlag, dynamicProps) => ({ tag, props, children, patchFlag: patchFlag || 0, dynamicProps: dynamicProps || null })
+const fakeCreate = (tag, props, children, patchFlag, dynamicProps) => ({ type: tag, props, children, patchFlag: patchFlag || 0, dynamicProps: dynamicProps || null })
 const toStr = v => (v == null ? '' : String(v))
 function render(source, ctx) {
   return new Function('_ctx', '_createElementVNode', '_toDisplayString', generate(source))(ctx, fakeCreate, toStr)
@@ -441,7 +441,7 @@ return { src, code, vnodeText, render }`,
     if (!S || typeof S.render !== 'function') { T.ok(false, '脚本需要 return 的对象里有 render 函数（不要删掉已给出的部分）'); return }
     // 参考实现：同样的 parse 和 traverse、参考转换、参考 genNode
     const ref: any = miniRef(MINI_GEN_SOL + String.raw`
-const fake = (tag, props, children, patchFlag, dynamicProps) => ({ tag, props, children, patchFlag: patchFlag || 0, dynamicProps: dynamicProps || null })
+const fake = (tag, props, children, patchFlag, dynamicProps) => ({ type: tag, props, children, patchFlag: patchFlag || 0, dynamicProps: dynamicProps || null })
 return function (source, ctx) {
   const ast = parse(source)
   traverse(ast, [transformElement])

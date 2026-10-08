@@ -356,7 +356,7 @@ export function useWidth() {
 }
 ```
 
-浏览器专属的代码放进 `onMounted` 或事件处理函数里。生成 id 用 `useId()`（第 36 章 36.9 节）：我们用 `renderToString` 渲染 `MiniField` 两次，两个输入框的 id 都是 `v-0`、`v-1`，而且两次渲染一致，所以和浏览器水合时 `for` 和 `id` 能对上。不要用 `Math.random()` 或模块里的计数器生成 id，模块级计数器还会在服务器上跨请求累加。
+浏览器专属的代码放进 `onMounted` 或事件处理函数里。生成 id 用 `useId()`（第 36 章 36.6 节）：我们用 `renderToString` 渲染 `MiniField` 两次，两个输入框的 id 都是 `v-0`、`v-1`，而且两次渲染一致，所以和浏览器水合时 `for` 和 `id` 能对上。不要用 `Math.random()` 或模块里的计数器生成 id，模块级计数器还会在服务器上跨请求累加。
 
 库如果用了 `Teleport`，要告诉使用者：服务器渲染时，被传送的内容不在 `renderToString` 返回的 HTML 里，而在渲染上下文的 `ctx.teleports` 里（我们实测：`to: '#modal'` 的内容出现在 `ctx.teleports['#modal']`），使用者要把它放进页面的目标容器，水合时才对得上。用到 `Teleport` 的库组件，在文档里写明这一点。
 

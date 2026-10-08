@@ -15,14 +15,14 @@ import FetchDemo from '../labs/08-composables/FetchDemo.vue'
 # 组合式函数
 
 ::: goals
-<Goal checks="sc:0,ex:counterFill,ex:toggle">把有状态的逻辑提取为 `useXxx()` 函数。</Goal>
+<Goal checks="sc:0,ex:counterFill,ex:toggle,ex:eventListener">把有状态的逻辑提取为 `useXxx()` 函数。</Goal>
 <Goal checks="sc:3">说明组合式函数比 mixin 好的原因。</Goal>
-<Goal checks="sc:1,sc:2">使用组合式函数的约定：同步调用、返回 ref、接收 getter。</Goal>
+<Goal checks="sc:1,sc:2,ex:getterParam">使用组合式函数的约定：同步调用、返回 ref、接收 getter。</Goal>
 
 :::
 
 ::: rt
-阅读主线约 10 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 11 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -96,6 +96,8 @@ const { x, y } = useMouse(box)
 
 <Exercise id="toggle" />
 
+<Exercise id="eventListener" />
+
 ### 8.2 用组合式函数代替 mixin
 
 Vue 2 用 mixin 复用逻辑。mixin 的属性都合并到同一个 this 上。组合式函数用普通的函数调用和解构，没有这些问题：
@@ -109,20 +111,31 @@ Vue 2 用 mixin 复用逻辑。mixin 的属性都合并到同一个 this 上。�
 
 Vue 3 仍然支持 mixin，但不再推荐。新代码使用组合式函数。
 
-::: deep VueUse：常用组合式函数的集合
-VueUse 是一个开源库。它提供 200 多个组合式函数。安装 `@vueuse/core` 后使用：
+**先查有没有现成的。**VueUse（npm 包 `@vueuse/core`，当前 15.x，要求 Vue 3.5 及以上）收集了两百多个组合式函数，本章的约定它都遵守：
 
 ```js
-import { useMouse, useStorage, useFetch } from '@vueuse/core'
+import { useMouse, useStorage, useEventListener } from '@vueuse/core'
 
 const { x, y } = useMouse()                        // 鼠标坐标。组件卸载时自动删除监听
 const theme = useStorage('theme', 'light')         // 和 localStorage 同步的 ref
-const { data, error, isFetching } = useFetch('/api/user').json()   // 请求数据
+useEventListener(window, 'resize', onResize)       // 挂载时添加监听，卸载时自动删除
 ```
 
-先在 VueUse 中查找需要的功能，再决定是否自己写。
+按下面的规则选择：
 
-VueUse 的源代码也是学习材料。每个函数都很短，并处理了清理、SSR 和参数为 ref 的情况。阅读 useMouse 和 useStorage 的源代码，学习这些写法。
+- 用现成的：通用的浏览器能力（`useEventListener`、`useStorage`、`useClipboard`、`onClickOutside`），以及防抖节流（`useDebounceFn`、`refDebounced`）。这些函数已经处理了清理、服务端渲染和参数可以是 ref 这些细节。
+- 自己写：和业务绑定的逻辑，例如任务看板的筛选和权限判断。只用一次的几行逻辑，也没有必要为它装一个库。
+- 引入之前看一眼版本要求。VueUse 支持 tree-shaking，只有用到的函数会进入打包结果。
+
+::: deep 读 VueUse 的源码学写法
+每个 VueUse 函数的源码都不长，适合对照本章的约定来读。源码在 GitHub 仓库 `vueuse/vueuse` 的 `packages/core/` 下，每个函数一个目录。按这个顺序读：
+
+1. `useEventListener`：参数可以是普通值、ref 或 getter（`toValue`）。它侦听参数，参数变化时先清理旧监听再添加新监听。
+2. `useMouse`：返回由 ref 组成的对象，调用方可以放心解构。选项里的 `window` 默认是 `defaultWindow`，服务端渲染时它是 `undefined`，函数据此跳过浏览器相关的代码。
+3. `useStorage`：怎样把一个 ref 和外部存储双向同步，以及怎样在服务端渲染时退回默认值。
+4. `useFetch`：和本章的 `useFetch` 对照，看它多处理了哪些情况。
+
+读的时候对照三个问题：参数怎样读取，清理放在哪里（有的用 `onCleanup`，有的用 `tryOnScopeDispose`，后者在组件和 effectScope 中都能运行，见 8.5 节），返回值是不是 ref。
 :::
 
 ### 8.3 接收 ref 参数：useDebounced
@@ -226,6 +239,8 @@ useFetch(() => `/api/user/${props.id}`)    // props.id 改变时自动重新请�
 
 不要写 ``useFetch(`/api/user/${props.id}`)``。调用时就读取了 props.id，传入的只是一个字符串。传入 getter，或传入 `toRef(props, 'id')`。
 
+这个 useFetch 只是用来讲参数和清理。缓存、重试、去重这些真实项目需要的功能，第 18 章会系统地讲。
+
 <Lab id="demo-fetch" title="实验台：useFetch 和请求取消" note="模拟的 fetch 需要 300 到 1200 毫秒，并支持 AbortSignal">
 <template #predict>
 <Sc predict :a="1">
@@ -254,6 +269,8 @@ watchEffect(async () => {
 
 <FetchDemo />
 </Lab>
+
+<Exercise id="getterParam" />
 
 ::: deep 组合式函数的 API 设计
 组合式函数的参数和返回值就是它的 API。下面是 4 条设计规则。
@@ -507,6 +524,7 @@ function useTitle(title) {
 - 组合式函数以 use 开头，并使用响应式 API。每次调用都创建新的数据。要共享数据，使用 Pinia。
 - 同步调用。返回 ref。自己清理。
 - 和 mixin 相比，组合式函数显示数据来源，可以改名，可以传参数。
+- 通用功能先查 VueUse 等现成的组合式函数库，和业务绑定的逻辑自己写。
 - 接收 ref 或 getter，不要接收读取后的值。用 toValue 统一读取。
 - effectScope 收集一组副作用，scope.stop() 一次停止它们。
 :::

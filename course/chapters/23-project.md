@@ -3,43 +3,32 @@ title: 项目：任务看板 Pro
 id: project
 stage: 3
 chapter: 23
-desc: 在本地完成一个带 Pinia、Router、类型、测试和性能预算的任务看板
+desc: 把页面版看板搬进 Vite 项目：类型、假后端、Pinia、Router、测试和性能预算
 ---
 
 <script setup>
-import TaskAppDataFlow from '../figures/23-project/TaskAppDataFlow.vue'
-import TaskBoard from '../labs/23-project/TaskBoard.vue'
+import ProDataFlow from '../figures/23-project/ProDataFlow.vue'
 </script>
 
 # 项目：任务看板 Pro
 
 ::: goals
-<Goal checks="sc:1,sc:2,ex:kanbanSave">为一个小应用设计数据、组件和逻辑，并把数据保存到 localStorage。</Goal>
-<Goal checks="sc:0,sc:1,sc:2,ex:kanbanItem,ex:kanbanDue">在一个项目中使用第 2–12 章的知识。</Goal>
-<Goal checks="sc:3,ex:kanbanStore,ex:kanbanRoute">完成项目后的练习使用阶段三的知识。</Goal>
-<Goal checks="sc:5,ex:projStoreTest">为 store 的行为写测试，并用故意改坏的实现确认测试能抓到错误。</Goal>
+<Goal checks="sc:0,ex:kanbanStore">写出带加载、失败状态的 store，并实现“先改界面，失败再回滚”的移动。</Goal>
+<Goal checks="sc:1,sc:4">说明请求竞态和“加载中误报未保存”是怎样发生的，并用取消上一次请求、只在加载完成后比较来修复。</Goal>
+<Goal checks="sc:2,sc:3,ex:kanbanRoute">写出带数字参数、不存在提示和 404 的路由，并说明两个离开守卫各在什么时候运行。</Goal>
+<Goal checks="sc:5,ex:projStoreTest">为真实的 Pinia store 写测试，并用故意改坏的实现确认测试能抓到错误。</Goal>
 <Goal checks="ex:projA11y">按“无障碍的最低要求”改写一个只能用鼠标操作的列表。</Goal>
-<Goal checks="sc:6">说明 `onBeforeRouteLeave` 和 `onBeforeRouteUpdate` 各在什么时候运行。</Goal>
-<Goal checks="sc:7">说明一个收尾项目的性能预算，并判断预算被打破时先查什么。</Goal>
+<Goal checks="sc:6">说明性能预算，并判断预算被打破时先查什么。</Goal>
 
 :::
 
 ::: rt
-阅读主线约 22 分钟，深入内容约 1 分钟（可选）。另外留时间做实验台、练习和自测。收尾项目在你的电脑上完成，第一次独立做大约需要 12 到 20 小时。
+阅读主线约 20 分钟，深入内容约 2 分钟（可选）。另外留时间做练习和自测。项目在你的电脑上完成，第一次独立做大约需要 16 到 24 小时。
 :::
 
 ::: terms
-数据模型
-: 应用中数据的结构，例如 Task 有哪些字段。
-
-拥有数据的组件
-: 保存并修改某份数据的唯一组件。
-
-派生数据
-: 可以从其他数据算出来的数据。
-
-持久化
-: 把数据保存到 localStorage，刷新后仍在。
+假后端
+: 只在开发和测试里运行的接口替身。数据放在内存里，接口的形状和真实后端一致。
 
 里程碑
 : 项目中有明确完成标准的一个阶段。
@@ -52,181 +41,236 @@ import TaskBoard from '../labs/23-project/TaskBoard.vue'
 :::
 
 ::: why
-你已经学完了前面的二十二章。每一章的练习，一次只用一个知识点。
+前面的每一章，一次只用一个知识点。练习替你做了架构决定。
 
-真实项目不一样。同一个功能要同时决定数据放在哪里、路由怎样设计、类型怎样写、怎样测试、慢了怎样查。这些决定互相影响。
+真实项目不会。同一个功能要同时决定数据放在哪里、请求失败怎么办、路由怎样设计、类型怎样写、怎样测试、慢了怎样查。这些决定互相影响。
 
-原因：课程里的练习替你做了架构决定，项目不会。你要自己做决定，并且说得出理由。
-
-本章分两部分。第一部分（23.1 和 23.2）在页面上热身，用一个任务看板复习前面的零件。第二部分（23.3 起）是一个在你电脑上完成的项目，综合第 14 到 21 章的知识；性能诊断的方法（第 40 章）留到后面的阶段，做完项目再回头用。页面只检验其中两个最关键的片段，其余按验收清单自查。
+原因：只有自己做过一遍，才知道哪些决定会互相牵连。本章把第 14 到 22 章的内容装进一个真实的 Vite 项目，页面只检验最关键的四个片段，其余按验收清单自查。
 :::
 
-### 23.1 热身：在页面上做任务看板的前五步
+### 23.1 起点：把页面版搬进真实的项目
 
-任务看板把你写过的零件装在一起：用 props 和事件拆出 TaskItem（[第 6 章](/chapters/06-comm)），用 computed 算出派生数据（[第 4 章](/chapters/04-computed)），用 watch 保存数据（[第 4 章](/chapters/04-computed)），用 Pinia 共享状态（[第 16 章](/chapters/16-pinia)），用路由打开详情页（[第 17 章](/chapters/17-router)）。
+[第 13 章](/chapters/13-project-board)的看板是一个页面版：任务在 `useTasks` 里，保存在 localStorage，用 props 和事件拆成卡片。本章把它搬进你电脑上的 Vite 项目，并升级成五个不同：
 
-装在一起时有三个问题：任务数据放在哪个组件里？一个组件太大怎样拆？刷新后任务怎样保留？实验台按五个步骤回答它们。
+| | 页面版（第 13 章） | Pro 版（本章） |
+|---|---|---|
+| 工程 | 页面里的练习 | Vite 项目，`vue-tsc` 检查类型，Vitest 测试 |
+| 数据 | `useTasks` 里的数组 | Pinia store，按 `byId` 和 `ids` 存放 |
+| 来源 | localStorage | 一个接口（假后端），有加载、失败、重试 |
+| 页面 | 一页 | 看板、详情页、404，详情页可编辑 |
+| 交付 | 看效果 | 需求、验收清单、性能预算、设计决策记录 |
 
-<Figure caption="数据和方法在 useTasks 中。App 用 props 把任务传给 TaskItem。TaskItem 用事件通知 App 修改数据。">
-<TaskAppDataFlow />
+数据结构沿用第 13 章：任务有 `id`、`title`、`status`（`todo`、`doing`、`done` 三选一）和可选的 `due`（`YYYY-MM-DD`）。页面版里的 `done` 布尔值在这里变成三列。
+
+<Figure caption="组件只读 store 的状态，通过 action 改变它。action 调用 api 层，api 层把所有失败规范成 ApiError。失败存成 store 的状态，界面据此显示。">
+<ProDataFlow />
 </Figure>
 
-点击步骤按钮，读代码区（只显示这一步新增的代码），在应用区操作，再点“下一步”。
+### 23.2 十二条需求
 
-<Lab id="demo-project" title="项目：任务看板" note="运行真实的 Vue。每一步都可以操作。">
-<template #predict>
-<Sc predict :a="2">
-
-先猜：第 3 步中，shown 和 left 都是 computed。选择“进行中”，然后勾选“完成练习”。会发生什么？
-
-```js
-const shown = computed(() => tasks.value.filter(t => !t.done))  // 进行中
-const left = computed(() => tasks.value.filter(t => !t.done).length)
-```
-
-<Opt>仍显示，加删除线，筛选要刷新</Opt>
-<Opt>从列表中消失，“还剩”仍是 2 项</Opt>
-<Opt>从列表中消失，“还剩”变为 1 项</Opt>
-
-<template #explain>
-
-解析：done 改变后，依赖 tasks 的两个 computed 都重新计算。shown 不再包含这一项，left 减 1。不需要手动刷新筛选，也不需要另存一份数据。打开实验台，切换到第 3 步，选择“进行中”，勾选“完成练习”。
-
-</template>
-</Sc>
-</template>
-
-<TaskBoard />
-</Lab>
-
-下面两道练习让你亲手写第 4 步的 TaskItem 和第 5 步的持久化：
-
-<Exercise id="kanbanItem" />
-
-<Exercise id="kanbanSave" />
-
-### 23.2 页面延伸练习：排序、store 和路由
-
-下面三个练习在页面上完成，每个都带验收标准。
-
-1. 为任务添加截止日期。按日期排序。（第 4 章）<br>验收标准：
-
-   - 每个任务显示截止日期。没有日期的任务显示“无”。
-   - 列表按日期从早到晚排列。没有日期的任务排在最后。
-   - 排序用 computed 实现。修改一个日期后，列表立即重新排序。
-
-   <Exercise id="kanbanDue" />
-2. 把任务数据放入 Pinia。（第 16 章）<br>验收标准：
-
-   - tasks 和 add、toggle、remove 都在 store 中。App 不再保存任务数组。
-   - 另一个组件显示剩余任务数。添加任务后，这个数字立即改变。
-   - 组件用 `storeToRefs` 解构 state。刷新页面后，任务仍在。
-
-   <Exercise id="kanbanStore" />
-3. 添加 `/task/:id` 详情页。（第 17 章）<br>验收标准：
-
-   - 点击任务标题后，地址变为 `/task/` 加任务的 id，页面显示这个任务。
-   - 在地址栏直接打开 `/task/1` 并刷新，页面仍显示任务 1。
-   - 打开不存在的 id 时，页面显示“任务不存在”，控制台没有错误。
-
-   <Exercise id="kanbanRoute" />
-
-原来放在这里的三个本地练习（TypeScript 类型、组件测试、带验证的表单）现在是下面项目的里程碑。
-
-### 23.3 收尾项目：任务看板 Pro
-
-从这里开始，你在自己的电脑上，从一个空文件夹开始，做出一个能用、有测试、能部署的应用。页面不能判你的项目，所以检验分三种：
-
-| 检验方式 | 检验什么 |
-|---|---|
-| 页面练习（自动判题） | 两个最关键的片段：为 store 写能抓住缺陷的测试（`projStoreTest`），让列表满足无障碍的最低要求（`projA11y`） |
-| 验收清单（你自己操作） | 23.7 的每一条：怎样操作，应该看到什么。看到了才算通过，不凭感觉打勾 |
-| 设计决策记录（你自己写） | 23.8 的 3 到 5 个决策和理由 |
-
-项目沿用任务看板的主题，向上扩展成下面十条需求。每条都写成了可以操作和观察的标准。
+每条需求都写成可以操作和观察的标准。
 
 | 编号 | 需求 | 可验收的标准 |
 |---|---|---|
-| R1 | 添加任务 | 输入标题后提交，任务出现在“待办”列。标题为空或只有空格时不添加，输入框下方显示错误。用户还没有输入或提交时，不显示错误 |
-| R2 | 三列看板 | 三列：待办、进行中、已完成。每个任务有“移到下一列”按钮，已完成列没有。每列按截止日期从早到晚排列，没有日期的排最后 |
-| R3 | 截止日期和统计 | 添加和编辑时可以填截止日期。页面顶部显示“还剩 N 项”（待办和进行中的总数），勾选或移动后立即变化 |
-| R4 | 状态放在 Pinia | 任务以 `byId`（按 id 存放）和 `ids`（顺序）存放。每一列由 computed 选择器得到。组件里没有任务数组的副本 |
-| R5 | 持久化 | 刷新后任务仍在。localStorage 里的内容不是合法 JSON 时，应用回到空看板，控制台没有未捕获的错误 |
-| R6 | 路由 | `/` 是看板。`/task/:id` 是详情页，可以编辑标题。不存在的 id 显示“任务不存在”。其他地址显示 404 页。详情页有未保存的修改时，离开前询问 |
-| R7 | 类型 | `Task` 和 `Status` 有类型。store、组件的 props 和 emits 都有类型。`npm run type-check` 没有错误 |
-| R8 | 测试 | store 的 add、move、排序各有单元测试。TaskCard 有组件测试。故意改坏实现时，对应的测试变红 |
-| R9 | 性能 | 1000 个任务下，移动一个任务，其他卡片更新 0 次。详情页按路由懒加载。入口 JS（gzip）不超过 60 kB |
-| R10 | 无障碍和交付 | 只用键盘能完成添加、移动、删除。图标按钮有名称。`npm run build` 通过。部署后刷新 `/task/1` 不是 404 |
+| R1 | 添加任务 | 输入标题后提交，任务出现在“待办”列。标题为空或只有空格时不添加，输入框下方显示错误；还没有输入或提交时不显示错误。提交期间按钮禁用；服务端拒绝时显示它的错误 |
+| R2 | 三列看板 | 三列：待办、进行中、已完成。每个任务有“移到下一列”和“删除”按钮，已完成列没有“移到”。每列按截止日期从早到晚排列，没有日期的排最后 |
+| R3 | 截止日期和统计 | 添加时和详情页里可以填截止日期。页面顶部显示“还剩 N 项”（待办和进行中的总数），移动、删除、添加后立即变化 |
+| R4 | 数据来自接口 | 任务从接口读取。加载中显示“加载中”；失败显示原因和“重试”，点重试后恢复；一列没有任务时显示“没有任务”。刷新后任务仍在 |
+| R5 | 乐观更新 | 点“移到下一列”后卡片立刻出现在新的一列。请求失败时卡片回到原来的列，并显示“已恢复”的提示 |
+| R6 | 状态放在 Pinia | 任务以 `byId` 和 `ids` 存放，每一列由 computed 选择器得到。组件里没有任务数组的副本 |
+| R7 | 路由 | `/` 是看板。`/task/:id` 是详情页，可以编辑标题和截止日期，有“上一个”“下一个”链接。不存在的 id 显示“任务不存在”，其他地址显示 404 页。详情页有未保存的修改时，离开前询问。快速切换任务时，页面显示最后打开的那个 |
+| R8 | 类型 | `Task` 和 `Status` 有类型。store、接口层、组件的 props 和 emits 都有类型。`npm run type-check` 没有错误 |
+| R9 | 测试 | store 的 load、add、move（含回滚）、remove、列顺序各有单元测试。TaskCard 有组件测试。故意改坏实现时，对应的测试变红 |
+| R10 | 性能 | 1000 个任务下，移动一个任务，其他卡片更新 0 次。详情页按路由懒加载。入口 JS（gzip）不超过 60 kB |
+| R11 | 无障碍 | 只用键盘能完成添加、移动、删除。图标按钮有名称。“还剩 N 项”和错误提示会被读屏软件读出 |
+| R12 | 交付 | `npm run build` 通过。`npm run preview` 里直接打开并刷新 `/task/1` 不是 404 |
 
-### 23.4 需求到知识点的映射
+### 23.3 需求、知识点和里程碑
 
-每条需求用到哪一章的什么。卡住时，回到那一章的对应小节。排在本章之后的章（第 30、31、40 章）现在读不到，学到它们时再回来对照。
+表里的章号都是已经学过的章。卡住时回到那一章。第 30、31、40 章排在本章之后，学到时再回来对照。
 
-| 需求 | 用到的知识 | 在哪里学 |
-|---|---|---|
-| R1 带校验的表单 | 离开字段时才显示错误；`aria-invalid` 和 `aria-describedby` | 第 12 章 12.4、12.7 |
-| R2 看板分列和排序 | 用 computed 从数据派生；props 向下，事件向上 | 第 4 章 4.1，第 6 章 6.1、6.2 |
-| R3 剩余数量 | 派生数据不另存一份 | 第 4 章 4.1 |
-| R4 状态放在 Pinia | setup 写法的 store；`storeToRefs`；action 修改 state；状态应该放在哪一层 | 第 16 章 16.1 到 16.3，第 19 章 |
-| R5 持久化 | `$subscribe` 保存；插件；读取失败时的回退 | 第 16 章 16.4 |
-| R6 路由 | 路由表；`props` 传参；动态参数；导航守卫；404 | 第 17 章 17.1、17.5、17.6 |
-| R7 类型 | 为 props 和 emits 声明类型；`vue-tsc` | 第 14 章 14.2、14.5 |
-| R8 测试 | `mount` 和 `trigger`；每个测试一个新 pinia；测试能发现错误 | 第 15 章 15.6、15.7 |
-| R9 性能 | 稳定的 props；路由懒加载；用 `onUpdated` 计数；性能预算 | 第 21 章 21.2、21.5，第 40 章 40.1、40.8 |
-| R9 为什么这样做 | key 和 diff；组件更新的条件 | 第 30 章，第 31 章 |
-| R10 无障碍和交付 | 原生元素；构建和部署 | 第 12 章 12.7，第 15 章 15.5 |
+| 需求 | 用到的知识 | 在哪里学 | 里程碑 |
+|---|---|---|---|
+| R1 | 校验的时机、`aria-invalid`、提交中状态 | 第 12 章、第 18 章 | M3 |
+| R2 | computed 派生数据，props 向下、事件向上 | 第 4、6 章，第 13 章 | M3 |
+| R3 | 派生数据不另存一份 | 第 4 章 | M3、M4 |
+| R4 | 加载、错误、重试，服务端状态 | 第 18 章，第 19 章 | M1、M2 |
+| R5 | 乐观更新与回滚 | 第 18 章 | M2 |
+| R6 | setup store，`storeToRefs`，按 id 规范化 | 第 16 章，第 19 章 | M2 |
+| R7 | 路由表、`props`、守卫、懒加载，请求竞态 | 第 17 章，第 18 章 | M4 |
+| R8 | props 和 emits 的类型，`vue-tsc` | 第 14 章 | M1、M5 |
+| R9 | 组件测试，测试 store，故意改坏 | 第 20 章 | M5 |
+| R10 | 稳定的 props，路由懒加载，性能预算 | 第 21 章，详见第 40 章 | M6 |
+| R11 | 原生元素，label，状态区域 | 第 12 章 | M3、M6 |
+| R12 | 构建和部署 | 第 15 章 | M6 |
 
-### 23.5 在本地搭建项目
+“为什么稳定的 props 能让卡片不更新”详见第 30、31 章。第 22 章（迁移）是选读，本项目不用。
 
-先确认 Node.js 的版本。`create-vue` 要求 `^22.18.0 || >=24.12.0`。然后按下面的步骤操作：
+### 23.4 在本地搭建项目和假后端
 
-1. 创建项目。下面的命令选择了 TypeScript、Router、Pinia、Vitest、Playwright、ESLint 和 Prettier，和第 15 章 15.1 的交互式选项一致：
+先确认 Node.js 的版本。`create-vue` 要求 `^22.18.0 || >=24.12.0`。
 
 ```bash
-npm create vue@latest kanban -- \
-  --ts --router --pinia --vitest --playwright --eslint --prettier
+npm create vue@latest kanban -- --ts --router --pinia --vitest --eslint --prettier
 cd kanban
 npm install
-npm run dev
 ```
 
-2. 删掉示例文件：`HelloWorld.vue`、`TheWelcome.vue`、`WelcomeItem.vue`、`HomeView.vue`、`AboutView.vue`、`counter.ts` 和 `HelloWorld.spec.ts`。
-3. 按下面的结构放你的文件：
+删掉示例文件（`HelloWorld.vue`、`TheWelcome.vue`、`WelcomeItem.vue`、`components/icons`、`HomeView.vue`、`AboutView.vue`、`stores/counter.ts`、`components/__tests__`、`assets/logo.svg`），按下面的结构放你的文件：
 
 ```text
+fake-api.ts                    假后端（Vite 插件）
 src/
   types.ts                     Task、Status
+  api/client.ts                fetch 封装，失败变成 ApiError
+  api/tasks.ts                 五个接口函数
   stores/tasks.ts              Pinia store
   stores/__tests__/tasks.spec.ts
-  components/TaskCard.vue
-  components/TaskForm.vue
-  components/__tests__/TaskCard.spec.ts
+  components/TaskCard.vue  TaskForm.vue  components/__tests__/TaskCard.spec.ts
   views/BoardView.vue          路由 /
   views/TaskDetailView.vue     路由 /task/:id（懒加载）
   views/NotFoundView.vue       其他地址（懒加载）
+  views/__tests__/BoardView.perf.spec.ts
   router/index.ts
 ```
 
-4. 确认脚本可用。项目的 `package.json` 里有下面这些脚本，我们用 create-vue 3.24 生成过：
+脚手架的 `package.json` 里有这些脚本：
 
 | 命令 | 作用 |
 |---|---|
 | `npm run dev` | 开发服务器 |
 | `npm run type-check` | `vue-tsc --build`，检查类型 |
 | `npm run test:unit` | Vitest（监听模式，`npx vitest run` 只运行一次） |
-| `npm run test:e2e` | Playwright 端到端测试 |
 | `npm run lint` / `npm run format` | ESLint 和 oxlint / Prettier |
 | `npm run build` | 同时运行类型检查和 `vite build` |
 
-脚手架的 `tsconfig` 用项目引用，所以类型检查用 `vue-tsc --build`（也就是 `npm run type-check`），不用 `--noEmit`。本章其余地方说“类型检查”，都指这个命令。
+脚手架的 `tsconfig` 用项目引用，所以类型检查用 `vue-tsc --build`（也就是 `npm run type-check`），不用 `--noEmit`。本章说“类型检查”，都指这个命令。
 
-### 23.6 五个里程碑
+**假后端。**浏览器只能请求一个接口。我们不装 json-server，也不装 MSW，而是写一个 Vite 插件，在开发服务器和 `vite preview` 里都挂上 `/api`。下面是完整文件，放在项目根目录：
 
-按顺序做。每完成一个，对照它的完成标准，再进入下一个。
+```ts
+// fake-api.ts
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { Plugin, PreviewServer, ViteDevServer } from 'vite'
 
-**里程碑 1：数据和 store（R3、R4、R5）**
+type Task = { id: number; title: string; status: 'todo' | 'doing' | 'done'; due?: string }
 
-1. 在 `types.ts` 里定义类型：
+// 假后端：数据放在内存里，服务重启后回到种子数据。
+export function fakeApi(): Plugin {
+  const tasks: Task[] = [
+    { id: 1, title: '读完第 14 到 22 章', status: 'doing', due: '2026-11-01' },
+    { id: 2, title: '搭好 Vite 项目', status: 'todo', due: '2026-10-20' },
+    { id: 3, title: '写 store 的测试', status: 'todo' },
+    { id: 4, title: '部署到静态托管', status: 'done', due: '2026-10-01' },
+  ]
+  let nextId = 5
+  // 运行中可调：/api/_debug?delay=1500&failRate=0.5&seed=1000
+  const debug = { delay: 300, failRate: 0 }
+
+  const send = (res: ServerResponse, status: number, body?: unknown) => {
+    res.statusCode = status
+    res.setHeader('Content-Type', 'application/json')
+    res.end(body === undefined ? '' : JSON.stringify(body))
+  }
+  const readBody = (req: IncomingMessage) =>
+    new Promise<Record<string, unknown>>((resolve) => {
+      let raw = ''
+      req.on('data', (c) => (raw += c))
+      req.on('end', () => resolve(raw ? JSON.parse(raw) : {}))
+    })
+
+  function seed(n: number) {
+    tasks.length = 0
+    for (let i = 1; i <= n; i++) {
+      const month = String((i % 12) + 1).padStart(2, '0')
+      const day = String((i % 27) + 1).padStart(2, '0')
+      tasks.push({
+        id: i,
+        title: `任务 ${i}`,
+        status: (['todo', 'doing', 'done'] as const)[i % 3]!,
+        due: i % 4 === 0 ? undefined : `2026-${month}-${day}`,
+      })
+    }
+    nextId = n + 1
+  }
+
+  async function handle(req: IncomingMessage, res: ServerResponse) {
+    const url = new URL(req.url ?? '/', 'http://x')
+    if (url.pathname === '/_debug') {
+      const q = url.searchParams
+      if (q.has('delay')) debug.delay = Number(q.get('delay'))
+      if (q.has('failRate')) debug.failRate = Number(q.get('failRate'))
+      if (q.has('seed')) seed(Number(q.get('seed')))
+      return send(res, 200, debug)
+    }
+    await new Promise((r) => setTimeout(r, debug.delay))
+    if (Math.random() < debug.failRate) return send(res, 500, { message: '服务器开小差了' })
+
+    const match = url.pathname.match(/^\/tasks(?:\/(\d+))?$/)
+    if (!match) return send(res, 404, { message: '接口不存在' })
+    const id = match[1] ? Number(match[1]) : undefined
+    const task = id === undefined ? undefined : tasks.find((t) => t.id === id)
+
+    if (req.method === 'GET' && id === undefined) return send(res, 200, tasks)
+    if (req.method === 'GET') {
+      return task ? send(res, 200, task) : send(res, 404, { message: '任务不存在' })
+    }
+    if (req.method === 'POST' && id === undefined) {
+      const body = await readBody(req)
+      const title = String(body.title ?? '').trim()
+      if (!title) return send(res, 400, { message: '标题不能为空', field: 'title' })
+      const created: Task = {
+        id: nextId++,
+        title,
+        status: 'todo',
+        due: body.due ? String(body.due) : undefined,
+      }
+      tasks.push(created)
+      return send(res, 201, created)
+    }
+    if (req.method === 'PATCH' && task) {
+      const body = await readBody(req)
+      if ('title' in body && !String(body.title).trim()) {
+        return send(res, 400, { message: '标题不能为空', field: 'title' })
+      }
+      Object.assign(task, body)
+      return send(res, 200, task)
+    }
+    if (req.method === 'DELETE' && task) {
+      tasks.splice(tasks.indexOf(task), 1)
+      return send(res, 204)
+    }
+    return send(res, 404, { message: '任务不存在' })
+  }
+
+  const install = (server: ViteDevServer | PreviewServer) => {
+    server.middlewares.use('/api', (req, res) => void handle(req, res))
+  }
+  return { name: 'fake-api', configureServer: install, configurePreviewServer: install }
+}
+```
+
+在 `vite.config.ts` 的 `plugins` 里加上 `fakeApi()`，并在 `tsconfig.node.json` 的 `include` 里加 `"fake-api.*"`。然后启动 `npm run dev`，在另一个终端验证：
+
+```bash
+curl http://localhost:5173/api/tasks                      # 4 个任务
+curl -X POST -d '{"title":" "}' http://localhost:5173/api/tasks   # 400，标题不能为空
+curl "http://localhost:5173/api/_debug?delay=2000&failRate=0.5"    # 调慢、调失败率
+```
+
+`/api/_debug` 是你的测试遥控器：`delay` 是延迟毫秒数，`failRate` 是失败概率，`seed=1000` 把数据换成 1000 个任务。验收清单和性能测试都靠它。
+
+::: deep 为什么不用 json-server 或 MSW
+json-server 要多开一个进程，还要配代理；MSW 在浏览器里拦截请求，在 Vitest 里又要另一套配置。Vite 插件只有一份文件，开发和预览都能用，故障注入（延迟、失败率）也只要几行。代价是它只在 Vite 的服务里存在：build 出来的静态文件部署到别处，没有 `/api`。所以 R12 的验收停在 `npm run preview`，真正上线需要换成真实后端。
+:::
+
+### 23.5 六个里程碑
+
+按顺序做。每完成一个，对照完成标准，再进入下一个。
+
+**M1：类型、接口层和假后端（R4 的接口部分，R8 的类型部分）**
+
+1. `types.ts` 定义类型：
 
 ```ts
 export type Status = 'todo' | 'doing' | 'done'
@@ -236,28 +280,96 @@ export interface Task {
   status: Status
   due?: string // 'YYYY-MM-DD'
 }
+// 每个状态的下一列；已完成没有下一列
+export const NEXT: Record<Status, Status | null> = { todo: 'doing', doing: 'done', done: null }
 ```
 
-2. 写 `stores/tasks.ts`。用 `byId` 和 `ids` 存放，每一列用 computed 选择器得到。下面是我们跑通过的一个参考写法（add、move、列选择器和剩余数量）：
+2. `api/client.ts` 把所有请求失败规范成一种错误。组件和 store 只处理 `ApiError`，不处理 `fetch` 的各种异常：
+
+```ts
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number, // 0 表示没有到达服务器，例如断网
+    readonly field?: string,
+  ) {
+    super(message)
+  }
+}
+
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch('/api' + path, {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...init.headers },
+    })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e // 取消不是失败，原样抛出
+    throw new ApiError('网络不通', 0)
+  }
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { message?: string; field?: string }
+    throw new ApiError(body.message ?? `请求失败（${res.status}）`, res.status, body.field)
+  }
+  return res.status === 204 ? (undefined as T) : ((await res.json()) as T)
+}
+```
+
+3. `api/tasks.ts` 写 `listTasks`、`getTask`、`createTask`、`patchTask`、`deleteTask` 五个函数，每个都有明确的返回类型，`listTasks` 和 `getTask` 接受一个可选的 `AbortSignal`。
+
+完成标准：`npm run type-check` 零错误；用 curl 能读写任务。
+
+**M2：store（R4、R5、R6）**
+
+store 用 `byId` 和 `ids` 存放任务，加上加载状态。三个地方要想清楚：
+
+- `load` 用一个递增的 `loadToken` 防竞态：快速点两次“重试”，只接受最后一次的结果。
+- `add` 是悲观更新：服务端确认后才进列表。
+- `move` 是乐观更新：先改界面，失败再回滚。回滚前要确认任务还停在你设置的状态，否则会覆盖用户后来的操作。
 
 ```ts
 export const useTaskStore = defineStore('tasks', () => {
   const byId = ref<Record<number, Task>>({})
   const ids = ref<number[]>([])
-  let nextId = 1
+  const loadState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const loadError = ref('')
+  const notice = ref('') // 操作失败的提示，例如移动被回滚
+  let loadToken = 0
 
-  function add(title: string, due?: string): Task | null {
-    const text = title.trim()
-    if (!text) return null
-    const task: Task = { id: nextId++, title: text, status: 'todo', due }
-    byId.value[task.id] = task
-    ids.value.push(task.id)
-    return task
+  async function load() {
+    const token = ++loadToken
+    loadState.value = 'loading'
+    loadError.value = ''
+    try {
+      const list = await api.listTasks()
+      if (token !== loadToken) return // 有更新的 load 在跑，这次的结果作废
+      byId.value = Object.fromEntries(list.map((t) => [t.id, t]))
+      ids.value = list.map((t) => t.id)
+      loadState.value = 'ready'
+    } catch (e) {
+      if (token !== loadToken) return
+      loadError.value = e instanceof Error ? e.message : '加载失败'
+      loadState.value = 'error'
+    }
   }
-  function move(id: number, status: Status) {
+
+  async function move(id: number, to: Status) {
     const task = byId.value[id]
-    if (task) task.status = status
+    if (!task) return
+    const from = task.status
+    task.status = to // 先改界面
+    notice.value = ''
+    try {
+      await api.patchTask(id, { status: to })
+    } catch (e) {
+      const current = byId.value[id]
+      if (current?.status === to) current.status = from // 只有还停在 to 才回滚
+      notice.value = `移动“${task.title}”失败，已恢复`
+      throw e
+    }
   }
+
   // 选择器：一列的任务 id，按截止日期升序，没有日期的排最后
   function idsOf(status: Status): number[] {
     return ids.value
@@ -266,320 +378,288 @@ export const useTaskStore = defineStore('tasks', () => {
   }
   const columns = computed(() => ({ todo: idsOf('todo'), doing: idsOf('doing'), done: idsOf('done') }))
   const remaining = computed(() => ids.value.length - columns.value.done.length)
-  return { byId, ids, columns, remaining, add, move }
+
+  // add、remove、fetchOne（读一个任务并放进 byId）、save（PATCH 标题和日期）照同样的写法
+  return { byId, ids, loadState, loadError, notice, columns, remaining, load, move /* … */ }
 })
 ```
 
-3. 用 `$subscribe` 把 `byId` 和 `ids` 保存到 localStorage。读取时用 `try/catch`：内容不是合法 JSON 时回到空看板。
+`add` 把新任务放进 `byId` 并把 id 推进 `ids`；`remove` 要同时改两处。`move` 和 `remove` 失败时把错误抛出去，由看板组件决定怎么显示（提示已经写进 `notice`，组件只需要 `.catch(() => {})`）。
 
-完成标准：R4 和 R5 的标准满足；浏览器的 Pinia 面板里能看到 `byId` 和 `ids`。
+完成标准：R4 的数据部分、R5、R6 的标准满足。先在页面上练习这一步最关键的片段：
 
-先在页面上练习这一步最重要的习惯：为 store 的行为写测试，并确认测试真的能抓住缺陷。
+<Exercise id="kanbanStore" />
 
-<Exercise id="projStoreTest" />
+**M3：看板界面（R1、R2、R3、R11）**
 
-**里程碑 2：看板界面（R1、R2）**
+1. `TaskCard.vue`：`defineProps<{ task: Task }>()`，`defineEmits<{ move: [id: number, to: Status]; remove: [id: number] }>()`。标题是 `RouterLink`，“移到”按钮用 `NEXT` 决定是否显示，删除按钮写 `aria-label="删除 标题"`。
+2. `TaskForm.vue`：标题输入框用 `touched` 控制：离开字段或提交之后才显示错误。提交期间 `pending` 为真，按钮禁用。服务端返回的错误（`ApiError.message`）显示在表单里。
+3. `BoardView.vue`：用 `storeToRefs(store)` 得到 `columns`、`byId`、`loadState`，挂载时 `loadState === 'idle'` 才 `load()`。根据 `loadState` 显示“加载中”、失败和重试按钮、或三列。传给卡片的是 `byId[id]`，不要在模板里复制它。“还剩 N 项”放在 `role="status"` 的元素里。
 
-1. `TaskCard.vue`：用 `defineProps<{ task: Task }>()` 声明 props，用 `defineEmits<{ toggle: [id: number]; remove: [id: number] }>()` 声明事件。
-2. `TaskForm.vue`：标题输入框加校验。还没有输入或提交时不显示错误。提交成功后清空输入框。
-3. `BoardView.vue`：用 `storeToRefs(store)` 得到 `columns` 和 `byId`，用 `v-for` 渲染三列。传给卡片的是 `byId[id]`，不要在模板里复制它。
-
-完成标准：R1、R2 的标准满足。
-
-**里程碑 3：路由（R6）**
-
-1. 路由表里用 `props: (route) => ({ id: Number(route.params.id) })`，把路由参数转成数字再传给详情页。路由参数总是字符串，不转换时 `'3' === 3` 为假。
-2. 详情页和 404 页用 `() => import(...)` 懒加载。
-3. 详情页用 `onBeforeRouteLeave` 保护未保存的修改。从 `/task/1` 去 `/task/2` 时组件被复用，不会触发 leave 守卫，所以还要写 `onBeforeRouteUpdate`（第 17 章 17.5 和 17.6）。
-
-```ts
-onBeforeRouteLeave(() => {
-  if (dirty.value && !window.confirm('有未保存的修改，确定离开？')) return false
-})
-```
-
-完成标准：R6 的标准满足；在地址栏直接打开 `/task/999`，显示“任务不存在”。
-
-**里程碑 4：类型、测试和无障碍（R7、R8、R10）**
-
-1. 运行 `npm run type-check`，修到零错误。把 `Task` 传给缺少 `title` 的对象，编辑器应该报错。
-2. 写 store 的单元测试（里程碑 1 的页面练习是它的缩小版）和 TaskCard 的组件测试。每个测试一个新 pinia：
-
-```ts
-beforeEach(() => setActivePinia(createPinia()))
-
-it('每一列按截止日期升序，没有日期的排最后', () => {
-  const s = useTaskStore()
-  s.add('无日期')
-  s.add('晚', '2026-12-01')
-  s.add('早', '2026-01-01')
-  expect(s.columns.todo.map((id) => s.byId[id]?.title)).toEqual(['早', '晚', '无日期'])
-})
-```
-
-3. 故意改坏一处实现（例如去掉排序），确认至少有一个测试变红，再改回来。
-4. 用原生元素：复选框和 label，`<button>`。图标按钮写 `aria-label`。“还剩 N 项”放在 `role="status"` 的元素里。
-
-完成标准：R7、R8 满足；拔掉鼠标，只用 Tab、空格和 Enter 完成添加、移动、删除。
-
-先在页面上练习无障碍的最低要求：
+完成标准：R1、R2、R3、R4 的界面部分满足。先练习无障碍的最低要求：
 
 <Exercise id="projA11y" />
 
-**里程碑 5：性能和部署（R9、R10）**
+**M4：路由和详情页（R3 的日期编辑、R7）**
 
-1. 写一个性能测试：造 1000 个任务，挂载看板，移动一个，断言卡片更新 0 次。用全局 mixin 在 `updated` 里计数。`__name` 是 `<script setup>` 的组件根据文件名生成的名字：
+1. 路由表里用 `props: (route) => ({ id: Number(route.params.id) })` 把参数转成数字，路径写成 `/task/:id(\d+)` 让 `/task/abc` 落到 404。详情页和 404 页用 `() => import(...)` 懒加载。
+2. 详情页不依赖看板是否加载过：它自己 `fetchOne`。`watch(() => props.id, …, { immediate: true })` 在 id 变化时重新请求，并在回调里用 `onCleanup` 取消上一次的请求：
+
+```ts
+watch(
+  () => props.id,
+  async (id, _old, onCleanup) => {
+    const controller = new AbortController()
+    onCleanup(() => controller.abort()) // id 又变了，上一次的请求作废
+    state.value = 'loading'
+    try {
+      const t = await store.fetchOne(id, controller.signal)
+      title.value = t.title
+      due.value = t.due ?? ''
+      state.value = 'ready'
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      state.value = e instanceof ApiError && e.status === 404 ? 'missing' : 'error'
+    }
+  },
+  { immediate: true },
+)
+```
+
+3. 未保存的修改：`dirty` 比较草稿和 store 里的任务，**只在 `state === 'ready'` 时才比较**。加载中草稿还是空的，不加这个条件，用户一进页面就会被当成“有修改”。离开守卫要注册两个，因为 `/task/1` 到 `/task/2` 复用同一个组件，只会触发更新守卫：
+
+```ts
+const confirmLeave = () => !dirty.value || window.confirm('有未保存的修改，确定离开？')
+onBeforeRouteLeave(confirmLeave)
+onBeforeRouteUpdate(confirmLeave)
+```
+
+4. 详情页顶部放“返回看板”“上一个”“下一个”三个链接。“下一个”让你能手动制造请求竞态。
+
+完成标准：R3、R7 满足；直接打开 `/task/999` 显示“任务不存在”。
+
+<Exercise id="kanbanRoute" />
+
+**M5：测试和类型收口（R8、R9）**
+
+1. 运行 `npm run type-check`，修到零错误。故意给 `Task` 传一个缺 `title` 的对象，应该报错。
+2. store 的测试用 `vi.mock('@/api/tasks')` 替换接口层，每个测试一个新 pinia。测试要覆盖：load 成功和失败、慢的旧 `load` 不覆盖新的、move 成功、move 失败回滚、回滚前又被移走时不覆盖、add 成功和被拒绝、remove 同时改 `byId` 和 `ids`、每列的排序。写竞态测试时，用一个手动控制的 Promise：
+
+```ts
+function deferred<T>() {
+  let resolve!: (v: T) => void
+  let reject!: (e: unknown) => void
+  const promise = new Promise<T>((res, rej) => ((resolve = res), (reject = rej)))
+  return { promise, resolve, reject }
+}
+
+it('回滚前任务又被移走：不覆盖后来的移动', async () => {
+  const first = deferred<Task>()
+  mocked.patchTask.mockReturnValueOnce(first.promise)           // 第一次移动：先挂起
+  mocked.patchTask.mockResolvedValueOnce({ ...seed[1]!, status: 'done' })
+  const s = useTaskStore()
+  await s.load()
+  const a = s.move(2, 'doing').catch(() => {})
+  await s.move(2, 'done')
+  first.reject(new Error('500'))                                 // 现在才让第一次失败
+  await a
+  expect(s.byId[2]?.status).toBe('done')
+})
+```
+
+3. TaskCard 的组件测试：用 `RouterLinkStub` 替换 `RouterLink`，检查显示标题、点击发出 `move` 和正确的参数、已完成的卡片没有“移到”按钮、删除按钮有名称。
+4. 故意改坏一处实现（去掉排序、去掉 `loadToken` 判断、把 `emit('move', …)` 改成别的名字），确认至少有一个测试变红，再改回来。
+
+完成标准：R8、R9 满足。先在页面上练习“测试要能抓住缺陷”：
+
+<Exercise id="projStoreTest" />
+
+**M6：性能、无障碍复查和交付（R10、R11、R12）**
+
+1. 写一个性能测试：用 `vi.mock` 让 `listTasks` 返回 1000 个任务，挂载 `BoardView`，移动一个，断言卡片更新 0 次。用全局 mixin 在 `updated` 里计数，并按组件名过滤。`__name` 是 `<script setup>` 的组件根据文件名生成的名字：
 
 ```ts
 let updates = 0
-const wrapper = mount(BoardView, {
+mount(BoardView, {
   global: {
     plugins: [pinia],
-    mixins: [{ updated() { if ((this as any).$options.__name === 'TaskCard') updates++ } }],
+    stubs: { RouterLink: RouterLinkStub },
+    mixins: [{ updated() { if ((this.$options as { __name?: string }).__name === 'TaskCard') updates++ } }],
   },
 })
 await flushPromises()
 updates = 0
-store.move(500, 'doing')
+await useTaskStore().move(500, 'doing')
 await flushPromises()
 expect(updates).toBe(0)
 ```
 
-我们用 1000 个任务验证过：移动一个任务，卡片更新 0 次；改一个任务的标题，卡片更新 1 次。如果你的数字更大，先查传给卡片的 props 是否稳定（第 21 章 21.2 节）。更系统的诊断方法见第 40 章，学到那里再回来用。
+我们用 1000 个任务验证过：移动一个任务，卡片更新 0 次；把模板里的 `:task="byId[id]!"` 改成 `:task="{ ...byId[id]! }"`，更新次数变成 999。数字更大时，先查传给卡片的 props 是否稳定（第 21 章）。更系统的诊断详见第 40 章，收尾项目（第 42 章）会让你在这个项目上做一次。
 
-2. 运行 `npm run build`，看输出里每个文件的大小。路由页应该是单独的文件。给入口文件定预算（第 40 章 40.6 节会讲怎样定，现在可以先按下面的数字做）。我们用只有 Router 和 Pinia 的空项目构建过，入口 JS 约 97 kB，gzip 后约 38 kB，所以 60 kB 的预算留了余量；你的项目超过它时，先查是哪个依赖变大了。
-3. 设置 `base`（需要时），把 `dist/` 部署到静态托管，并配置“找不到文件时返回 `index.html`”（第 15 章 15.5）。
+2. 运行 `npm run build`，看每个文件的大小。详情页和 404 页应该是单独的文件。我们的参考实现入口 JS 约 102 kB，gzip 后约 40 kB，所以 60 kB 的预算留了余量；超过时先查是哪个依赖变大了。
+3. 拔掉鼠标，只用 Tab、空格和 Enter 完成添加、移动、删除，并确认能看见焦点。
+4. 运行 `npm run build` 后 `npm run preview`，在地址栏直接打开 `/task/1` 并刷新。`vite preview` 对找不到的路径返回 `index.html`，所以不是 404。要部署到别的静态托管，同样要配置“找不到文件时返回 `index.html`”（第 15 章），而且要有真实的 `/api`。
 
-完成标准：R9、R10 满足；线上地址刷新 `/task/1` 不是 404。
+完成标准：R10、R11、R12 满足。
 
-### 23.7 验收清单
+### 23.6 验收清单
 
-按下表逐条操作。**看到“应该看到”的结果，才算这一条通过。**
+按下表逐条操作。**看到“应该看到”的结果，才算这一条通过。**每一行的“需求”列指向它验收的需求，十二条需求每条至少出现一次。
 
-| 类别 | 怎样操作 | 应该看到 |
+| 需求 | 怎样操作 | 应该看到 |
 |---|---|---|
-| 功能 | 按 R1 到 R3 逐条操作，同时打开控制台 | 每条需求都能完成；控制台没有红色报错，也没有 `key` 警告 |
-| 功能 | 添加几个任务，移动一些，然后刷新页面 | 任务和它们所在的列都还在 |
-| 出错 | 在控制台运行 `localStorage.setItem('tasks', '{坏')`（键名换成你用的），刷新 | 看板为空，应用没有崩溃 |
-| 空数据 | 清空所有任务 | 每一列显示“没有任务”，不是一片空白 |
-| 路由 | 在地址栏打开 `/task/999` 和 `/不存在` | 前者显示“任务不存在”，后者显示 404 页 |
-| 路由 | 在详情页改标题但不保存，点击“返回看板” | 出现“有未保存的修改”询问；点取消，留在详情页 |
-| 类型 | 运行 `npm run type-check` | 没有错误 |
-| 测试 | 运行 `npx vitest run`；再故意改坏排序或事件名 | 全部通过；改坏后至少一个测试变红，改回后全绿 |
-| 性能 | 1000 个任务下，运行性能测试 | 移动一个任务，其他卡片更新 0 次 |
-| 性能 | 运行 `npm run build` | 路由页是单独的文件；入口 JS（gzip）不超过 60 kB |
-| 无障碍 | 拔掉鼠标，只用 Tab、空格、Enter | 添加、移动、删除都能完成，并且能看见焦点在哪里 |
-| 无障碍 | 打开浏览器的无障碍检查（例如 Lighthouse 的无障碍项） | 没有“按钮没有名称”“表单没有标签”这类问题 |
-| 交付 | 部署后，在地址栏直接打开 `/task/1` 并刷新 | 页面正常显示，不是 404 |
+| R4 | 先访问 `/api/_debug?delay=2000`，再刷新看板 | 先显示“加载中”，两秒后出现三列；刷新后任务仍在 |
+| R4 | 访问 `/api/_debug?failRate=1`，刷新；再访问 `?failRate=0`，点“重试” | 显示失败原因和“重试”；点后恢复。控制台没有未捕获的错误 |
+| R4 | 删光所有任务 | 每一列显示“没有任务”，不是一片空白 |
+| R1 | 直接点“添加”；再输入标题添加 | 前者标题下出现错误；后者任务出现在待办，输入框清空；还没操作时没有错误 |
+| R2、R3 | 添加几个带不同日期的任务，移动、删除一些 | 每列按日期升序，无日期的在最后；“还剩 N 项”立刻变化 |
+| R5 | 设 `delay=1500`，点“移到下一列” | 卡片立刻出现在新的一列 |
+| R5 | 设 `failRate=1`，再点“移到下一列” | 卡片先移过去，随后回到原列，出现“已恢复”的提示 |
+| R6 | 在组件里搜索任务数组的副本 | 没有 `ref([])` 一类的副本；Vue 开发者工具的 Pinia 面板里能看到 `byId` 和 `ids` |
+| R7 | 打开 `/task/999` 和 `/不存在` | 前者显示“任务不存在”，后者显示 404 页 |
+| R7 | 在详情页改标题但不保存，点“返回看板”或“下一个” | 出现“有未保存的修改”询问；点取消，留在原页 |
+| R7 | 设 `delay=3000`，打开 `/task/1`，马上点两次“下一个” | 最后页面显示任务 3，不会因为任务 1 的响应晚到而变回任务 1 |
+| R8 | 运行 `npm run type-check` | 没有错误 |
+| R9 | 运行 `npx vitest run`；再故意改坏排序、`loadToken` 判断或事件名 | 全部通过；改坏后至少一个测试变红，改回后全绿 |
+| R10 | 运行性能测试 | 移动一个任务，其他卡片更新 0 次 |
+| R10 | 运行 `npm run build` | 详情页是单独的文件；入口 JS（gzip）不超过 60 kB |
+| R11 | 拔掉鼠标，只用 Tab、空格、Enter | 添加、移动、删除都能完成，并且能看见焦点在哪里 |
+| R11 | 打开浏览器的无障碍检查（例如 Lighthouse 的无障碍项） | 没有“按钮没有名称”“表单没有标签”这类问题 |
+| R12 | `npm run build` 后 `npm run preview`，直接打开 `/task/1` 并刷新 | 页面正常显示，不是 404 |
 
-### 23.8 设计决策记录
+### 23.7 设计决策记录
 
 项目完成后，写 3 到 5 条设计决策。每条包括：**决策、备选方案、选择的理由、代价。**理由要具体到你的项目，不要写“因为这样更好”。
 
 | 要回答的问题 | 参考的章 |
 |---|---|
-| 任务状态放在哪里？ | 第 16 章，第 19 章 |
-| 路由怎样设计？ | 第 17 章 |
-| 哪些地方做了性能处理？依据是什么数字？ | 第 21 章，第 40 章 |
-| 测试测什么，不测什么？ | 第 15 章 |
+| 任务状态放在哪里？加载中、失败这些状态放在哪里？ | 第 16 章，第 19 章 |
+| 哪些请求用乐观更新，哪些不用？ | 第 18 章 |
+| 路由怎样设计？详情页的数据从哪里来？ | 第 17 章 |
+| 测试测什么，不测什么？ | 第 20 章 |
 | 类型怎样帮你避免了一个具体的错误？ | 第 14 章 |
 
 示范（针对本章参考实现，你的项目会不同）：
 
-> **决策 1：任务放在 Pinia，用 `byId` 加 `ids`。**
-> 备选：每个列组件自己保存一个数组；一个 `tasks` 数组放在 Pinia。
-> 理由：任务要被看板、详情页和统计三处读取，不能放在某个组件里。用 `byId` 按 id 取任务，详情页不需要遍历数组；`ids` 保存顺序。
-> 代价：多写一层选择器；删除时要同时改两处。
+> **决策 1：移动用乐观更新，添加用悲观更新。**
+> 备选：两者都等服务端确认；两者都先改界面。
+> 理由：移动的结果可以预知，失败概率低，等待 300 毫秒会让拖动感觉卡；添加要拿服务端生成的 id，没有 id 就无法渲染稳定的 key。
+> 代价：移动要多写回滚，还要处理“回滚前又被移走”。每个这样的分支都要有测试。
 >
-> **决策 2：详情页用路由参数，不用弹窗加 query。**
-> 备选：在看板页弹出详情，用 `?task=3` 记录。
-> 理由：详情页需要被直接打开和刷新，路由参数天然支持；未保存修改的守卫也只需要写在这一个页面组件里。
-> 代价：看板页的滚动位置在返回时要靠 `scrollBehavior` 恢复。
+> **决策 2：详情页自己请求，不依赖看板的数据。**
+> 备选：只从 store 里读；进详情页前先确保 store 已加载。
+> 理由：详情页要能被直接打开和刷新，此时 store 是空的。自己请求还让“任务不存在”由服务端的 404 决定。
+> 代价：从看板进入详情页会多一次请求；要处理 id 变化时的竞态，用取消上一次请求解决。
 >
 > **决策 3：不用虚拟列表，只保证 props 稳定。**
-> 依据：1000 个任务下，移动一个任务时其他卡片更新 0 次（性能测试断言），首屏 DOM 约 1000 张卡片，在目标设备上没有长任务。
+> 依据：1000 个任务下，移动一个任务时其他卡片更新 0 次（性能测试断言）。
 > 备选：虚拟列表。
 > 理由：数字已经达到预算。虚拟列表会让键盘导航和无障碍更复杂。如果任务数超过一万，再回来用它。
-> 代价：任务数增长时要重新测量。
+> 代价：任务数增长时要重新测量；首屏要渲染全部卡片，这一点在收尾项目（第 42 章）里会被量化。
 >
 > **决策 4：测试行为，不测内部实现。**
-> 理由：store 测试检查“列的顺序”和“剩余数量”，组件测试检查“显示标题”和“发出 toggle 和 id”。改内部写法时测试不用改。每个测试都用“故意改坏”确认过它能变红。
+> 理由：store 测试检查“列的顺序”“回滚后的状态”，组件测试检查“显示标题”和“发出 move 和参数”。改内部写法时测试不用改。每个测试都用“故意改坏”确认过它能变红。
 > 不测：样式，以及 Pinia 和 Vue Router 自己的行为。
 
-### 23.9 可选的延伸方向
+### 23.8 可选的延伸方向
 
 做完验收清单之后，选一两项做，并把取舍写进你的设计决策记录。
 
 | 延伸 | 做什么 | 在哪里学 |
 |---|---|---|
-| 虚拟列表 | 任务超过一万条时，只渲染可见的卡片，并保证键盘导航仍然可用 | 第 21 章 21.1 |
+| 虚拟列表 | 任务超过一万条时，只渲染可见的卡片，并保证键盘导航仍然可用 | 第 21 章 |
 | 自定义指令 | 写一个 `v-focus`：添加任务后让新卡片获得焦点 | 第 10 章 |
-| SSR 或 SSG | 用 `renderToString` 或 Nuxt 生成首屏 HTML，并且没有水合警告 | 第 36 章 |
-| 无渲染组件 | 把“列”的排序和选择逻辑抽成无渲染组件或 `useListbox` | 第 35 章 |
-| 自定义渲染器 | 把统计数字画到 Canvas 上 | 第 32 章 |
+| 自定义渲染器 | 把统计数字画到 Canvas 上 | 详见第 32 章 |
+| KeepAlive 和 Transition | 给看板加 `KeepAlive`，给卡片移动加 `Transition`，并按它们的实现解释看到的行为 | 详见第 33 章 |
 | 迁移 | 给旧的选项式 API 小组件写一份迁移说明 | 第 22 章 |
-| 错误监控 | 给看板加全局的 `errorHandler` 和错误边界，路由和 Pinia 的错误也一起上报 | 第 38 章 |
-| 表单层 | 把任务表单的校验、提交和字段数组抽成一个小的表单层 | 第 39 章 |
-| 组件库 | 把看板的组件抽成别人能安装的库，配好构建、`exports` 和类型 | 第 41 章 |
-| 用 KeepAlive 和 Transition | 给详情页加 `KeepAlive`，给卡片移动加 `Transition`，并按它们的实现解释看到的行为 | 第 33 章 |
 
-::: deep 为组件写测试
-用 Vitest 和 @vue/test-utils 测试组件。按下面的步骤操作：
+下面这些放在**第 42 章的收尾项目**里做。学完原理和架构阶段后，回到这个项目上做升级：
 
-1. 安装 `vitest`、`@vue/test-utils` 和 `jsdom`。
-2. 在 vite.config 中设置 `test.environment` 为 `'jsdom'`。
-3. 用 `mount` 挂载组件。
-4. 用 `trigger` 触发事件。等待 DOM 更新。
-5. 检查渲染结果和发出的事件。
-
-```js
-import { test, expect, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
-import { createTestingPinia } from '@pinia/testing'
-import TaskItem from './TaskItem.vue'
-
-test('点击复选框时发出 toggle 事件', async () => {
-  const wrapper = mount(TaskItem, {
-    props: { task: { id: 1, text: '写测试', done: false } },
-    global: { plugins: [createTestingPinia({ createSpy: vi.fn })] }  // action 替换为 vi.fn
-  })
-  expect(wrapper.text()).toContain('写测试')
-  await wrapper.find('input[type=checkbox]').trigger('change')   // await：等待 nextTick
-  expect(wrapper.emitted('toggle')[0]).toEqual([1])
-})
-
-test('组合式函数可以单独测试', () => {
-  const { count, inc } = useCounter()
-  inc()
-  expect(count.value).toBe(1)
-})
-```
-:::
+| 延伸 | 在哪里学 |
+|---|---|
+| 错误边界、统一的请求错误处理、上报 | 详见第 38 章 |
+| 1000 条任务的性能诊断和预算 | 详见第 40 章 |
+| 把卡片和列表按“组合式函数、无渲染组件、带样式组件”分层，键盘操作 | 详见第 34、35 章 |
+| 用表单层改写新建任务的表单（异步校验、子任务） | 详见第 39 章 |
+| 让只读页面服务端渲染 | 详见第 36、37 章 |
+| 把分层后的组件抽成可安装的包 | 详见第 41 章 |
 
 ::: pitfalls
 1. 路由参数是字符串。比较 id 之前先转成数字。原因：`'3' === 3` 为假，找不到任务。
 2. 不要把任务数组复制到组件里。原因：两份数据会不一致。从 store 的 computed 读取。
-3. trigger 和 setValue 返回 Promise。先 await，再检查 DOM。原因：DOM 在下一次更新后才改变。
-4. 测试行为，不测试实现细节。检查用户看到的内容和组件发出的事件。原因：这样修改内部代码后，测试仍然有效。
-5. 测试写完后，故意改坏实现，看测试会不会变红。原因：没有断言或断言太弱的测试永远通过。
-6. 在模板里复制对象再传给子组件，例如 `:task="{ ...t }"`。原因：每次渲染都是新对象，所有卡片都会更新（第 21 章）。
-7. 在 CI 里用毫秒做性能断言。原因：测试环境的耗时不稳定。断言更新次数。
+3. 回滚时无条件写回旧状态。原因：回滚之前用户可能又移动过这个任务，你会覆盖他的操作。
+4. 响应到达时不检查它是不是最新的。原因：慢的旧响应晚到，会盖住新页面。取消上一次请求，或者比较请求编号。
+5. 自动重试非幂等的请求，例如添加任务。原因：请求可能已经到达服务器，重试会创建两个任务。只重试 GET。
+6. 测试写完后，不故意改坏实现看测试会不会变红。原因：没有断言或断言太弱的测试永远通过。
+7. 在模板里复制对象再传给子组件，例如 `:task="{ ...t }"`。原因：每次渲染都是新对象，所有卡片都会更新（第 21 章）。
+8. 在 CI 里用毫秒做性能断言。原因：测试环境的耗时不稳定。断言更新次数。
 :::
 
 ::: selfcheck
-<Sc :a="2">
-
-哪个操作会调用 `save`？
-
-```js
-const tasks = ref([{ id: 1, text: 'a', done: false }])
-watch(tasks, v => save(v))      // 没有 deep
-```
-
-<Opt>tasks.value.push(t)</Opt>
-<Opt>tasks.value[0].done = true</Opt>
-<Opt>tasks.value = [...tasks.value, t]</Opt>
-
-<template #explain>
-
-解析：侦听一个 ref 时，默认只侦听 .value 的替换。push 和修改属性都不触发。加上 `{ deep: true }`，三种操作都会保存。
-
-</template>
-</Sc>
-
-<Sc :a="0">
-
-剩余任务的数量应该怎样得到？
-
-<Opt>用 computed 从 tasks 计算</Opt>
-<Opt>用另一个 ref 保存。添加和删除时手动修改</Opt>
-<Opt>在模板中写一个循环来数</Opt>
-
-<template #explain>
-
-解析：派生数据用 computed。第二份数据容易和 tasks 不一致。
-
-</template>
-</Sc>
-
 <Sc :a="1">
 
-在 TaskItem 中点击复选框。谁修改 `task.done`？
+任务 2 在“待办”。用户把它移到“进行中”（请求 A，一秒后失败），0.3 秒后又把它移到“已完成”（请求 B，成功）。`move` 是下面这样写的。所有请求结束后，界面上的任务 2 在哪一列？
 
-<Opt>TaskItem 直接修改 props.task.done</Opt>
-<Opt>TaskItem 发出 toggle 事件，App 调用 toggle 修改数据</Opt>
-<Opt>浏览器自动修改</Opt>
+```js
+async function move(id, to) {
+  const task = byId.value[id]
+  const from = task.status
+  task.status = to
+  try { await api.patchTask(id, { status: to }) }
+  catch { task.status = from }
+}
+```
+
+<Opt>已完成，因为最后一次操作是移到已完成</Opt>
+<Opt>待办，A 失败时把任务写回了 A 之前的状态</Opt>
+<Opt>进行中，因为 A 先发出</Opt>
 
 <template #explain>
 
-解析：子组件不修改 props。子组件发出事件。拥有数据的一方修改数据。
+解析：A 在发出时记下了 `from = 'todo'`。它失败时不看任务现在在哪里，直接写回 `'todo'`，把用户后来的移动覆盖了。此时服务器上任务在“已完成”，界面却在“待办”，两边不一致。修复：回滚前先检查 `task.status === to`，只有任务还停在 A 设置的状态才回滚。第一项忽略了 A 的失败回调会晚到，第三项把请求发出的先后当成了结果的先后。
 
 </template>
 </Sc>
 
 <Sc :a="0">
 
-你完成了延伸练习“添加 /task/:id 详情页”。打开 /task/3 时，页面显示“任务不存在”。任务 3 确实存在。下面的代码错在哪里？
+详情页这样读取任务。任务 1 的请求要 2 秒，任务 2 的请求要 0.2 秒。用户打开 `/task/1`，0.5 秒后点“下一个”进入 `/task/2`。再过 3 秒，页面显示哪个任务的标题？
+
+```js
+watch(() => props.id, async (id) => {
+  const t = await api.getTask(id)
+  title.value = t.title
+}, { immediate: true })
+```
+
+<Opt>任务 1 的标题，它的响应后到，覆盖了任务 2 的</Opt>
+<Opt>任务 2 的标题，Vue 会自动丢弃过期的 watch 回调</Opt>
+<Opt>先显示任务 2，再报错</Opt>
+
+<template #explain>
+
+解析：`/task/1` 到 `/task/2` 复用同一个组件，`watch` 回调运行了两次。任务 2 的响应先到，写入标题；任务 1 的响应后到，把标题改回了任务 1，而地址栏已经是 `/task/2`。Vue 不会取消已经开始的异步函数。修复：用 `onCleanup` 取消上一次请求（`AbortController`），被取消的请求抛出 `AbortError`，在 catch 里忽略它。
+
+</template>
+</Sc>
+
+<Sc :a="0">
+
+你从看板页点击任务 3 进入详情页，store 里已经有任务 3。页面却显示“任务不存在”。下面的代码错在哪里？
 
 ```js
 const route = useRoute()
-const store = useTaskStore()   // 创建时从 localStorage 读取任务
-const task = computed(() =>
-  store.tasks.find(t => t.id === route.params.id))
+const store = useTaskStore()
+const task = computed(() => store.ids.find(id => id === route.params.id))
 ```
 
-<Opt>route.params.id 是字符串，t.id 是数字</Opt>
-<Opt>刷新页面后，Pinia 的数据被清空</Opt>
+<Opt>route.params.id 是字符串，ids 里是数字</Opt>
+<Opt>从看板进入时 Pinia 的数据被清空</Opt>
 <Opt>computed 不跟踪 route 的变化</Opt>
 
 <template #explain>
 
-解析：路由参数总是字符串。`'3' === 3` 为假，所以 find 找不到任务。修复：写 `Number(route.params.id)`。store 创建时从 localStorage 读取数据，所以刷新不会丢失任务。route 是响应式的，computed 能跟踪 `route.params.id`。
-
-</template>
-</Sc>
-
-<Sc :a="1">
-
-预习（第 25 章会详细讲）：添加任务后，要把列表滚动到新任务。下面的代码为什么没有滚动到新任务？
-
-```js
-function add(text) {
-  tasks.value.push({ id: Date.now(), text })
-  listEl.value.lastElementChild.scrollIntoView()
-}
-```
-
-<Opt>push 不触发更新，要替换整个数组</Opt>
-<Opt>DOM 还没有更新，最后一项是旧任务</Opt>
-<Opt>滚动只能写在 onUpdated 中</Opt>
-
-<template #explain>
-
-解析：修改数据后，Vue 在微任务中更新 DOM。push 之后立即读取，`lastElementChild` 还是旧的最后一项。修复：在 push 之后 `await nextTick()`。ref 数组的 push 会触发更新，只是不同步。onUpdated 也能读到新 DOM。但是它在每次更新后都运行，不只在添加任务时运行。
-
-</template>
-</Sc>
-
-<Sc :a="1">
-
-你为 TaskCard 写了组件测试。故意把组件里 `emit('toggle', …)` 改成 `emit('toggled', …)`，运行测试，它仍然通过。最可能的原因是什么？
-
-```js
-test('点击复选框发出 toggle', async () => {
-  const wrapper = mount(TaskCard, { props: { task } })
-  await wrapper.find('input[type=checkbox]').trigger('change')
-  expect(wrapper.emitted()).toBeDefined()
-})
-```
-
-<Opt>emit 的事件名不影响组件测试</Opt>
-<Opt>断言太弱：`emitted()` 总是返回一个对象，和事件名无关</Opt>
-<Opt>trigger 没有 await，测试在事件发出之前就结束了</Opt>
-
-<template #explain>
-
-解析：`wrapper.emitted()` 不带参数时返回所有已发出事件组成的对象，没有任何事件时是空对象，也是“已定义”的。所以这条断言永远通过。要写成 `expect(wrapper.emitted('toggle')?.[0]).toEqual([task.id])`，事件名或参数一错就失败。第三项不对：代码里写了 `await`。故意改坏再看测试变红，正是验收清单里“测试能抓住缺陷”那一条的做法。
+解析：路由参数总是字符串。`'3' === 3` 为假，所以 find 找不到。修复：写 `Number(route.params.id)`，或者在路由表的 `props` 函数里转换。store 在组件之间共享，从看板进入不会清空。route 是响应式的，computed 能跟踪 `route.params.id`。
 
 </template>
 </Sc>
@@ -605,9 +685,54 @@ onBeforeRouteLeave(() => {
 </template>
 </Sc>
 
+<Sc :a="1">
+
+看板已经加载，store 里有任务 1。用户打开 `/task/1`，详情页的请求还没返回，草稿 `title` 还是空字符串。这时用户点“下一个”。下面的 `dirty` 会怎样？
+
+```js
+const title = ref('')   // 草稿，请求返回后才赋值
+const task = computed(() => store.byId[props.id])
+const dirty = computed(() => !!task.value && title.value !== task.value.title)
+onBeforeRouteUpdate(() => !dirty.value || window.confirm('有未保存的修改，确定离开？'))
+```
+
+<Opt>不询问，因为用户还没有输入</Opt>
+<Opt>询问：草稿是空字符串，和 store 里任务 1 的标题不同</Opt>
+<Opt>抛出错误，因为 task 还没有加载</Opt>
+
+<template #explain>
+
+解析：store 里已经有任务 1（来自看板），草稿却还是空的，两者不相等，`dirty` 为真，用户什么都没改就被询问。修复：只在详情页加载完成（`state === 'ready'`、草稿已经赋值）时才比较。第一项把“用户有没有输入”当成了 `dirty` 的定义，代码里的定义是“草稿不等于 store”。第三项不对：`!!task.value` 为真，`task` 并没有缺失。
+
+</template>
+</Sc>
+
+<Sc :a="1">
+
+你为 TaskCard 写了组件测试。故意把组件里 `emit('move', …)` 改成 `emit('moved', …)`，运行测试，它仍然通过。最可能的原因是什么？
+
+```js
+test('点击按钮发出 move', async () => {
+  const wrapper = mount(TaskCard, { props: { task } })
+  await wrapper.find('button').trigger('click')
+  expect(wrapper.emitted()).toBeDefined()
+})
+```
+
+<Opt>emit 的事件名不影响组件测试</Opt>
+<Opt>断言太弱：`emitted()` 总是返回一个对象，和事件名无关</Opt>
+<Opt>trigger 没有 await，测试在事件发出之前就结束了</Opt>
+
+<template #explain>
+
+解析：`wrapper.emitted()` 不带参数时返回所有已发出事件组成的对象，没有任何事件时是空对象，也是“已定义”的。所以这条断言永远通过。要写成 `expect(wrapper.emitted('move')?.[0]).toEqual([task.id, 'doing'])`，事件名或参数一错就失败。第三项不对：代码里写了 `await`。故意改坏再看测试变红，正是验收清单里“测试能抓住缺陷”那一条的做法。
+
+</template>
+</Sc>
+
 <Sc :a="0">
 
-收尾项目的性能预算是“移动一个任务时，其他卡片更新 0 次”。你的看板有 1000 张卡片，移动一个任务后，所有卡片都更新了。最先应该检查什么？
+性能预算是“移动一个任务时，其他卡片更新 0 次”。你的看板有 1000 张卡片，移动一个任务后，所有卡片都更新了。最先应该检查什么？
 
 ```vue
 <TaskCard v-for="id in list" :key="id" :task="{ ...byId[id] }" />
@@ -627,11 +752,11 @@ onBeforeRouteLeave(() => {
 :::
 
 ::: summary
-- 先设计数据。然后写模板。然后用 computed 计算派生数据。
-- 界面复杂时，拆分组件。逻辑复杂时，提取组合式函数。
-- 用 watch 保存数据。
-- 收尾项目分五个里程碑：store、界面、路由、类型测试无障碍、性能部署。每个里程碑有完成标准。
-- 用验收清单检验：怎样操作，应该看到什么。看到才算通过。
+- 项目把第 14 到 22 章装进一个真实的 Vite 项目：类型、接口层、Pinia、Router、测试、性能预算。
+- 需求、知识点、里程碑和验收清单一一对应：每条验收能追溯到一条需求，每条需求都落在某个里程碑里。
+- 请求失败是状态，不是异常：接口层把失败规范成 `ApiError`，store 存成状态，界面显示加载、失败、重试和空。
+- 乐观更新先改界面，失败再回滚；回滚前要确认任务还停在乐观设置的状态。
+- 请求竞态用取消上一次请求（或请求编号）解决；草稿只在加载完成后才参与“未保存”的判断。
 - 测试要能抓住缺陷：故意改坏实现，测试应该变红。性能用更新次数做预算。
 - 写下 3 到 5 条设计决策，并说明理由和代价。
 :::

@@ -22,7 +22,7 @@ import MigCounterLab from '../labs/22-migrate/MigCounterLab.vue'
 :::
 
 ::: rt
-阅读主线约 14 分钟，深入内容约 1 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 14 分钟，深入内容约 1 分钟（可选）。22.1 对所有人有用，因为你会遇到选项式 API 写的代码。22.2 和 22.3 只有接手 Vue 2 项目的人需要细读，其他人读一遍表格即可。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -47,6 +47,8 @@ import MigCounterLab from '../labs/22-migrate/MigCounterLab.vue'
 你接手一个 Vue 2 项目。代码用 data、methods 和 this 写成。升级到 Vue 3 后，一些组件报错，例如 `this.$set` 不存在。
 
 原因：两种 API 的写法不同，Vue 3 还有破坏性变化。Vue 2 已经停止维护，所以项目必须迁移。
+
+即使你不迁移任何项目，也需要读懂选项式 API：很多旧文章、旧代码和库的文档仍然用它写。
 
 本章给出两种 API 的对应关系和迁移步骤。
 :::
@@ -183,7 +185,7 @@ Vue 2 在 2023 年 12 月 31 日停止维护。按下面的步骤迁移：
 
 1. 升级到 Vue 2.7。2.7 支持组合式 API 和 `<script setup>`。
 2. 在 2.7 中，把新代码写为组合式 API。把 mixin 改为组合式函数。
-3. 把 Vuex 换为 Pinia。Pinia 2.x 同时支持 Vue 2 和 Vue 3。
+3. 把 Vuex 换为 Pinia（第 16 章）。Pinia 2.x 同时支持 Vue 2 和 Vue 3。
 4. 换为 Vue 3 和 `@vue/compat`。按 22.3 节修复控制台中的兼容性警告。
 5. 同时升级 Vue Router 4 和 UI 库，例如 Element UI 换为 Element Plus。
 6. 修复所有警告后，删除 @vue/compat。

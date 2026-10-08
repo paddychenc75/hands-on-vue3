@@ -143,48 +143,9 @@ createApp(SearchBox).mount('#search')      // 另一个独立的应用
 :::
 
 ::: deep mount 之后发生了什么
-`app.mount('#app')` 按下面的顺序运行：
+先知道有这回事就够了。`mount` 会创建根组件的实例，运行 `setup()`，把模板渲染成页面。渲染本身包在一个会重新运行的函数里：数据改变时，它重新运行，页面随之更新。
 
-1. `createVNode(根组件)` 创建根虚拟节点。
-2. `render(vnode, 容器)` 调用 `patch(null, vnode)`。
-3. patch 发现节点是组件，调用 `mountComponent`。
-4. `createComponentInstance` 创建组件实例。
-5. `setupComponent` 初始化 props 和 slots，然后运行 `setup()`。
-6. 没有渲染函数时，Vue 在浏览器中编译 template。
-7. `setupRenderEffect` 创建一个副作用函数。这个副作用函数运行渲染函数，然后 patch 子树。
-
-第 7 步是响应式和渲染的连接点。渲染函数读取的所有响应式数据，都成为这个副作用函数的依赖。
-
-数据改变时，调度器把 `job` 放入队列（第 25 章），不直接重新渲染。`job` 先检查依赖是否真的改变（版本号检查，第 24 章讲）。依赖没有改变时，组件不重新渲染。
-
-下面的源码涉及第 24、25 章的内容。学完这两章后再回来读，会更容易。
-
-```js
-// runtime-core/renderer.ts（简化）
-function setupRenderEffect(instance, initialVNode, container) {
-  const componentUpdateFn = () => {
-    if (!instance.isMounted) {
-      const subTree = (instance.subTree = renderComponentRoot(instance)) // 运行 render
-      patch(null, subTree, container)            // 第一次：挂载
-      queuePostRenderEffect(instance.m)          // mounted 钩子放入后置队列
-      instance.isMounted = true
-    } else {
-      const next = renderComponentRoot(instance)
-      const prev = instance.subTree
-      instance.subTree = next
-      patch(prev, next, container)               // 之后：比较新旧子树
-      queuePostRenderEffect(instance.u)          // updated 钩子
-    }
-  }
-  const effect = (instance.effect = new ReactiveEffect(componentUpdateFn))
-  const update = (instance.update = effect.run.bind(effect))   // 强制更新（$forceUpdate）
-  const job = (instance.job = effect.runIfDirty.bind(effect))  // 调度器运行的任务
-  job.i = instance
-  job.id = instance.uid                          // id 决定更新顺序：父组件小于子组件
-  effect.scheduler = () => queueJob(job)         // 数据改变：放入更新队列（第 25 章）
-  update()                                       // 第一次渲染
-}
-```
+这个过程的细节后面有专门的章：响应式怎样记录和通知依赖在第 24 章，更新为什么排队在第 25 章，组件挂载的完整步骤在第 31 章。现在不用记。
 :::
 
 ### 1.3 ref：在脚本和模板中读写数据
@@ -248,8 +209,18 @@ const count = ref(0)
 
 `<script setup>` 中的顶层变量和导入的组件，都可以在模板中直接使用。`scoped` 样式只作用于本组件的元素，所以不同组件可以使用同一个类名。
 
+`npm create vue@latest` 生成的项目里，你最先接触三个位置：
+
+| 位置 | 放什么 |
+|---|---|
+| `src/main.js` | 入口。`createApp(App).mount('#app')` 写在这里。 |
+| `src/App.vue` | 根组件。 |
+| `src/components/` | 你写的其他组件，每个一个 `.vue` 文件。 |
+
+完整的项目结构见[第 15 章](/chapters/15-tooling)。开发时想看某个组件的 `count` 现在是多少，可以装浏览器里的 Vue DevTools。它的用法见[第 6 章](/chapters/06-comm)的 6.8 节。
+
 ::: deep SFC 的编译结果
-Vite 用 `@vitejs/plugin-vue` 和 `@vue/compiler-sfc` 编译 `.vue` 文件。下面是第 1.4 节 Counter.vue 的编译结果（简化）：
+Vite 用 `@vitejs/plugin-vue` 和 `@vue/compiler-sfc` 编译 `.vue` 文件。下面是第 1.4 节 Counter.vue 的编译结果（简化）。编译器的工作原理详见第 29 章：
 
 ```js
 import { ref, openBlock, createElementBlock, toDisplayString } from 'vue'

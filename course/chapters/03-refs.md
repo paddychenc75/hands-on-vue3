@@ -85,7 +85,7 @@ form.age++
 <RefVsReactiveAccess />
 <template #caption>
 
-ref 把值放在 `value` 中。reactive 用 Proxy 包住原始对象。两者的规则相同：读取时记录依赖（track），修改时通知依赖它的副作用函数（trigger）。
+ref 把值放在 `value` 中。reactive 用 Proxy 包住原始对象。两者的规则相同：读取时记录依赖（track），修改时通知依赖它的地方，例如模板（trigger）。
 
 </template>
 </Figure>
@@ -240,6 +240,8 @@ isRef(p.list[0])
 :::
 
 ### 3.3 shallowRef、triggerRef 和 markRaw
+
+本节是进阶用法。第一遍可以先跳过下面的场景，只记住三个 API 各做什么；做到第 21 章的大列表时再回来细读。
 
 ref 和 reactive 会深层代理对象。数据很大，或者对象来自第三方库时，深层代理浪费性能，还可能出错。下面三个 API 解决这个问题：
 

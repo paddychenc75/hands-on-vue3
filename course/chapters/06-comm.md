@@ -16,7 +16,7 @@ import CommBoard from '../labs/06-comm/CommBoard.vue'
 # 组件与通信
 
 ::: goals
-<Goal checks="sc:0,ex:emit">写一个接收 props 并发送事件的组件。</Goal>
+<Goal checks="sc:0,ex:emit,ex:propFollow">写一个接收 props 并发送事件的组件。</Goal>
 <Goal checks="sc:1,ex:modelInput">为组件添加 v-model。</Goal>
 <Goal checks="sc:2,ex:scopedSlot">为每种场景选择正确的通信方式。</Goal>
 <Goal checks="sc:4">说明 class、style 和事件怎样透传到子组件的根元素。</Goal>
@@ -24,7 +24,7 @@ import CommBoard from '../labs/06-comm/CommBoard.vue'
 :::
 
 ::: rt
-阅读主线约 12 分钟，深入内容约 5 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 14 分钟，深入内容约 4 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -111,6 +111,32 @@ import TaskItem from './TaskItem.vue'           // 导入后，模板中直接�
 
 注意：`:task="t"` 传入的是表达式的值。`task="t"` 传入的是字符串 "t"。props 是只读的。子组件要改数据时，使用下一节的事件。
 
+prop 名在脚本里写 camelCase，模板里传值时也可以写 kebab-case：`<TaskItem :due-date="d" />` 对应 `dueDate`。
+
+**解构 props（3.5 及以上）。**可以直接从 `defineProps` 解构，还能写默认值。编译器把 `task` 改写成 `props.task`，所以解构出来的变量仍然是响应式的：
+
+```js
+const { task, editable = true } = defineProps(['task', 'editable'])
+// 脚本和模板里直接写 task、editable
+```
+
+把解构出来的变量传给 `watch` 时，要写 getter。写 `watch(task, …)` 会在编译时报错。写 `watch(() => task.text, …)`。传给组合式函数（第 8 章）时也一样。
+
+**场景：子组件想改传进来的值。**先问自己：是要改父组件的数据，还是只要一份自己的副本？
+
+- 要改父组件的数据：发送事件（6.2 节），或用 v-model（6.4 节）。
+- 只要副本，例如编辑框把 prop 当作初始值：存进本地 ref。
+- 值可以从 prop 算出来：用 computed。
+
+```js
+const draft = ref(props.title)                            // 只在创建时读取一次
+const upper = computed(() => props.title.toUpperCase())   // 跟随 prop 变化
+```
+
+注意：`ref(props.title)` 不会跟随 prop。父组件换了任务，编辑框里还是旧标题。下面的练习修复这个问题。
+
+<Exercise id="propFollow" />
+
 ::: deep props 校验
 用对象形式声明 props 时，可以检查类型、必填和取值范围。
 
@@ -132,22 +158,7 @@ const props = defineProps({
 - Boolean 类型的 prop 没有传入时，值是 false，不是 undefined。
 - `<Comp disabled />` 把 Boolean prop disabled 设为 true。
 
-使用 TypeScript 类型声明时，有两种方法设置默认值：
-
-```ts
-// 写法 1：withDefaults
-const props = withDefaults(defineProps<{ msg?: string; labels?: string[] }>(), {
-  msg: 'hello',
-  labels: () => ['one', 'two']       // 引用类型用函数返回
-})
-
-// 写法 2（Vue 3.5 及以上）：解构时写默认值。解构出的变量保持响应式
-const { msg = 'hello', labels = ['one', 'two'] } = defineProps<{ msg?: string; labels?: string[] }>()
-
-watch(() => msg, (v) => console.log(v))   // 侦听解构出的 prop 时，传入 getter
-```
-
-写法 2 中，编译器把 `msg` 转换为 `props.msg`。所以它仍然是响应式的。
+使用 TypeScript 类型声明时的默认值写法，见[第 14 章](/chapters/14-ts)。
 :::
 
 ::: deep 局部注册和全局注册
@@ -551,6 +562,26 @@ function openSearch() { box.value.focus() }
 
 注意：只在父组件需要命令子组件时使用 defineExpose，例如聚焦、滚动和播放。传递数据仍然用 props 和事件。
 
+### 6.8 用 Vue DevTools 查看组件树、props 和事件
+
+组件多了以后，光读代码很难看出数据是怎样流动的。Vue DevTools 是官方的调试工具，只支持 Vue 3。它有浏览器扩展和 Vite 插件两种形式，安装见[第 15 章](/chapters/15-tooling)。
+
+本章的通信关系可以直接在里面看到：
+
+| 想知道 | 看哪里 |
+|---|---|
+| 页面上有哪些组件，谁是谁的子组件 | Components 面板左边的组件树 |
+| 子组件收到的 props 是什么 | 选中组件，右边显示它的 props 和 setup 里的状态 |
+| 改了这个值，界面会怎样 | 在右边直接修改状态值，页面立即更新 |
+| 页面上的这块内容是哪个组件渲染的 | 用面板里的定位功能，在页面上点选元素（Vite 插件版的 Inspector） |
+| 子组件的事件有没有发出 | Timeline 面板里记录组件事件的一层 |
+
+**场景：子组件的内容没有显示。**先在组件树里找到这个子组件，看它的 props。props 是 `undefined`，说明父组件没有传进来：检查属性名拼写，以及 `:` 是否漏写。props 的值正确而页面不对，问题在子组件自己的模板里。
+
+**场景：点击按钮，父组件没有反应。**打开 Timeline，点击按钮，看有没有对应的事件记录。没有记录，说明 `emit` 没有执行，或者事件名写错。有记录而父组件没有反应，检查父组件的 `@事件名` 是否同名。
+
+Timeline 记录哪些层、面板怎样排布，随 DevTools 的版本调整，以你安装的版本为准。
+
 ::: pitfalls
 1. 不要在子组件中修改 props，例如 `props.task.done = true`。发送事件给父组件。否则很难找到修改数据的代码。
 2. provide ref、reactive 对象或 computed。不要 provide 普通值。否则后代组件收不到更新。需要防止后代修改时，provide `readonly(x)` 和一个修改函数。
@@ -651,4 +682,5 @@ const t = inject('theme')    // 模板：{{ t }}
 - 插槽传递内容。作用域插槽把子组件的数据交给父组件显示。
 - provide 一个 ref，可以加 readonly 和修改函数。Pinia 跨页面共享。
 - 父组件用模板 ref 和 defineExpose 调用子组件的函数。
+- 子组件想要 prop 的副本时，用本地 ref 加 watch，不要只写 `ref(props.x)`。用 Vue DevTools 查看组件树、props 和事件。
 :::

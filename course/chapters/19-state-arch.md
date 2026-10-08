@@ -16,13 +16,13 @@ import PlaceThreeWays from '../labs/19-state-arch/PlaceThreeWays.vue'
 <Goal checks="sc:0">按“谁读写、能否算出、真相在哪、是否要还原”这几个问题，判断一份状态放在哪里。</Goal>
 <Goal checks="sc:1,sc:5,ex:singleSource">说明重复存储为什么导致不一致，并改成单一数据源加派生。</Goal>
 <Goal checks="ex:urlFilter">把筛选条件放进 URL 查询串，并让前进、后退和分享链接都可用。</Goal>
-<Goal checks="sc:4">区分服务端状态和客户端状态，判断什么时候交给请求缓存库。</Goal>
+<Goal checks="sc:4">判断一份数据是服务端状态还是客户端状态，并说明为什么不该把它手工同步进 store。</Goal>
 <Goal checks="sc:2,sc:3">说明模块级共享状态在 SSR 下的风险，以及 store 互相引用时的规则。</Goal>
 
 :::
 
 ::: rt
-阅读主线约 14 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 12 分钟，深入内容约 1 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -66,7 +66,7 @@ import PlaceThreeWays from '../labs/19-state-arch/PlaceThreeWays.vue'
 | 组合式函数里的共享状态 | 写在函数外的 `ref` | 随进程 | 隐式单例，SSR 下有风险（19.6） |
 | Pinia store | 登录用户、购物车 | 随应用 | 所有页面耦合到它，不随组件卸载（第 16 章） |
 | URL | 筛选、排序、页码、选中的 id | 随地址 | 只能放小而可序列化的值（第 17 章） |
-| 服务端状态 | 任务列表、用户资料 | 在服务器上 | 会过期，要缓存、去重、失效（19.5） |
+| 服务端状态 | 任务列表、用户资料 | 在服务器上 | 会过期，要缓存、去重、失效（第 18 章 18.6） |
 
 表里的顺序也是“范围”的顺序。默认放在离使用方最近的地方。出现具体需求才向外移一格：兄弟要共享、刷新要保留、跨页面使用。每向外移一格，就多一份耦合，也多一份要管理的生命周期。
 
@@ -77,7 +77,7 @@ import PlaceThreeWays from '../labs/19-state-arch/PlaceThreeWays.vue'
 | 顺序 | 问题 | 回答“是”时 |
 |---|---|---|
 | 1 | 它能由别的状态算出来吗？ | 不存储。写成 `computed` 或 getter（19.3） |
-| 2 | 它的真相在服务器上吗？ | 服务端状态，交给请求缓存（19.5） |
+| 2 | 它的真相在服务器上吗？ | 服务端状态，交给请求缓存（19.5，缓存的写法见第 18 章） |
 | 3 | 刷新页面或发出链接后，要还原吗？ | 能放进 URL 就放 URL（19.4）；放不进的存 localStorage |
 | 4 | 只有一个组件读写它吗？ | 组件的 `ref` |
 | 5 | 使用方都在同一棵子树里吗？ | 父子或兄弟：提升到父组件。隔了很多层：`provide / inject` |
@@ -155,89 +155,32 @@ setup store 里的 getter 就是 `computed`（第 16 章）。
 
 观察三件事。第一，只有 URL 做法在刷新后保留，并且能用“后退”回到点预设按钮之前。第二，“提升到父组件”做法里，不使用筛选条件的中间层也会更新，因为它要转交 `kw`。另外两个做法里它的更新次数是 0。第三，三个做法里输入框、徽标和列表的更新次数一样。Vue 按依赖追踪更新，哪些组件重新渲染取决于谁读取了这份状态，不取决于状态存放在哪里。归属的选择，主要影响生命周期、共享范围和耦合程度。
 
-练习用迷你地址栏模拟路由，和第 17 章的练习是同一类办法。
+练习运行在真实的 Vue Router 上，写的就是项目里的代码。
 
 <Exercise id="urlFilter" />
 
 ### 19.5 服务端状态不是客户端状态
 
-先看一段很常见的代码：
+第 18 章已经讲了请求的完整写法、缓存和查询库。这里只留下与“放在哪里”有关的结论。
+
+任务列表的真相在服务器上，别人也能改它。客户端持有的只是一份会过期的缓存。所以它是第七个归宿，也是 19.2 第 2 问的答案。
+
+最常见的错误，是把它当成客户端状态，手工同步进 store：
 
 ```js
 onMounted(async () => { store.tasks = await api.getTasks() })
 ```
 
-它在小页面里能用。应用变大后，会遇到这些问题：三个组件各调一次，发出三个请求；切到别的页面再回来，要么重新请求，要么显示不知道多旧的数据；加载中和失败的状态要每处手写；提交修改后，要手动想办法刷新列表。
+这等于在 store 里存了第二份。它会带来第 18 章 18.6 列出的全部问题：三个组件各调一次，发出三个请求；切回页面时不知道数据有多旧；修改之后，要自己想办法刷新列表。它还破坏了 19.3 的规则：真相在服务器，你又存了一份，却没有任何机制让两份保持一致。
 
-根本原因是：任务列表**不属于客户端**。真相在服务器上，别人也能改它。客户端持有的只是一份会过期的缓存。管理缓存需要这些能力：
+用一个问题分开：**这份数据是不是由服务器说了算，别人也能改它？**
 
-| 能力 | 要解决的问题 |
-|---|---|
-| 缓存 | 回到页面时先显示已有数据 |
-| 去重 | 多个组件读同一份数据，只发一次请求 |
-| 失效 | 数据被修改后，标记过期并重新取 |
-| 重试与后台刷新 | 失败后重试；窗口重新获得焦点时更新 |
-| 乐观更新 | 先改界面，请求失败再回滚 |
+| 回答 | 归属 | 例子 |
+|---|---|---|
+| 是 | 服务端状态：交给请求缓存，不复制进 Pinia | 任务列表、商品详情、评论 |
+| 否，只属于这个用户的这个浏览器 | 客户端状态：Pinia 或组件 | 没提交的草稿、界面偏好、侧边栏是否折叠 |
 
-这类能力通常交给专门的库，不手写，也不塞进 Pinia。截至 2026 年 10 月，Vue 生态里常用的是两个：TanStack Query 的 Vue 版（`@tanstack/vue-query`，当前 5.104.1）和 Pinia Colada（`@pinia/colada`，当前 1.4.7，建立在 Pinia 之上，要求 Vue 3.5.41 或更高）。两者的基本用法相近：
-
-```js
-// @tanstack/vue-query
-const { data, isPending } = useQuery({ queryKey: ['tasks'], queryFn: api.getTasks })
-
-// @pinia/colada
-const { data, isPending } = useQuery({ key: ['tasks'], query: api.getTasks })
-```
-
-同一个 key 在多个组件里使用，缓存里只有一份，同时挂载只发一次请求。用 Vue 3.5.43 实测，两个库都是这样。
-
-**场景：添加任务，并立即显示。**用 `useMutation`。`onMutate` 里先取消进行中的请求，保存旧数据（快照），再把新任务写进缓存。失败时用快照回滚。无论成败，最后都让这个 key 失效，重新取一次真实数据：
-
-```js
-// @tanstack/vue-query
-const qc = useQueryClient()
-const add = useMutation({
-  mutationFn: api.addTask,
-  onMutate: async task => {
-    await qc.cancelQueries({ queryKey: ['tasks'] })          // 避免进行中的请求覆盖乐观数据
-    const prev = qc.getQueryData(['tasks'])                  // 快照
-    qc.setQueryData(['tasks'], old => [...old, task])        // 先改界面
-    return { prev }
-  },
-  onError: (_e, _task, ctx) => qc.setQueryData(['tasks'], ctx.prev),   // 回滚
-  onSettled: () => qc.invalidateQueries({ queryKey: ['tasks'] })       // 重新取真实数据
-})
-```
-
-**什么时候该用库？**同一份数据在多处读取，或需要失效、重试、乐观更新，就该用。只在一个组件里读一次，写一个 `useFetch` 组合式函数就够。用了库之后，规则是：这份数据只住在库的缓存里，不要再复制进 Pinia（19.3 的单一数据源）。Pinia 留给真正属于客户端的状态：登录会话、界面偏好、没提交的草稿。
-
-::: deep 一个 25 行的请求缓存
-下面的迷你实现展示去重和失效的原理。真实的库还有过期时间、重试、垃圾回收和 SSR 支持。
-
-```js
-const entries = new Map()                               // key → { data, loading, promise, fn }
-function load(e) {                                      // 同一个 key 同时只有一个请求
-  if (e.promise) return e.promise                       // 去重：已有请求在路上，直接共用
-  e.loading.value = true
-  e.promise = e.fn()
-    .then(d => { e.data.value = d })
-    .finally(() => { e.promise = null; e.loading.value = false })
-  return e.promise
-}
-function useQuery(key, fn) {
-  const k = JSON.stringify(key)
-  const e = entries.get(k) ?? entries.set(k, { data: ref(), loading: ref(false), promise: null, fn }).get(k)
-  if (e.data.value === undefined) load(e)              // 缓存里没有才请求
-  return { data: e.data, loading: e.loading }
-}
-function invalidate(key) {                              // 失效：保留旧数据，同时重新取
-  const e = entries.get(JSON.stringify(key))
-  if (e) load(e)
-}
-```
-
-两个组件用同一个 key 调用 `useQuery`，拿到的是同一个 `data`，`fn` 只执行一次。调用 `invalidate` 的瞬间，`data` 仍是旧值，`loading` 变为 `true`。请求完成后，所有使用这个 key 的组件一起更新。
-:::
+登录会话是少数两边都沾的例子：令牌和当前用户整个应用都要读，几乎只有登录和退出会改它，所以按第 16 章放进 store。
 
 ### 19.6 模块级共享状态的陷阱
 
@@ -261,7 +204,7 @@ const b = await renderToString(createSSRApp(Page, { user: 'bob' }))     // <p>al
 
 第二个用户的页面里出现了第一个用户的数据。这是真实的跨请求污染，也是数据泄露。
 
-修复办法是让状态跟着“应用实例”走，不跟着“模块”走。把 `ref` 移进函数里；或者用 Pinia：每个请求创建一个新的 pinia（第 36 章“36.4 在服务器上获取数据，并传给浏览器”的第 1 步）。同样两次渲染，用 Pinia 得到的是 `<p>alice</p>` 和 `<p>bob</p>`。Nuxt 的 `useState` 也是为这个目的设计的。
+修复办法是让状态跟着“应用实例”走，不跟着“模块”走。把 `ref` 移进函数里；或者用 Pinia：每个请求创建一个新的 pinia（第 36 章“36.5 在服务器上获取数据，并传给浏览器”的第 1 步）。同样两次渲染，用 Pinia 得到的是 `<p>alice</p>` 和 `<p>bob</p>`。Nuxt 的 `useState` 也是为这个目的设计的。
 
 结论：想在组件之间共享，用 `provide / inject` 或 Pinia。不要用模块级的 `ref`，除非它是不含用户数据的常量或缓存。
 
@@ -273,7 +216,7 @@ store 变多后，有三条规则。
 
 **store 里放领域数据和操作它的 action，不放界面状态。**弹窗开关、悬停项、当前标签页通常只有一个页面使用，放在组件或 URL（19.4）。例外是需要跨页面保留的界面状态，例如侧边栏是否折叠。
 
-**store 之间单向依赖。**`cart` 可以读 `user`，`user` 不应该读 `cart`。在 setup store 里，在顶层调用 `useUserStore()` 取得引用（第 16 章“16.6 在组件之外和其他 store 中使用 store”），读它的 state 要放在 `computed` 或 action 里。
+**store 之间单向依赖。**`cart` 可以读 `user`，`user` 不应该读 `cart`。在 setup store 里，在顶层调用 `useUserStore()` 取得引用（第 16 章“16.8 在组件之外和其他 store 中使用 store”），读它的 state 要放在 `computed` 或 action 里。
 
 必须互相引用时，会遇到循环依赖。Pinia 不报错，结果取决于谁先创建：
 
@@ -337,7 +280,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 规范化的规则：实体只存一份；列表存 id；关系存 id；选中项存 id；删除实体时，同时清理 `ids` 和所有指向它的 id。
 
-大型应用里，规范化只解决“数据只有一份”。组件层面的更新范围怎么控制，见第 21 章“21.2 传递稳定的 props”和“21.4 减少响应式的开销”。store 怎么测试，见第 15 章“15.7 测试组合式函数、store 和完整流程”：每个测试前创建新的 pinia。
+大型应用里，规范化只解决“数据只有一份”。组件层面的更新范围怎么控制，见第 21 章“21.2 传递稳定的 props”和“21.4 减少响应式的开销”。store 怎么测试，见第 20 章：每个测试前创建新的 pinia。
 
 ::: deep 把嵌套数据拆成实体表
 接口返回嵌套数据时，在写入 store 之前先拆开。下面的函数把评论拆成用户表和评论表：
@@ -357,14 +300,14 @@ function normalize(comments) {
 两条评论有同一个作者时，`users` 里只有一份。作者改名只改这一处，所有评论自然显示新名字。
 :::
 
-最后一个练习把本章的几条规则放在一起：消除重复存储，选中项只存 id，其余都派生。
+最后一个练习运行在真实的 Pinia 上，把本章的几条规则放在一起：消除重复存储，选中项只存 id，其余都派生。
 
 <Exercise id="singleSource" />
 
 ::: pitfalls
 1. 不要把能算出来的值存成状态。写成 `computed` 或 getter。原因：存两份，迟早有一份不更新。
 2. 不要把 `route.query` 复制进 `ref`。直接从地址算出来，修改时 `push` 或 `replace`。原因：两份数据不会自动同步。
-3. 不要把接口数据复制进 Pinia 当作真相。让请求缓存持有它。原因：缓存库的失效和去重只对它自己的缓存有效。
+3. 不要把接口数据复制进 Pinia 当作真相。让请求缓存持有它（第 18 章）。原因：缓存的失效和去重只对它自己持有的数据有效，store 里的副本会悄悄过期。
 4. 不要在模块顶层放含用户数据的 `ref`。原因：SSR 下，所有请求共用同一个模块，数据会泄露给别的用户。
 5. 不要让两个 store 在 setup 顶层互相读取 state。读取放进 `computed` 或 action。原因：先创建的 store 会读到 `undefined`，而且没有报错。
 :::
@@ -452,17 +395,17 @@ const useB = defineStore('b', () => { const a = useA(); const x = ref(2); const 
 </template>
 </Sc>
 
-<Sc :a="2">
+<Sc :a="1">
 
-两个组件同时挂载，都用 `useQuery({ queryKey: ['tasks'], queryFn })`（TanStack Query）。一共发出几个请求？
+看板页和侧边栏都要显示任务列表，数据来自接口。团队的做法是：看板页的 `onMounted` 里 `store.tasks = await api.getTasks()`，侧边栏直接读 `store.tasks`。同事在另一台电脑上新增了一个任务。这种做法最根本的问题是什么？
 
-<Opt>2 个，每个组件各发一个</Opt>
-<Opt>0 个，数据来自上一次请求的缓存</Opt>
-<Opt>1 个，两个组件共用同一个请求</Opt>
+<Opt>Pinia 不能保存数组，应该用 `provide / inject`</Opt>
+<Opt>store 里多了一份会过期的副本，没有任何机制负责去重、失效和刷新</Opt>
+<Opt>`onMounted` 只能用于组件内部的状态，不能写 store</Opt>
 
 <template #explain>
 
-解析：同一个 key 对应缓存里的一个条目。第二个组件挂载时，这个条目已经有请求在路上，直接共用它，这叫去重。第二项只适用于缓存里已经有数据而且没过期的情况；这里首次挂载，缓存是空的。注意：默认情况下数据一取回就算“过期”，所以以后再有组件挂载时，会在后台重新取一次。
+解析：任务列表的真相在服务器上，store 里的 `tasks` 只是某一时刻的快照。同事新增任务后，这份快照不会自己更新，也没有人决定它什么时候过期、什么时候重新取，多个组件各自请求还会重复。服务端状态应该交给请求缓存（第 18 章）。第一项错在 Pinia 当然能保存数组，问题不在容器，在于它不该是真相的所在。第三项把 `onMounted` 的用途想窄了：在里面写 store 完全可行，只是不该这样同步服务端数据。
 
 </template>
 </Sc>
@@ -493,7 +436,7 @@ for (const t of fresh) Object.assign(byId[t.id], t)
 - 判断归属的顺序：能算出来就不存储；真相在服务器是服务端状态；刷新或分享后要还原就放 URL；再看读写范围。
 - 单一数据源：每个事实只写在一个地方，其余用 `computed` 或 getter 派生。选中项只存 id，不存对象副本。
 - URL 是唯一数据源时，不要复制进 `ref`。连续输入用 `replace`，有意义的切换用 `push`，`undefined` 删除参数。
-- 服务端状态需要缓存、去重、失效和乐观更新。通常交给 TanStack Query 或 Pinia Colada。数据只住在缓存里，不复制进 Pinia。
+- 服务端状态是真相在服务器上的数据，客户端只有一份会过期的缓存。写法见第 18 章。数据只住在请求缓存里，不手工同步进 Pinia。Pinia 留给登录会话、界面偏好、没提交的草稿这类客户端状态。
 - 模块级的 `ref` 是隐式单例。SSR 下所有请求共用它，会泄露数据。让状态跟着应用实例走。
 - store 按领域拆，只放领域数据，单向依赖。互相读取 state 要放进 `computed` 或 action，否则先创建的会读到 `undefined`。
 - 按 id 规范化：实体一份，列表和关系存 id。按 id 合并更新，只让真正变化的行更新。

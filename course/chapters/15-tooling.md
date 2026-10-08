@@ -1,9 +1,9 @@
 ---
-title: 工程化与测试
+title: 工程化
 id: tooling
 stage: 3
 chapter: 15
-desc: Vite、环境变量、scoped CSS、ESLint、部署、Vitest
+desc: Vite、类型检查与代码检查、环境变量、样式、部署、组件库、前端安全、CI
 ---
 
 <script setup>
@@ -13,22 +13,24 @@ import ScopedRewrite from '../labs/15-tooling/ScopedRewrite.vue'
 import CssVars from '../labs/15-tooling/CssVars.vue'
 </script>
 
-# 工程化与测试
+# 工程化
 
 ::: goals
 <Goal checks="sc:3">说出 Vite 项目中每个文件的作用。</Goal>
 <Goal checks="sc:0,sc:4">使用环境变量和开发代理。</Goal>
 <Goal checks="sc:1">使用 scoped 样式、:deep() 和 CSS 中的 v-bind()。</Goal>
-<Goal checks="sc:2,ex:testAwait,ex:fbTooling">为组件写测试：等待 DOM 更新后再断言，并写出能发现错误的断言。</Goal>
+<Goal checks="sc:2,sc:6">在脚手架项目里选对类型检查的命令，并把检查放进 CI。</Goal>
+<Goal checks="sc:7,sc:8">判断部署时 base 和回退路由怎么配，选择并接入现成的组件库。</Goal>
+<Goal checks="sc:9">列出前端安全的几条底线：v-html、依赖、环境变量。</Goal>
 
 :::
 
 ::: rt
-阅读主线约 18 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 20 分钟，深入内容约 6 分钟（可选）。另外留时间做实验台、自测和本地任务。
 :::
 
 ::: analogy
-工程化工具像**厨房的设备**：Vite 是灶台，ESLint 是食品安全检查员，测试是出菜前的试吃。菜谱（组件）写得再好，没有这些设备也开不了餐馆。
+工程化工具像**厨房的设备**：Vite 是灶台，ESLint 是食品安全检查员，部署是把菜送到餐桌。菜谱（组件）写得再好，没有这些设备也开不了餐馆。
 :::
 
 ::: terms
@@ -43,17 +45,14 @@ scoped 样式
 
 构建
 : 把源代码打包为浏览器能直接运行的文件。
-
-Vitest
-: 运行单元测试和组件测试的工具。
 :::
 
 ::: why
 你修改了一个组件，然后手动刷新页面检查。另一个页面的功能被破坏了，但你没有检查那个页面。用户先发现了这个错误。
 
-原因：编译、检查、测试和部署都靠手动完成。手动完成很慢，也容易遗漏。
+原因：编译、检查和部署都靠手动完成。手动完成很慢，也容易遗漏。
 
-本章的工具自动完成这些工作。Vite 编译和打包，ESLint 检查代码，Vitest 运行测试。
+本章的工具自动完成这些工作。Vite 编译和打包，`vue-tsc` 和 ESLint 检查代码，CI 在合并前把它们全部跑一遍。测试是另一个大话题，放在第 20 章。
 :::
 
 ### 15.1 创建项目
@@ -61,7 +60,7 @@ Vitest
 按下面的步骤创建项目：
 
 1. 运行 `npm create vue@latest`。
-2. 选择需要的功能：TypeScript、JSX、Router、Pinia、Vitest、端到端测试、ESLint 和 Prettier。
+2. 选择需要的功能：TypeScript、JSX、Router、Pinia、Vitest、端到端测试、ESLint 和 Prettier。Router、Pinia 和测试分别在第 17、16、20 章讲。
 3. 进入项目目录，运行 `npm install`。
 4. 运行 `npm run dev`，启动开发服务器。
 
@@ -78,7 +77,7 @@ Vite 8 用 Rolldown 打包。Vite 7 及以前用 Rollup 打包。所以旧项目
 | 文件 | 作用 |
 |---|---|
 | `index.html` | 入口文件。它在项目根目录，不在 public 中。它用 `<script type="module" src="/src/main.ts">` 加载代码。 |
-| `src/main.ts` | 创建应用，安装 Router 和 Pinia，然后挂载。 |
+| `src/main.ts` | 创建应用，安装 Router 和 Pinia（选了它们时），然后挂载。 |
 | `src/App.vue` | 根组件。 |
 | `public/` | 原样复制的静态文件，例如 favicon.ico。 |
 | `src/assets/` | 由 Vite 处理的资源。文件名中带有哈希值。 |
@@ -149,13 +148,13 @@ export default defineConfig({
 
 ### 15.2 配置编辑器和代码检查
 
-编辑器扩展在你写代码时提示错误。ESLint 和 vue-tsc 在提交和构建前检查全部代码。按下面的步骤配置：
+编辑器扩展在你写代码时提示错误。ESLint 和 `vue-tsc` 在提交和构建前检查全部代码。按下面的步骤配置：
 
 1. 在 VS Code 中安装 **Vue - Official** 扩展（以前叫 Volar）。它为 .vue 文件提供类型检查、自动补全和重构。WebStorm 内置了 Vue 支持，不需要安装。
 2. 禁用 Vetur。Vetur 只支持 Vue 2，它和 Vue - Official 冲突。
 3. 配置 ESLint。`eslint-plugin-vue` 检查 .vue 文件中的模板和脚本。Prettier 只负责格式。
 4. 在编辑器中启用“保存时修复”。在提交前运行 `npm run lint`。
-5. 在构建脚本和 CI 中运行 `vue-tsc --noEmit`。Vite 只删除类型，不检查类型。
+5. 在构建脚本和 CI 中运行 `npm run type-check`。Vite 只删除类型，不检查类型。
 
 ```js
 // eslint.config.js（flat config）
@@ -167,6 +166,16 @@ export default [
   skipFormatting                              // 关闭和 Prettier 冲突的格式规则
 ]
 ```
+
+**类型检查用哪条命令。**`npm create vue@latest` 选了 TypeScript 后，`package.json` 里有 `"type-check": "vue-tsc --build"`，`build` 脚本会并行运行它。在这个项目根目录运行 `npx vue-tsc --noEmit`，**不检查任何文件，也不报错，退出码是 0**：根 `tsconfig.json` 是 `"files": []` 加 `references`，没有文件可检查。在新建的项目里故意写一行 `export const bad: number = 'x'`：`vue-tsc --noEmit` 退出码 0，`vue-tsc --build` 报 `TS2322` 并退出码 2。
+
+| 项目 | 命令 |
+|---|---|
+| 脚手架项目（根配置只有 `references`） | `npm run type-check`，即 `vue-tsc --build` |
+| 只想检查浏览器代码 | `vue-tsc --noEmit -p tsconfig.app.json` |
+| 只有一个 `tsconfig.json` 的小项目 | `vue-tsc --noEmit` |
+
+这些配置各自检查什么，14.1 节有详细说明。
 
 ::: deep Vue DevTools
 Vue DevTools 有浏览器扩展和 Vite 插件（`vite-plugin-vue-devtools`）两种形式。它有下面这些功能：
@@ -220,7 +229,25 @@ import.meta.env.DEV             // false
 import.meta.env.BASE_URL        // vite.config 中的 base
 ```
 
-只有 `VITE_` 开头的变量进入客户端代码。构建时，Vite 把它们直接替换为字符串。所以打包后的文件包含这些值。不要把密钥写入 VITE\_ 变量。
+只有 `VITE_` 开头的变量进入客户端代码。构建时，Vite 把它们直接替换为字符串。所以打包后的文件包含这些值。不要把密钥写入 VITE\_ 变量（15.7 节）。
+
+**给环境变量加类型。**默认的 `import.meta.env.VITE_API_BASE` 是 `any`。在 `env.d.ts` 里声明后，它的类型是 `string`，编辑器会补全，把它赋给 `number` 变量会报 `TS2322`：
+
+```ts
+// env.d.ts
+/// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_API_BASE: string
+}
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}
+```
+
+注意：写错的名字（`VITE_API_BAES`）仍然是 `any`，不会报错。类型只固定了你声明过的变量。
+
+**自定义模式。**除了 development 和 production，还可以有 staging 这样的模式：`vite build --mode staging` 会额外加载 `.env.staging`，此时 `import.meta.env.MODE` 是 `'staging'`。模式只决定读哪些 `.env` 文件，代码压缩等构建行为仍按 production 处理。
 
 ### 15.4 写组件的样式
 
@@ -369,167 +396,118 @@ const color = ref('red')
 
 ### 15.5 构建和部署
 
-运行 `npm run build`。Vite 把结果输出到 `dist/`。按下面的步骤部署：
+运行 `npm run build`。Vite 把结果输出到 `dist/`（脚手架的 `build` 会同时运行 `type-check`）。`dist/` 里只有静态文件：HTML、JS、CSS 和图片。所以任何能提供静态文件的地方都能部署它：Nginx、对象存储加 CDN、Netlify、Vercel 之类的静态托管。
 
-1. 应用不在域名根路径时，设置 vite.config 的 `base`，例如 `'/admin/'`。
-2. 创建路由时，把 `import.meta.env.BASE_URL` 传给 `createWebHistory()`。
-3. 把 dist 中的文件上传到服务器。
-4. 配置服务器：找不到文件时返回 index.html。
+上传之前，在本机运行 `npm run preview`，用构建结果启动一个预览服务器，确认它和开发时一样工作。
+
+部署时有三件事要对：
+
+**1. 路径前缀（base）。**应用不在域名根路径时，设置 vite.config 的 `base`，例如 `'/admin/'`。构建后所有资源地址都带上这个前缀：`<script src="/admin/assets/index-xxxx.js">`。使用路由时，把 `import.meta.env.BASE_URL` 传给 `createWebHistory()`（第 17 章）。
+
+**2. 回退路由。**用 history 模式的路由（第 17 章）时，地址 `/admin/about` 是前端路由的路径，服务器上没有这个文件。用户刷新或直接打开这个地址，服务器返回 404。要让服务器在“找不到文件”时返回 `index.html`，由路由接手：
 
 ```js
 # nginx
 location /admin/ {
-  try_files $uri $uri/ /admin/index.html;   # 刷新 /admin/user/1 时返回 index.html，由 Router 处理路径
+  try_files $uri $uri/ /admin/index.html;   # 先找真实文件，找不到就返回 index.html
 }
 location /admin/assets/ {
   expires 1y;                               # 文件名带哈希值，可以长期缓存
 }
 ```
 
-### 15.6 测试组件
+托管平台一般有对应的设置项。例如 Netlify 用 `_redirects` 文件写一行 `/*  /index.html  200`。配不了回退规则的环境，改用 hash 模式的路由，它的地址里有 `#`，服务器只看到 `/`。
 
-测试分为三层：
+回退规则有一个副作用：任何不存在的地址都会返回 `index.html`，包括写错的 JS 文件地址。`vite preview` 就是这样：请求 `/admin/nonexist.js` 返回 200，内容类型是 `text/html`。浏览器要的是脚本，拿到的是网页，报错信息容易让人摸不着头脑。部署后页面白屏时，先看网络面板里的 JS 请求返回的是什么。
 
-| 层 | 工具 | 测试对象 |
-|---|---|---|
-| 单元测试 | Vitest | 组合式函数、store、工具函数 |
-| 组件测试 | Vitest + `@vue/test-utils` | 组件的渲染结果、事件和 props |
-| 端到端测试 | Playwright | 在真实浏览器中运行的完整流程 |
+**3. 缓存。**`assets/` 里的文件名带哈希值，内容变了文件名就变，可以缓存一年。`index.html` 不能这样：它引用着带哈希的文件，缓存了它，用户就拿不到新版本。给 `index.html` 设 `Cache-Control: no-cache`，每次向服务器确认是否有更新。
 
-组件测试用 `mount` 渲染组件，用 `trigger` 触发事件，然后检查文字和发出的事件：
+上线前检查：
 
-```js
-// Counter.spec.js
-import { mount } from '@vue/test-utils'
-import Counter from './Counter.vue'
+1. CI 里 `npm run build` 通过（15.8 节）。
+2. 本机 `npm run preview` 打开主要页面，并在子路径页面上刷新一次。
+3. `base` 和服务器上的子路径一致。
+4. 打包用的是生产环境的变量值（15.3 节）。
+5. 浏览器控制台和网络面板没有 404。
 
-test('点击后数字加 1，并发出 change 事件', async () => {
-  const wrapper = mount(Counter, { props: { start: 5 } })
-  expect(wrapper.text()).toContain('5')
-  await wrapper.find('button').trigger('click')     // await：等待 DOM 更新
-  expect(wrapper.text()).toContain('6')
-  expect(wrapper.emitted('change')[0]).toEqual([6])
-})
+### 15.6 使用现成的组件库
+
+做后台项目时，表格、对话框、日期选择这类组件自己写又慢又容易漏掉键盘操作和无障碍。更现实的做法是用现成的组件库。本节只讲怎样选、怎样接入，不讲具体某个库的组件。
+
+**怎样选。**对候选的库逐项问下面的问题：
+
+| 问题 | 为什么重要 |
+|---|---|
+| 支持 Vue 3 和 TypeScript 吗？最近有发布、问题有人回应吗？ | 库停止维护，你的项目就被它拖住 |
+| 能按需引入吗？ | 决定打包体积 |
+| 主题怎么改：CSS 变量、Sass 变量，还是配置对象？ | 公司的设计规范总会和默认样式不同 |
+| 键盘操作和 ARIA 属性做得怎样？ | 这是自己写最容易漏掉的部分 |
+| 组件够用吗？有没有你需要的复杂组件（树、虚拟滚动表格）？ | 缺一个就要自己补，风格还会不一致 |
+| 支持 SSR（Nuxt）吗？许可证允许你的用途吗？ | 后期换库代价很高 |
+
+没有“最好”的库，只有“最适合这个项目”的库。后台管理类项目可以选组件齐全的库。设计规范特别强的产品，可以选只提供行为和无障碍、不带样式的“无样式（headless）”库，样式自己写。
+
+**怎样接入。**
+
+1. **按需引入。**只在用到的地方 `import` 组件。完整引入（`app.use(整个库)`）最简单，但包含所有组件，体积最大。用 `unplugin-vue-components` 加库提供的 resolver，模板里直接写组件名，插件自动导入（见 15.1 节的“自动导入”）。有些库的样式要另外引入，看库的文档。
+2. **用变量改主题。**优先用库提供的 CSS 变量或主题配置。尽量不用 `:deep()`（15.4 节）去覆盖库内部的类名：库升级时内部结构一变，覆盖就失效。
+3. **在边界包一层。**项目里不要到处直接用库的组件，而是在 `components/base/` 下写自己的 `BaseButton`、`BaseDialog`，里面再用库的组件，业务代码只用你自己的这一层。好处：换库或升大版本时只改这一层；公司统一的默认配置（尺寸、文案）也集中在这里。不要给每个组件都包一层，只包常用的、你有定制需求的那几个。
+4. **注意和自己的样式共存。**全局样式重置、`z-index` 的层级、库内置的语言文案，是最常见的冲突来源。
+
+做一个自己的组件库是另一件事，见第 41 章。
+
+### 15.7 前端安全的几条底线
+
+前端代码运行在用户的浏览器里，别人能读到它。下面几条是最低要求：
+
+**1. `v-html` 只用于可信内容。**`{{ }}` 和属性绑定会转义 HTML，`v-html` 不会。用户提交的评论、昵称放进 `v-html`，别人就能让你的页面运行他的脚本（XSS）。必须显示用户提供的 HTML 时，先用 DOMPurify 这类库清洗。绑定用户提供的链接前，检查它的协议，防止 `javascript:`。不要把用户输入当作组件模板去编译。详见 2.6 节。
+
+**2. 环境变量里不放密钥。**`VITE_` 开头的变量会被替换进打包后的文件（15.3 节），任何人打开开发者工具都能读到。密钥、数据库密码放在服务端。前端能放的只有本来就公开的值，例如公开的接口地址。
+
+**3. 依赖也是你的代码。**每个依赖都会进入你的项目：
+
+- 提交 lockfile（`package-lock.json`），CI 里用 `npm ci` 按它安装，保证每次装的版本一样。
+- 定期运行 `npm audit --omit=dev`，只看会进入线上包的依赖。开发工具的漏洞风险低得多。
+- 开启 Dependabot 这类自动更新工具，小步升级比攒几年再升容易得多。
+- 加新依赖前看一眼：维护者是谁、最近有没有更新、下载量如何。
+
+**4. 令牌的存放。**放在 `localStorage` 的登录令牌，能被页面上任何一段脚本读到，一旦有 XSS 就泄露。放在 `HttpOnly` 的 cookie 里，脚本读不到。具体选哪种，取决于后端怎样设计登录。
+
+服务端还可以返回 `Content-Security-Policy` 响应头，限制页面能加载哪些脚本，作为 XSS 的第二道防线。
+
+### 15.8 提交前和合并前跑什么
+
+前面各节的检查，在 CI（持续集成：每次提交或合并请求时，服务器自动运行一组命令）里按下面的顺序运行，任何一条失败就不合并：
+
+```bash
+npm ci                    # 按 lockfile 安装依赖
+npm run lint              # 代码风格和常见错误（15.2 节）
+npm run type-check        # vue-tsc --build（15.2 节）
+npx vitest run            # 单元测试和组件测试，运行一次就退出（第 20 章）
+npm run build             # 构建（15.5 节）
 ```
 
-trigger 返回 Promise。先 await，再检查 DOM。原因：Vue 在下一次更新时才修改 DOM。
+把便宜、快的放在前面，出错能更早知道。
 
-**场景：测试新建任务的表单。**用 setValue 填写输入框。它触发 input 事件并等待 DOM 更新。然后提交表单，检查发出的事件。
+测试分三层：单元测试检查函数，组件测试检查组件在模拟浏览器里的行为，端到端测试在真实浏览器里走完整流程。测什么、不测什么，怎样等待异步更新，怎样 mock 请求，怎样测带 Pinia 和 Router 的组件，都在第 20 章。
 
-```js
-test('提交后发出 add 事件', async () => {
-  const wrapper = mount(TaskForm)
-  await wrapper.find('input').setValue('写周报')
-  await wrapper.find('form').trigger('submit')
-  expect(wrapper.emitted('add')[0]).toEqual(['写周报'])
-})
-```
+### 15.9 本地任务：在脚手架项目里验证本章的结论
 
-**场景：组件挂载后请求任务列表。**await trigger 只等待 DOM 更新，不等待请求。先用 flushPromises 等待所有已完成的 Promise，再检查列表。不要用 setTimeout 等待，它让测试变慢，还会随机失败。
+1. 运行 `npm create vue@latest my-app -- --ts --router --pinia --vitest`，进入目录，`npm install`。
+2. **类型检查。**在 `src/stores/counter.ts` 末尾加一行 `export const bad: number = 'x'`。分别运行 `npx vue-tsc --noEmit` 和 `npm run type-check`，各查看退出码（`echo $?`）。验收：前者退出码是 0 且没有输出，后者输出 `error TS2322: Type 'string' is not assignable to type 'number'` 并且退出码非 0。删掉那一行。
+3. **环境变量。**新建 `.env`，写入 `VITE_API_BASE=https://api.example.com` 和 `DB_PASSWORD=secret`；新建 `.env.staging`，写入 `VITE_API_BASE=https://staging.example.com`。在 `src/main.ts` 末尾加 `console.log(import.meta.env.VITE_API_BASE, import.meta.env.DB_PASSWORD)`。运行 `npx vite build --mode staging`。验收：`grep -o "staging.example.com" dist/assets/index-*.js` 有输出，`grep -c secret dist/assets/*.js` 每个文件都是 0。
+4. **base 和回退。**运行 `npx vite build --base=/admin/`，再 `npx vite preview --base=/admin/`。用 `curl -s -o /dev/null -w "%{http_code}\n" http://localhost:4173/admin/about` 请求。验收：`/admin/about` 返回 200（回退到 `index.html`），`/about` 返回 404。打开 `dist/index.html`，脚本地址以 `/admin/assets/` 开头。
+5. **依赖。**运行 `npm audit --omit=dev`，说出输出表示什么。
 
-```js
-import { mount, flushPromises } from '@vue/test-utils'
-vi.spyOn(api, 'getTasks').mockResolvedValue([{ id: 1, title: 'A' }, { id: 2, title: 'B' }])
-
-test('显示两条任务', async () => {
-  const wrapper = mount(TaskList)
-  await flushPromises()
-  expect(wrapper.findAll('li')).toHaveLength(2)
-})
-```
-
-**场景：跳过很重的子组件。**看板页面包含图表组件。测试只关心任务列表。用 global.stubs 把图表换为空的占位组件。
-
-```js
-const wrapper = mount(BoardPage, {
-  global: {
-    stubs: { TaskChart: true },      // 渲染为 <task-chart-stub>
-    plugins: [createTestingPinia({ createSpy: vi.fn })]
-  }
-})
-expect(wrapper.findComponent({ name: 'TaskChart' }).exists()).toBe(true)
-```
-
-<Exercise id="testAwait" />
-
-<Exercise id="fbTooling" />
-
-### 15.7 测试组合式函数、store 和完整流程
-
-没有使用生命周期钩子或 inject 的组合式函数，可以直接调用并测试。使用了它们时，要在组件中运行。写一个辅助函数：
-
-```js
-// test-utils.js
-import { createApp } from 'vue'
-export function withSetup(composable) {
-  let result
-  const app = createApp({ setup() { result = composable(); return () => {} } })
-  app.mount(document.createElement('div'))
-  return [result, app]                     // 测试结束时调用 app.unmount()
-}
-
-// 第 8 章的 useMouse(target)：在 onMounted 中读取 target.value，监听元素的 pointermove
-test('useMouse', () => {
-  const el = document.createElement('div')
-  document.body.append(el)
-  const [{ x }, app] = withSetup(() => useMouse(ref(el)))   // 传入一个保存元素的 ref
-  el.dispatchEvent(new PointerEvent('pointermove', { clientX: 10 }))
-  expect(x.value).toBe(10)          // jsdom 中 getBoundingClientRect() 的 left 是 0
-  app.unmount()                     // 卸载时删除监听
-  el.dispatchEvent(new PointerEvent('pointermove', { clientX: 30 }))
-  expect(x.value).toBe(10)          // 不再变化
-})
-```
-
-注意：测试要按组合式函数的签名调用它。useMouse 需要一个 ref 参数，并且监听的是元素上的 pointermove，不是 window 上的 mousemove。不传参数时，onMounted 中读取 `target.value` 抛出 TypeError。较旧的 jsdom 没有 PointerEvent，这时写 `new MouseEvent('pointermove', …)`。
-
-测试 Pinia 时，有两种方式。测试 store 本身时，每个测试使用新的 pinia。测试使用 store 的组件时，用 createTestingPinia：
-
-```js
-// 1. 测试 store 本身：每个测试使用新的 pinia
-import { setActivePinia, createPinia } from 'pinia'
-beforeEach(() => setActivePinia(createPinia()))
-test('add', () => {
-  const cart = useCart()
-  cart.add({ id: 1, price: 10 })
-  expect(cart.total).toBe(10)
-})
-
-// 2. 测试使用 store 的组件：createTestingPinia
-import { createTestingPinia } from '@pinia/testing'
-import { vi } from 'vitest'
-const wrapper = mount(CartButton, {
-  global: { plugins: [createTestingPinia({
-    createSpy: vi.fn,                        // Vitest 中传入。没有全局的 jest 或 vi 时，不传会报错
-    initialState: { cart: { items: [] } }
-  })] }
-})
-const cart = useCart()                       // action 默认被替换为 spy，不真正运行
-await wrapper.find('button').trigger('click')
-expect(cart.add).toHaveBeenCalledTimes(1)
-```
-
-端到端测试用 Playwright 在真实浏览器中运行完整的流程：
-
-```js
-// e2e/todo.spec.ts（Playwright）
-import { test, expect } from '@playwright/test'
-
-test('添加任务', async ({ page }) => {
-  await page.goto('/')
-  await page.getByPlaceholder('输入任务').fill('写测试')
-  await page.getByRole('button', { name: '添加' }).click()
-  await expect(page.getByText('写测试')).toBeVisible()   // 自动等待，直到元素出现
-})
-```
+页面上的自测检验判断，本地任务检验命令是否真的按这样的结果输出。
 
 ::: pitfalls
 1. 不要把密钥写入 `VITE_` 开头的变量。原因：它们会出现在打包后的文件中，任何用户都能读到。
 2. 不要用 `process.env` 读取客户端变量。使用 `import.meta.env`。原因：浏览器中没有 process。Vite 只在 import.meta.env 中提供变量。
-3. 使用 history 模式部署时，配置 try_files。否则刷新页面时显示 404。
+3. 使用 history 模式部署时，配置回退到 `index.html`。否则刷新页面时显示 404。
 4. 不要用 scoped 样式修改子组件的内部元素。使用 :deep()。原因：scoped 选择器只匹配带本组件属性的元素。子组件的内部元素没有这个属性。
-5. 在 Vitest 中使用 createTestingPinia 时，传入 `createSpy: vi.fn`。原因：action 要替换为 vi.fn。没有开启 Vitest 的 globals 时，不传它会报错。
-6. trigger 和 setValue 返回 Promise。先 await，再检查 DOM。原因：DOM 在下一次更新后才改变。
+5. 在脚手架项目里不要用 `vue-tsc --noEmit` 检查类型。原因：根配置没有文件，命令静默通过。用 `npm run type-check`。
+6. 不要把 `index.html` 设成长期缓存。原因：用户会一直拿到引用旧文件的页面。
 :::
 
 ::: selfcheck
@@ -552,7 +530,6 @@ API_KEY=abc
 
 </template>
 </Sc>
-
 <Sc :a="2">
 
 父组件有下面的 scoped 样式。子组件内部（不是根元素）的 `<p>` 会变红吗？
@@ -573,24 +550,17 @@ API_KEY=abc
 
 </template>
 </Sc>
-
 <Sc :a="0">
 
-下面的测试失败。原因是什么？
+用 `npm create vue@latest` 建了 TypeScript 项目。有人在 CI 里写 `npx vue-tsc --noEmit`，一直是绿色的。组件里明明有类型错误。原因是什么？
 
-```js
-const wrapper = mount(Counter)
-wrapper.find('button').trigger('click')
-expect(wrapper.text()).toContain('1')
-```
-
-<Opt>没有 await trigger()。DOM 还没有更新</Opt>
-<Opt>find 找不到 button</Opt>
-<Opt>mount 必须使用 await</Opt>
+<Opt>根 `tsconfig.json` 是 `"files": []` 加 `references`，这条命令没有检查任何文件</Opt>
+<Opt>`vue-tsc --noEmit` 只检查 `.ts` 文件，不检查 `.vue` 文件</Opt>
+<Opt>CI 里没有安装 TypeScript</Opt>
 
 <template #explain>
 
-解析：Vue 异步更新 DOM。trigger 返回 Promise。先 `await`，再检查文字。
+解析：脚手架的根配置只引用三个子配置，自己没有文件。`--noEmit` 不跟随引用，所以没有检查任何文件，退出码是 0。要用 `vue-tsc --build`（`npm run type-check`）。`vue-tsc` 能检查 `.vue` 文件，第二项说反了。第三项不对：命令能运行，只是没有文件可检查。
 
 </template>
 </Sc>
@@ -609,7 +579,6 @@ logo.png 要在构建后使用带哈希的文件名，这样浏览器可以长�
 
 </template>
 </Sc>
-
 <Sc :a="2">
 
 `vite.config.ts` 中配置了 `server.proxy`，把 /api 转发到后端。开发时正常。把 dist/ 部署到 nginx 后，/api 请求返回 404。原因是什么？
@@ -624,7 +593,6 @@ logo.png 要在构建后使用带哈希的文件名，这样浏览器可以长�
 
 </template>
 </Sc>
-
 <Sc :a="1">
 
 回顾（第 14 章）：子组件写 `defineProps<{ size?: 'sm' | 'lg' }>()`。父组件传 `size="xl"`。运行 npm run dev 时，会发生什么？
@@ -639,14 +607,75 @@ logo.png 要在构建后使用带哈希的文件名，这样浏览器可以长�
 
 </template>
 </Sc>
+<Sc :a="1">
+
+下面哪个顺序最适合 CI？目标是出错尽早发现。
+
+<Opt>`npm run build`，`npx vitest run`，`npm run type-check`，`npm run lint`</Opt>
+<Opt>`npm run lint`，`npm run type-check`，`npx vitest run`，`npm run build`</Opt>
+<Opt>`npx vitest run`，`npm run build`，`npm run lint`，`npm run type-check`</Opt>
+
+<template #explain>
+
+解析：便宜、快的检查放前面：代码风格和类型问题几秒就知道，测试要几十秒，构建最慢。任何一条失败就停止，后面的不用再跑。其余两项把最慢的放在最前，等很久才发现一个多余的分号。
+
+</template>
+</Sc>
+
+<Sc :a="2">
+
+应用部署在 Nginx 上，使用 history 模式的路由。打开首页再点链接都正常，但在 `/about` 页面按刷新，显示 Nginx 的 404。怎样修复？
+
+<Opt>在 vite.config 里设置 `base: '/about/'`</Opt>
+<Opt>把路由改成每个页面一个 HTML 文件</Opt>
+<Opt>配置 `try_files`，找不到文件时返回 `index.html`</Opt>
+
+<template #explain>
+
+解析：`/about` 是前端路由的路径，服务器上没有这个文件。点链接时由路由在浏览器里切换页面，不请求服务器，所以正常；刷新时浏览器向服务器请求 `/about`，得到 404。让服务器找不到文件时返回 `index.html`，路由就能接手。`base` 是资源的路径前缀，与此无关。
+
+</template>
+</Sc>
+
+<Sc :a="0">
+
+项目用了某个组件库的按钮和对话框，散落在 80 个文件里。半年后产品要求换另一个组件库。哪种做法让这次更换最便宜？
+
+<Opt>项目里只用自己写的 `BaseButton`、`BaseDialog`，由它们去使用库的组件</Opt>
+<Opt>在全局样式里用 `:deep()` 覆盖库的类名，让新旧库长得一样</Opt>
+<Opt>完整引入整个库，需要时直接在模板里写库的组件</Opt>
+
+<template #explain>
+
+解析：在边界包一层后，换库只改这一层，80 个文件不用动。第二项依赖库内部的类名，库一升级就失效。第三项让库的组件散落各处，换库要逐个文件改。
+
+</template>
+</Sc>
+
+<Sc :a="1">
+
+评论区把用户提交的评论写成 `<div v-html="comment.content"></div>`。有人提交了 `<img src=x onerror="alert(1)">`。会发生什么？
+
+<Opt>Vue 会转义它，页面上显示这段文字</Opt>
+<Opt>图片加载失败，`onerror` 里的脚本在每个看到这条评论的用户的浏览器里运行</Opt>
+<Opt>构建时报错，因为模板里不能出现 `onerror`</Opt>
+
+<template #explain>
+
+解析：`v-html` 不转义，把字符串当 HTML 插入。图片地址无效，触发 `onerror`，脚本运行。这就是 XSS。要用 `{{ comment.content }}` 显示纯文本，或者先用 DOMPurify 清洗再放进 `v-html`。第一项说的是 `{{ }}` 的行为。
+
+</template>
+</Sc>
 
 :::
 
 ::: summary
 - index.html 是入口。vite.config 配置插件和路径别名。
-- Vue - Official、ESLint 和 vue-tsc 在构建前发现错误。
-- server.proxy 只在开发时转发请求。只有 VITE\_ 开头的环境变量进入客户端。
+- Vue - Official、ESLint 和 `vue-tsc` 在构建前发现错误。脚手架项目用 `npm run type-check`（`vue-tsc --build`），不用 `vue-tsc --noEmit`。
+- server.proxy 只在开发时转发请求。只有 VITE\_ 开头的环境变量进入客户端，所以不放密钥。
 - scoped 用 data-v 属性隔离样式。:deep()、:slotted() 和 :global() 改变作用范围。v-bind() 把数据写成 CSS 变量。
-- history 模式需要服务器返回 index.html。
-- 组件测试用 mount、trigger、setValue 和 flushPromises。组合式函数、store 和完整流程各有测试方法。
+- 部署要对三件事：base 前缀、history 模式的回退路由、缓存（带哈希的文件长期缓存，index.html 不缓存）。
+- 选组件库看维护、类型、按需引入、主题和无障碍；在边界包一层自己的 Base 组件。
+- 前端安全：v-html 只用于可信内容，密钥不进前端，依赖要锁定和审计。
+- CI 按 lint、type-check、测试、build 的顺序运行。测试的细节在第 20 章。
 :::

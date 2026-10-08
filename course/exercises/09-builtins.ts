@@ -134,3 +134,64 @@ export const teleportFill: Exercise = {
     { tpl: '<div class="card" style="overflow: hidden; height: 60px">\n  <button @click="open = true">打开弹窗</button>\n  <Teleport to="#modal-root">\n    <div v-if="open" class="modal">\n      <p>弹窗内容：{{ msg }}</p>\n      <button @click="open = false">关闭</button>\n    </div>\n  </Teleport>\n</div>', why: '目标 #modal-root 在页面中不存在，Teleport 找不到目标，内容不显示。目标元素必须已经存在。' }
   ]
 }
+
+export const transitionKey: Exercise = {
+  title: '用 Transition 给计数徽标加动画', ch: 9,
+  task: '<p>点击“+1”，徽标里的数字直接变化，没有动画。用 <code>&lt;Transition&gt;</code> 修改模板，让旧数字先淡出，新数字再淡入。样式已经写在页面里，类名前缀是 <code>fade</code>。</p><ol><li>用 <code>name="fade"</code> 设置类名前缀。</li><li>让旧元素先离开，新元素再进入。</li><li>数字变化时，让 Vue 把它当作新元素。</li></ol><p>判题会在点击后观察元素上的类名，检查类名出现的顺序，不依赖动画有多长。</p>',
+  tpl: '<button @click="count++">+1</button>\n<div class="stage">\n  <span class="num">{{ count }}</span>\n</div>',
+  js: `// 样式：fade-enter-active、fade-leave-active 设置过渡，fade-enter-from、fade-leave-to 设置透明度
+if (!document.getElementById('ex-fade-css')) {
+  const css = document.createElement('style')
+  css.id = 'ex-fade-css'
+  css.textContent = '.fade-enter-active, .fade-leave-active { transition: opacity 60ms; } .fade-enter-from, .fade-leave-to { opacity: 0; }'
+  document.head.append(css)
+}
+
+const count = ref(0)
+return { count }`,
+  solTpl: '<button @click="count++">+1</button>\n<div class="stage">\n  <Transition name="fade" mode="out-in">\n    <span :key="count" class="num">{{ count }}</span>\n  </Transition>\n</div>',
+  faded: {
+    tpl: `<button @click="count++">+1</button>
+<div class="stage">
+  <!-- ✏️ 开始标签：<Transition>，用 name 设置前缀，用 mode 让旧元素先离开 -->
+  <span :key="/* ✏️ 用哪个值作 key，数字变化时才会被当作新元素 */ 0" class="num">{{ count }}</span>
+  <!-- ✏️ 与上面成对的结束标签 -->
+</div>`
+  },
+  hints: [
+    '<Transition> 在元素插入和删除时添加类名。数字变化时，页面上始终是同一个 <span>，Vue 只改它的文字，所以要用 key 告诉 Vue 这是新元素。第 9 章“9.1 用 Transition 添加进入和离开动画”讲了它。',
+    '1. 用 <Transition name="fade" mode="out-in"> 包住 <span>。2. 给 <span> 加 :key="count"。',
+    '<Transition name="fade" mode="out-in">\n  <span :key="count" class="num">{{ count }}</span>\n</Transition>'
+  ],
+  async check(T) {
+    const stage = T.$('.stage') as HTMLElement | null
+    if (!stage) { T.ok(false, '页面上有 .stage 容器'); return }
+    const snaps: string[][] = []
+    const mo = new MutationObserver(() => {
+      snaps.push(Array.from(stage.children).map(c => (c.textContent || '').trim() + '|' + c.className))
+    })
+    mo.observe(stage, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] })
+    const plus = T.btn('+1')
+    if (!plus) { mo.disconnect(); T.ok(false, '找到 +1 按钮'); return }
+    await T.click(plus)
+    const settled = await T.waitFor(() => {
+      const kids = Array.from(stage.children)
+      return kids.length === 1 && (kids[0].textContent || '').trim() === '1' && !/enter|leave/.test(kids[0].className)
+    }, 2000)
+    mo.disconnect()
+    const has = (txt: string, re: RegExp) => snaps.some(s => s.some(x => x.startsWith(txt + '|') && re.test(x)))
+    const first = (txt: string, re: RegExp) => snaps.findIndex(s => s.some(x => x.startsWith(txt + '|') && re.test(x)))
+    T.ok(settled, '动画结束后，只剩一个显示 1 的元素，没有残留的 enter、leave 类')
+    T.ok(has('0', /fade-leave-active/) && has('0', /fade-leave-to/), '旧数字 0 离开时带有 fade-leave-active 和 fade-leave-to（Transition、name="fade" 和 :key 都要有）')
+    T.ok(has('1', /fade-enter-from/) && has('1', /fade-enter-active/), '新数字 1 进入时带有 fade-enter-from 和 fade-enter-active')
+    const iFrom = first('1', /fade-enter-from/), iTo = first('1', /fade-enter-to/)
+    T.ok(iFrom >= 0 && iTo > iFrom, '新数字先有 fade-enter-from，之后才有 fade-enter-to（类名出现的顺序）')
+    const overlap = snaps.some(s => s.some(x => x.startsWith('0|')) && s.some(x => x.startsWith('1|')))
+    T.ok(!overlap, '旧数字先离开，新数字才进入：任何时刻页面上不能同时有 0 和 1（需要 mode="out-in"）')
+  },
+  wrong: [
+    { tpl: '<button @click="count++">+1</button>\n<div class="stage">\n  <Transition name="fade" mode="out-in">\n    <span class="num">{{ count }}</span>\n  </Transition>\n</div>', why: '没有 :key。数字变化时页面上还是同一个 <span>，Vue 只改了文字，没有元素进入或离开，所以没有任何过渡类名。', expectFail: /fade-leave/ },
+    { tpl: '<button @click="count++">+1</button>\n<div class="stage">\n  <Transition name="fade">\n    <span :key="count" class="num">{{ count }}</span>\n  </Transition>\n</div>', why: '没有 mode="out-in"。默认模式下新旧元素同时存在，页面上会短暂地同时有 0 和 1。', expectFail: /不能同时/ },
+    { tpl: '<button @click="count++">+1</button>\n<div class="stage">\n  <Transition mode="out-in">\n    <span :key="count" class="num">{{ count }}</span>\n  </Transition>\n</div>', why: '没有设置 name，类名前缀是 v-（v-enter-from 等），样式里写的是 fade-，所以不匹配。', expectFail: /fade-/ }
+  ]
+}

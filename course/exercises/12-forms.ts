@@ -296,3 +296,174 @@ return { theme, components: { Layout } }`, why: 'provide 只能在 setup 中同�
     T.ok(bt() === 'light', '再点击一次，ThemeBadge 回到 light');
   }
 }
+
+export const doubleSubmit: Exercise = {
+  title: '修复：连点两次保存，创建了两条任务', ch: 12,
+  task: '<p>点击“保存”会请求服务器（模拟，30 毫秒后返回）。用户手快，连点了两次，服务器收到两次请求，列表里出现了两条任务。修复 <code>submit</code>：</p><ol><li>请求期间按钮禁用，并显示“保存中…”。</li><li>同一时刻只发出一次请求。判题会在同一个事件循环里连续点击两次。</li><li>请求成功或失败后，按钮都要恢复，可以再次保存。</li></ol>',
+  tpl: '<input v-model="title">\n<button :disabled="loading" @click="submit">{{ loading ? \'保存中…\' : \'保存\' }}</button>\n<p class="err">{{ error }}</p>\n<ul>\n  <li v-for="(s, i) in saved" :key="i">{{ s }}</li>\n</ul>',
+  js: `let calls = 0
+const api = {   // 模拟服务器：30 毫秒后返回。标题是 bad 时失败
+  save(title) {
+    calls++
+    return new Promise((resolve, reject) => setTimeout(() => (title === 'bad' ? reject(new Error('服务器拒绝')) : resolve(title)), 30))
+  }
+}
+
+const title = ref('写周报')
+const saved = ref([])
+const error = ref('')
+const loading = ref(false)
+
+async function submit() {
+  error.value = ''
+  try {
+    saved.value.push(await api.save(title.value))
+  } catch (e) {
+    error.value = '保存失败：' + e.message
+  }
+}
+
+return { title, saved, error, loading, submit, getCalls: () => calls }`,
+  solJs: `let calls = 0
+const api = {   // 模拟服务器：30 毫秒后返回。标题是 bad 时失败
+  save(title) {
+    calls++
+    return new Promise((resolve, reject) => setTimeout(() => (title === 'bad' ? reject(new Error('服务器拒绝')) : resolve(title)), 30))
+  }
+}
+
+const title = ref('写周报')
+const saved = ref([])
+const error = ref('')
+const loading = ref(false)
+
+async function submit() {
+  if (loading.value) return         // 按钮在下一次渲染才变为禁用，所以函数里也要拦
+  loading.value = true
+  error.value = ''
+  try {
+    saved.value.push(await api.save(title.value))
+  } catch (e) {
+    error.value = '保存失败：' + e.message
+  } finally {
+    loading.value = false           // 成功和失败都要恢复
+  }
+}
+
+return { title, saved, error, loading, submit, getCalls: () => calls }`,
+  faded: { js: `let calls = 0
+const api = {   // 模拟服务器：30 毫秒后返回。标题是 bad 时失败
+  save(title) {
+    calls++
+    return new Promise((resolve, reject) => setTimeout(() => (title === 'bad' ? reject(new Error('服务器拒绝')) : resolve(title)), 30))
+  }
+}
+
+const title = ref('写周报')
+const saved = ref([])
+const error = ref('')
+const loading = ref(false)
+
+async function submit() {
+  /* ✏️ 已经在提交中时，直接返回 */
+  loading.value = true
+  error.value = ''
+  try {
+    saved.value.push(await api.save(title.value))
+  } catch (e) {
+    error.value = '保存失败：' + e.message
+  } finally {
+    /* ✏️ 无论成功还是失败，都要恢复按钮 */
+  }
+}
+
+return { title, saved, error, loading, submit, getCalls: () => calls }` },
+  hints: [
+    '按钮的 :disabled 要等下一次渲染才生效。连点两次发生在同一个事件循环里，第二次点击时按钮还没有变为禁用。所以 submit 函数自己也要拦住重复进入。第 12 章“12.6 提交”讲了提交要处理的几件事。',
+    '1. 在函数开头：如果 loading 为真就 return。2. 发请求前把 loading 设为 true。3. 用 try/catch/finally，在 finally 中把 loading 设回 false。成功和失败都会走到 finally。',
+    'async function submit() {\n  if (loading.value) return\n  loading.value = true\n  error.value = \'\'\n  try { saved.value.push(await api.save(title.value)) }\n  catch (e) { error.value = \'保存失败：\' + e.message }\n  finally { loading.value = false }\n}'
+  ],
+  async check(T) {
+    const root = T.$(':scope > div') as any
+    const inst = root && root._vnode && root._vnode.component
+    const calls = () => (inst && inst.setupState.getCalls ? inst.setupState.getCalls() : NaN)
+    const btn = () => T.btn('保存') as HTMLButtonElement | undefined
+    const input = T.$('input') as HTMLInputElement | null
+    const items = () => T.$$('li').length
+    const err = () => ((T.$('.err') || {}).textContent || '').trim()
+    if (!btn() || !input) { T.ok(false, '页面上有输入框和“保存”按钮'); return }
+    const b = btn()!
+    b.click(); b.click()          // 同一个事件循环里连点两次
+    await nextTick()
+    T.ok(!!btn() && btn()!.disabled && /保存中/.test(btn()!.textContent || ''), '请求期间，按钮禁用并显示“保存中…”')
+    await T.waitFor(() => items() >= 1, 1500)
+    await T.settle()
+    T.ok(calls() === 1, '连点两次，服务器只收到 1 次请求（实际 ' + calls() + ' 次）')
+    T.ok(items() === 1, '列表里只有 1 条任务（实际 ' + items() + ' 条）')
+    T.ok(!!btn() && !btn()!.disabled && (btn()!.textContent || '').trim() === '保存', '成功后，按钮恢复为可点击的“保存”')
+    input.value = 'bad'; input.dispatchEvent(new Event('input')); await nextTick()
+    btn()!.click()
+    await T.waitFor(() => /保存失败/.test(err()), 1500)
+    await T.settle()
+    T.ok(/保存失败/.test(err()), '服务器拒绝时，显示“保存失败”（当前：' + err() + '）')
+    T.ok(!!btn() && !btn()!.disabled, '失败后，按钮恢复，可以再次保存')
+    input.value = '写测试'; input.dispatchEvent(new Event('input')); await nextTick()
+    btn()!.click()
+    await T.waitFor(() => items() >= 2, 1500)
+    T.ok(items() === 2, '失败后重新保存成功，列表里有 2 条任务（实际 ' + items() + ' 条）')
+  },
+  wrong: [
+    { js: `let calls = 0
+const api = {   // 模拟服务器：30 毫秒后返回。标题是 bad 时失败
+  save(title) {
+    calls++
+    return new Promise((resolve, reject) => setTimeout(() => (title === 'bad' ? reject(new Error('服务器拒绝')) : resolve(title)), 30))
+  }
+}
+
+const title = ref('写周报')
+const saved = ref([])
+const error = ref('')
+const loading = ref(false)
+
+async function submit() {
+  loading.value = true
+  error.value = ''
+  try {
+    saved.value.push(await api.save(title.value))
+  } catch (e) {
+    error.value = '保存失败：' + e.message
+  } finally {
+    loading.value = false
+  }
+}
+
+return { title, saved, error, loading, submit, getCalls: () => calls }`, why: '只设置了 loading 并在 finally 中恢复，没有在函数开头拦截。按钮的 :disabled 在下一次渲染才生效，同一个事件循环里的第二次点击仍然会进入函数，发出第二次请求。', expectFail: /只收到 1 次/ },
+    { js: `let calls = 0
+const api = {   // 模拟服务器：30 毫秒后返回。标题是 bad 时失败
+  save(title) {
+    calls++
+    return new Promise((resolve, reject) => setTimeout(() => (title === 'bad' ? reject(new Error('服务器拒绝')) : resolve(title)), 30))
+  }
+}
+
+const title = ref('写周报')
+const saved = ref([])
+const error = ref('')
+const loading = ref(false)
+
+async function submit() {
+  if (loading.value) return
+  loading.value = true
+  error.value = ''
+  try {
+    saved.value.push(await api.save(title.value))
+    loading.value = false
+  } catch (e) {
+    error.value = '保存失败：' + e.message
+  }
+}
+
+return { title, saved, error, loading, submit, getCalls: () => calls }`, why: '只在成功时把 loading 设回 false。请求失败后进入 catch，loading 一直是 true，按钮永远禁用。恢复要写在 finally 中。', expectFail: /失败后，按钮恢复/ }
+  ]
+}

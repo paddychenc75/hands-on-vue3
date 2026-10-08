@@ -1,5 +1,5 @@
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, highlightSpecialChars, Decoration } from '@codemirror/view';
-import { EditorState, StateField, StateEffect, Compartment } from '@codemirror/state';
+import { EditorState, StateField, StateEffect, Compartment, Transaction } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab, toggleComment } from '@codemirror/commands';
 import { indentOnInput, bracketMatching, syntaxHighlighting, HighlightStyle, indentUnit } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap, completeFromList } from '@codemirror/autocomplete';
@@ -7,6 +7,7 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { javascript, javascriptLanguage } from '@codemirror/lang-javascript';
 import { vue } from '@codemirror/lang-vue';
 import { tags as t } from '@lezer/highlight';
+import { foldExtension, foldBlocks, foldTitleAt, replaceAll, revealLine } from './folds.js';
 
 const style = HighlightStyle.define([
   { tag: [t.keyword, t.controlKeyword, t.definitionKeyword, t.moduleKeyword, t.operatorKeyword, t.self], color: 'var(--code-k)' },
@@ -74,7 +75,7 @@ export function create({ parent, doc, lang, api = [], onChange, onRun, label }) 
         indentOnInput(), bracketMatching(), closeBrackets(), autocompletion({ activateOnTyping: true, icons: false }),
         highlightActiveLine(), highlightSelectionMatches(),
         indentUnit.of('  '), EditorState.tabSize.of(2),
-        syntaxHighlighting(style), theme, badField,
+        syntaxHighlighting(style), theme, badField, foldExtension(),
         lang === 'tpl' ? vue() : [javascript(), apiCompletions(api)],
         keymap.of([
           { key: 'Mod-Enter', run: () => { onRun && onRun(); return true; } },
@@ -89,9 +90,18 @@ export function create({ parent, doc, lang, api = [], onChange, onRun, label }) 
   return {
     view,
     get value() { return view.state.doc.toString(); },
-    setValue(v) { if (v !== view.state.doc.toString()) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: v } }); },
-    setBad(n) { view.dispatch({ effects: setBad.of(n || 0) }); },
-    goLine(n) { const l = view.state.doc.line(Math.min(Math.max(1, n), view.state.doc.lines)); view.dispatch({ selection: { anchor: l.from }, scrollIntoView: true }); view.focus(); },
+    // 整体替换文档（重置、半成品、参考答案、找回代码）。含折叠块的代码重新解析、初始折叠；这种替换不进撤销历史（撤销会被只读块拦下，反而困惑）
+    setValue(v) {
+      const cur = view.state.doc.toString();
+      if (v === cur) return;
+      const hasFolds = foldBlocks(view.state).length > 0 || /#fold/.test(v);
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: v }, annotations: [replaceAll.of(true), Transaction.addToHistory.of(!hasFolds)] });
+    },
+    // 出错的行（真实行号）；在折叠块里就先展开那个块
+    setBad(n) { if (n) revealLine(view, n, true); view.dispatch({ effects: setBad.of(n || 0) }); },
+    goLine(n) { revealLine(view, n); const l = view.state.doc.line(Math.min(Math.max(1, n), view.state.doc.lines)); view.dispatch({ selection: { anchor: l.from }, scrollIntoView: true }); view.focus(); },
+    /** 第 n 行所在折叠块的标题，不在块里是 '' */
+    foldTitleAt(n) { return foldTitleAt(view.state, n); },
     focus() { view.focus(); }
   };
 }

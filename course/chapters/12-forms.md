@@ -20,11 +20,12 @@ import TaskForm from '../labs/12-forms/TaskForm.vue'
 <Goal checks="sc:2,ex:formValid,ex:formRuleFill">用计算属性实现校验，并在失去焦点和提交时显示错误。</Goal>
 <Goal checks="sc:4">写一个带异步校验的 useForm。</Goal>
 <Goal checks="sc:5">让表单可以用屏幕阅读器和键盘操作。</Goal>
+<Goal checks="ex:doubleSubmit">写一个不会重复提交、失败后能恢复的提交函数。</Goal>
 
 :::
 
 ::: rt
-阅读主线约 14 分钟，深入内容约 2 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 15 分钟，深入内容约 2 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -394,7 +395,7 @@ async function onSubmit() {
   loading.value = true
   try {
     await api.addTask({ ...values })
-    router.push('/')
+    router.push('/')                               // 跳转页面。路由见第 17 章
   } catch (e) {
     // 假设服务器返回 422 和 { errors: { due: '截止日期不能早于今天' } }
     if (e.status === 422) Object.assign(serverErrors, e.data.errors)
@@ -406,6 +407,10 @@ async function onSubmit() {
 // 模板：<form ref="formEl" @submit.prevent="onSubmit" novalidate>
 //        <button :disabled="loading">{{ loading ? '保存中…' : '保存' }}</button>
 ```
+
+第 3 件事有一个细节：`:disabled="loading"` 要等下一次渲染才生效。用户连点两次时，第二次点击可能发生在渲染之前。所以 `onSubmit` 的开头也要判断 `loading`，已经在提交时直接返回。
+
+<Exercise id="doubleSubmit" />
 
 不要在表单无效时禁用提交按钮。禁用的按钮不能获得焦点，用户也不知道哪里有错误。让用户点击，然后显示所有错误。
 
@@ -422,6 +427,8 @@ async function onSubmit() {
 | 键盘用户找到错误 | 提交失败时，聚焦第一个错误的字段 |
 
 用 `useId()`（3.5+）生成 id。同一个组件使用多次时，id 也不重复。12.3 节的 BaseInput 已经按这张表写。
+
+下面两道练习是回顾题，检验的不是本章的新内容：第一道回顾 Teleport（第 9 章），第二道回顾 provide 和 inject（第 6 章）。弹窗和主题常出现在表单页里，所以放在这里。
 
 <Exercise id="phenoClip" />
 
@@ -564,6 +571,6 @@ const show = f => (touched[f] || submitted.value) && errors.value[f]
 - defineModel 让自定义输入组件支持 v-model。get 和 set 在显示格式和存储格式之间转换。
 - 错误是计算属性。touched 和 submitted 决定何时显示。
 - useForm 集中管理规则和错误。异步校验用 onWatcherCleanup 防抖并取消请求。
-- 提交时禁用重复提交，映射服务器错误，并聚焦第一个错误字段。
+- 提交时用 loading 拦住重复提交（函数开头也要判断），在 finally 中恢复，映射服务器错误，并聚焦第一个错误字段。
 - 每个字段有 label，错误用 aria-describedby 关联。
 :::

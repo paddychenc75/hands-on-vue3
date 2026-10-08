@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 实验台：水合对照表——客户端组件。模板里 :title、:data-x 和 ul 上的 :data-n 是 v-bind 绑定，会进编译器生成的 dynamicProps。
-// ul 上故意带一个绑定属性：完全静态的 ul 会被编译器缓存，生产版水合时整个跳过它的子节点（见 36.7），实验台要演示的是普通元素。
+// ul 上故意带一个绑定属性：完全静态的 ul 会被编译器缓存，生产版水合时整个跳过它的子节点（见 36.4 的深入块），实验台要演示的是普通元素。
 import { ref } from 'vue'
 
 const t = ref('client')

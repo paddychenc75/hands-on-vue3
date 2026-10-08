@@ -57,10 +57,12 @@ const badge = computed(() => (!passed.value ? '未完成' : help.value === 'rewr
 const badgeTitle = computed(() =>
   help.value === 'rewrite' ? '看过参考答案后，你点了重置，自己重写通过。过几天不看答案再写一次，检验是否记住了' : help.value ? '借助了参考答案。过几天不看答案再写一遍，记得更牢' : ''
 )
-const starterPair: CodePair = { tpl: ex?.tpl ?? '', js: ex?.js ?? '' }
-const solutionPair: CodePair = { tpl: ex?.solTpl || ex?.tpl || '', js: ex?.solJs || ex?.js || '' }
+// 起始代码和参考答案。代码里可以带折叠块标记（//#fold 标题 … //#endfold），它们只是注释：这里保存、比较、运行的始终是含标记的完整代码，
+// 折叠和只读只发生在编辑器里（editor/folds.js）。放进 ref 是为了让测试能临时换成带折叠块的版本（见 __setStarter）
+const starterRef = ref<CodePair>({ tpl: ex?.tpl ?? '', js: ex?.js ?? '' })
+const solutionRef = ref<CodePair>({ tpl: ex?.solTpl || ex?.tpl || '', js: ex?.solJs || ex?.js || '' })
 const hasFadedEx = computed(() => hasFaded({ faded: fadedDef.value }))
-const fadedPair = computed(() => fadedExample({ faded: fadedDef.value }, starterPair))
+const fadedPair = computed(() => fadedExample({ faded: fadedDef.value }, starterRef.value))
 const levels = computed(() => ladderLevels(hasFadedEx.value))
 /** 每一级的当前状态：能不能点，按钮上写什么 */
 const st = computed(() => {
@@ -113,7 +115,9 @@ function showErr(msg: string, e?: unknown) {
   // 只显示第一个错误：它是根因。脚本在 setup 里抛错后，Vue 还会继续渲染，模板里读不到数据又会报后续的错误，不能盖掉根因
   if (err.value) return
   const ln = lineOf(e)
-  err.value = '错误：' + msg + (ln ? '（脚本第 ' + ln + ' 行）' : '')
+  // 出错行在折叠块里时，注明是哪一块（编辑器会自动展开它）
+  const inFold = ln ? cmJs?.foldTitleAt(ln) : ''
+  err.value = '错误：' + msg + (ln ? '（脚本第 ' + ln + ' 行' + (inFold ? '，在折叠块「' + inFold + '」里' : '') + '）' : '')
   markLine(ln)
 }
 function gotoErrLine() {
@@ -181,7 +185,7 @@ async function check() {
   now.value = Date.now()
   const code: CodePair = { tpl: tpl.value, js: js.value }
   // 看过答案、没点重置，直接交答案原文：不运行，不算通过，也不计失败
-  if (isPastedSolution(code, solutionPair, epNow() ?? {})) {
+  if (isPastedSolution(code, solutionRef.value, epNow() ?? {})) {
     resNote.value = PASTE_MSG
     return
   }
@@ -251,7 +255,7 @@ async function check() {
   let counted = false
   mutate(() => {
     const c = chapterOf(chapterId.value)
-    const r = recordFailure(c.ex[props.id], code, starterPair, Date.now())
+    const r = recordFailure(c.ex[props.id], code, starterRef.value, Date.now())
     c.ex[props.id] = r.ep
     counted = r.counted
   })
@@ -268,7 +272,7 @@ function onHint() {
 }
 /** 把编辑器换成半成品或参考答案之前，先把学习者自己的代码存起来（可以点“找回我的代码”） */
 function stashCurrent() {
-  const known = [solutionPair, fadedPair.value].filter((x): x is CodePair => !!x)
+  const known = [solutionRef.value, fadedPair.value].filter((x): x is CodePair => !!x)
   mutate(() => {
     const c = chapterOf(chapterId.value)
     c.ex[props.id] = stashCode(c.ex[props.id], { tpl: tpl.value, js: js.value }, known)
@@ -290,7 +294,7 @@ function onSol() {
     const c = chapterOf(chapterId.value)
     c.ex[props.id] = viewSolution(c.ex[props.id])
   })
-  setCode(solutionPair.tpl, solutionPair.js)
+  setCode(solutionRef.value.tpl, solutionRef.value.js)
   res0()
   resNote.value = '编辑器中是参考答案。读懂它之后，点“重置”，不看答案再从头写一遍，再检查。直接提交答案原文不算通过。你原来的代码可以点“找回我的代码”恢复。'
   run()
@@ -310,7 +314,7 @@ function onRestore() {
   run()
 }
 function onReset() {
-  setCode(starterPair.tpl, starterPair.js)
+  setCode(starterRef.value.tpl, starterRef.value.js)
   res0()
   hintLv.value = 0
   // 看过答案后点重置：标记为自己重写，之后写出和答案相同的代码也可以通过（resetExercise 内部判断有没有看过答案）
@@ -335,8 +339,8 @@ onMounted(async () => {
   if (!ex) return
   ensureReady()
   const saved = epNow()?.code
-  tpl.value = saved ? saved.tpl : ex.tpl
-  js.value = saved ? saved.js : ex.js
+  tpl.value = saved ? saved.tpl : starterRef.value.tpl
+  js.value = saved ? saved.js : starterRef.value.js
   mounted.value = true
   timer = window.setInterval(tick, 15000)
   document.addEventListener('visibilitychange', tick)
@@ -378,6 +382,11 @@ onMounted(async () => {
   // 给自动化测试用：直接设置两段代码
   ;(root.value as any).__setCode = setCode
   // 给自动化测试用：临时替换这道练习的半成品；传 undefined 表示没有半成品（验证阶梯只有两级）
+  // 给自动化测试用：临时换掉起始代码和参考答案（可以带折叠块），验证有折叠块时保存、比较、重置、判定都照常
+  ;(root.value as any).__setStarter = (st: Partial<CodePair>, sol?: Partial<CodePair>) => {
+    starterRef.value = { tpl: st.tpl ?? starterRef.value.tpl, js: st.js ?? starterRef.value.js }
+    if (sol) solutionRef.value = { tpl: sol.tpl ?? starterRef.value.tpl, js: sol.js ?? starterRef.value.js }
+  }
   ;(root.value as any).__setFaded = (f: { tpl?: string; js?: string } | undefined) => { fadedDef.value = f }
   if (!ex.lazy) run()
   else if (outEl.value) outEl.value.innerHTML = '<p class="cap">点击“只运行”或“运行并检查”，查看运行结果。</p>'

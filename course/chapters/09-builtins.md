@@ -17,7 +17,7 @@ import SuspenseAsync from '../labs/09-builtins/SuspenseAsync.vue'
 # 内置组件
 
 ::: goals
-<Goal checks="sc:2">用 Transition 和 TransitionGroup 为元素添加动画。</Goal>
+<Goal checks="sc:2,sc:5,sc:6,ex:transitionKey">用 Transition 和 TransitionGroup 为元素添加动画。</Goal>
 <Goal checks="sc:0,ex:keepTab,ex:keepAliveFill">用 KeepAlive 保留组件的状态。</Goal>
 <Goal checks="sc:1,ex:teleportFill">用 Teleport 把弹窗渲染到 body 中。</Goal>
 <Goal checks="sc:3">用动态组件、异步组件和 Suspense 按需加载组件。</Goal>
@@ -25,7 +25,7 @@ import SuspenseAsync from '../labs/09-builtins/SuspenseAsync.vue'
 :::
 
 ::: rt
-阅读主线约 18 分钟，深入内容约 2 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 21 分钟，深入内容约 2 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -91,18 +91,87 @@ Vue 一共使用 6 个类名。设置 `name="fade"` 后，前缀 `v-` 变为 `fa
 <TransitionClasses />
 </Figure>
 
-**场景：“编辑”按钮和“保存”按钮在同一位置切换。**默认模式下，新元素进入和旧元素离开同时进行，两个按钮会短暂重叠。`mode="out-in"` 让旧元素先离开。两个元素的标签相同时，给它们不同的 key。
+**场景：“编辑”按钮和“保存”按钮在同一位置切换。**默认模式下，新元素进入和旧元素离开同时进行，两个按钮会短暂重叠。`mode="out-in"` 让旧元素先离开，再让新元素进入。`mode="in-out"` 的顺序相反，很少用。
 
 ```html
 <Transition name="fade" mode="out-in">
-  <button v-if="editing" key="save">保存</button>
-  <button v-else key="edit">编辑</button>
+  <button v-if="editing">保存</button>
+  <button v-else>编辑</button>
 </Transition>
 ```
 
-- v-if、v-show 和动态组件的切换都会触发动画。
+Vue 3 的编译器会自动给 `v-if` 和 `v-else` 的每个分支加上不同的 key，所以这里不用手写。
+
+**场景：计数徽标的数字变化时，旧数字淡出，新数字淡入。**数字变化时，页面上始终是同一个 `<span>`，Vue 只是改了它的文字，所以没有进入和离开。给元素加 `:key`，key 变化时 Vue 把它当作一个新元素：
+
+```html
+<Transition name="fade" mode="out-in">
+  <span :key="count">{{ count }}</span>
+</Transition>
+```
+
+其他触发动画的情况：
+
+- `v-if`、`v-show`、动态组件的切换。
 - `appear` 属性让元素在第一次渲染时也运行进入动画。
-- Transition 也发出 JavaScript 钩子事件，例如 `@before-enter`、`@enter`、`@after-leave`。`@enter` 和 `@leave` 的处理函数接收第二个参数 `done`。声明了 done 时，Vue 等待你调用 done，不再根据 CSS 判断动画结束。
+- 元素带有 `:key`，并且 key 的值变化。
+
+下面的练习用真实的 `Transition` 做这个徽标。判题观察元素上的类名随时间出现的顺序，不依赖动画有多长。
+
+<Exercise id="transitionKey" />
+
+**场景：用 CSS 动画，或者指定动画时长。**默认情况下，Vue 读取元素上 CSS `transition` 的时长，判断动画何时结束。动画用 `animation` 和 `@keyframes` 写时，把它们写在 `-active` 类里，Vue 同样能识别。一个元素同时有 transition 和 animation 时，用 `type="animation"` 指定以哪个为准。时长和 CSS 不一致时，用 `:duration="500"`（毫秒）覆盖。想用 Animate.css 这类库的类名时，用 `enter-active-class="animate__animated animate__fadeIn"` 这类属性换掉默认类名。
+
+**场景：用 JavaScript 控制动画。**动画不能用 CSS 描述时，用钩子。`:css="false"` 告诉 Vue 不要找 CSS 类名，也不要等 `transitionend`。这时 `@enter` 和 `@leave` 的第二个参数 `done` 必须调用，Vue 才知道动画结束了。下面用浏览器自带的 `el.animate()`：
+
+```vue
+<Transition :css="false" @enter="onEnter" @leave="onLeave">
+  <p v-if="show">你好</p>
+</Transition>
+
+<script setup>
+function onEnter(el, done) {
+  el.animate([{ opacity: 0 }, { opacity: 1 }], 200).onfinish = done
+}
+function onLeave(el, done) {
+  el.animate([{ opacity: 1 }, { opacity: 0 }], 200).onfinish = done
+}
+</script>
+```
+
+**场景：切换页面时加过渡。**把 `<Transition>` 放在 `<RouterView>` 的插槽里（路由见第 17 章）。路由组件只能有一个根元素。同一个组件、不同参数的页面（例如 `/task/1` 到 `/task/2`）之间要动画，给组件加 `:key="route.path"`。
+
+```html
+<RouterView v-slot="{ Component, route }">
+  <Transition name="fade" mode="out-in">
+    <component :is="Component" :key="route.path" />
+  </Transition>
+</RouterView>
+```
+
+**场景：整个项目用同一种过渡。**把 `<Transition>` 和它的样式封装成一个组件，插槽里放内容。样式不要加 `scoped`：scoped 样式不会作用到插槽里的内容。
+
+```vue
+<!-- FadeTransition.vue -->
+<template>
+  <Transition name="fade" mode="out-in"><slot /></Transition>
+</template>
+
+<style>
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>
+```
+
+**场景：尊重“减少动态效果”的系统设置。**有些用户在系统里打开了“减少动态效果”，浏览器通过 `prefers-reduced-motion` 把它告诉页面。这时去掉位移和缩放，只保留淡入淡出，或者直接取消动画：
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .fade-enter-active, .fade-leave-active { transition: none; }
+}
+```
+
+Transition 也发出 `@before-enter`、`@enter`、`@after-enter`、`@before-leave`、`@leave`、`@after-leave` 等钩子事件。用 CSS 过渡时，这些钩子可以用来记录日志或做额外的事情。
 
 注意：Transition 只接受一个子元素。子组件也只能有一个根元素。
 
@@ -125,6 +194,20 @@ Vue 一共使用 6 个类名。设置 `name="fade"` 后，前缀 `v-` 变为 `fa
 .list-move, .list-enter-active, .list-leave-active { transition: all 0.5s; }
 .list-enter-from, .list-leave-to { opacity: 0; transform: translateX(30px); }
 .list-leave-active { position: absolute; }   /* 离开的元素不占位置，其他元素才能平滑移动 */
+</style>
+```
+
+移动动画靠 `transform`，所以列表项不能是 `display: inline`。给外层元素设 `display: flex` 或让列表项是块级元素。
+
+**场景：列表项依次进入，而不是同时进入。**用 CSS 变量给每一项不同的延迟：
+
+```vue
+<TransitionGroup name="list" tag="ul">
+  <li v-for="(item, i) in items" :key="item.id" :style="{ '--i': i }">{{ item.text }}</li>
+</TransitionGroup>
+
+<style>
+.list-enter-active { transition: all 0.3s calc(var(--i) * 50ms); }   /* 第 i 项晚 i × 50 毫秒开始 */
 </style>
 ```
 
@@ -556,10 +639,46 @@ watch(tab, () => console.log(box.value.textContent))
 </template>
 </Sc>
 
+<Sc :a="0">
+
+`count` 从 0 变为 1。设置了 `name="fade"` 的 Transition 里只有一个 `<span>`。页面上会发生什么？
+
+```html
+<Transition name="fade">
+  <span>{{ count }}</span>
+</Transition>
+```
+
+<Opt>数字直接变成 1，没有动画</Opt>
+<Opt>0 淡出，1 淡入</Opt>
+<Opt>控制台报错：Transition 的内容必须有 key</Opt>
+
+<template #explain>
+
+解析：`count` 变化时，页面上始终是同一个 `<span>`，Vue 只更新它的文字。没有元素插入或删除，所以没有进入和离开。给 `<span>` 加 `:key="count"`，key 变化时 Vue 把它当作新元素，动画才会运行。Transition 不要求必须写 key，所以第三项错。
+
+</template>
+</Sc>
+
+<Sc :a="2">
+
+两个 `<button>` 用 `v-if` 和 `v-else` 在 Transition 里切换，没有写 `mode`。点击切换后，动画进行期间页面上有几个按钮？
+
+<Opt>1 个，旧按钮先离开</Opt>
+<Opt>0 个，要等旧按钮离开才创建新按钮</Opt>
+<Opt>2 个，旧按钮离开的同时新按钮进入</Opt>
+
+<template #explain>
+
+解析：默认模式下，进入和离开同时进行，所以动画期间两个按钮都在页面上，常常会短暂重叠。`mode="out-in"` 才让旧元素先离开，再让新元素进入。
+
+</template>
+</Sc>
+
 :::
 
 ::: summary
-- Transition 在插入和删除时添加 6 个类名。mode="out-in" 让旧元素先离开。TransitionGroup 还添加 move 类。
+- Transition 在插入和删除时添加 6 个类名。mode="out-in" 让旧元素先离开。同一个元素的内容变化时，给它加 `:key` 才有动画。用户要求减少动态效果时，取消位移动画。TransitionGroup 还添加 move 类。
 - Teleport 改变 DOM 位置，不改变组件关系。disabled 切换位置，defer 等待后面的目标。
 - KeepAlive 缓存动态组件的实例。include 选择要缓存的组件，max 限制数量。
 - defineAsyncComponent 按需加载组件。Suspense 等待 async setup。

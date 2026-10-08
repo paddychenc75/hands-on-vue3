@@ -435,7 +435,7 @@ function defineAsyncComponent({ loader, loadingComponent, errorComponent, delay 
 
 `loader` 的结果被 `pendingRequest` 缓存：两个实例同时挂载，`loader` 只调用一次（实测）。`onError(err, retry, fail, attempts)` 里调 `retry()` 会清掉 `pendingRequest` 再 `load()`，所以重试是重新调用 `loader`。
 
-3.5 加的延迟水合（`hydrate` 选项和 `__asyncHydrate`）在第 36 章（36.9 节）会讲。
+3.5 加的延迟水合（`hydrate` 选项和 `__asyncHydrate`）在第 36 章（36.7 节）会讲。
 
 ::: pitfalls
 1. 不要期望 `KeepAlive` 里的 `onMounted` 每次显示都运行。原因：失活只是搬家，实例没有销毁。每次显示都要做的事放进 `onActivated`。

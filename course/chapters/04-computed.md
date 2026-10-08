@@ -352,6 +352,8 @@ watch(id, async (newId) => {
 
 注意：onWatcherCleanup 只能在第一个 await 之前调用。
 
+这里用 watch 手写了防竞态。真实项目里的数据请求还有缓存、重试和加载状态要处理，第 18 章会系统地讲。
+
 <Lab id="demo-watch" title="实验台：搜索竞态" note="每个请求需要 200 到 1600 毫秒">
 <template #predict>
 <Sc predict :a="1">

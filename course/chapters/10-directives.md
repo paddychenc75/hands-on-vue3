@@ -179,7 +179,7 @@ function apply(el, { value, arg = 'top', modifiers }) {
 <DirPlay />
 </Lab>
 
-模板中的修饰符是固定的。实验台用渲染函数改变修饰符。
+模板中的修饰符是固定的。实验台用渲染函数（第 28 章）改变修饰符，现在不用理解它的写法。
 
 <Exercise id="dirBinding" />
 
@@ -382,7 +382,7 @@ export const vLazy = {
 **场景：没有删除权限的用户看不到“删除订单”按钮。**`v-permission` 根据权限删除元素：
 
 ```js
-import { useAuth } from '@/stores/auth'
+import { useAuth } from '@/stores/auth'   // 一个 Pinia store（第 16 章）
 
 export const vPermission = {
   mounted(el, binding) {

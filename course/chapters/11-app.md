@@ -23,7 +23,7 @@ import AppPluginLab from '../labs/11-app/AppPluginLab.vue'
 :::
 
 ::: rt
-阅读主线约 15 分钟，深入内容约 4 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 15 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -187,15 +187,12 @@ declare module 'vue' {
 import type { App, Plugin, InjectionKey } from 'vue'
 import { inject } from 'vue'
 import MyButton from './MyButton.vue'
-import { vClickOutside } from './clickOutside'
-import { showToast } from './toast'
 
 export interface MyUIOptions {
   prefix?: string                        // 组件名前缀
   size?: 'small' | 'medium' | 'large'
-  toastDuration?: number
 }
-const defaults: Required<MyUIOptions> = { prefix: 'My', size: 'medium', toastDuration: 3000 }
+const defaults: Required<MyUIOptions> = { prefix: 'My', size: 'medium' }
 
 export const MyUIKey: InjectionKey<Required<MyUIOptions>> = Symbol('MyUI')
 
@@ -204,94 +201,23 @@ export const MyUI: Plugin<[MyUIOptions?]> = {
   install(app: App, options: MyUIOptions = {}) {
     const config = { ...defaults, ...options }                 // 用户的选项覆盖默认值
     app.component(`${config.prefix}Button`, MyButton)          // <MyButton>
-    app.directive('click-outside', vClickOutside)              // v-click-outside
     app.provide(MyUIKey, config)                               // 组件中用 useMyUI() 读取
-    app.config.globalProperties.$toast =
-      (msg: string) => showToast(msg, config.toastDuration)   // 模板中用 $toast()
   }
 }
 export const useMyUI = () => inject(MyUIKey)!
-export { MyButton, vClickOutside }        // 也支持按需导入
-
-// 为 $toast、全局组件和全局指令声明类型
-declare module 'vue' {
-  interface ComponentCustomProperties { $toast: (msg: string) => void }
-  interface GlobalComponents { MyButton: typeof MyButton }
-  interface GlobalDirectives { vClickOutside: typeof vClickOutside }
-}
+export { MyButton }                       // 也支持按需导入
 ```
 
 对象展开只合并第一层。选项中有嵌套对象时，要逐层合并，或者使用 defu 等合并工具。
 
-用 Vite 的库模式打包插件。把 vue 设置为外部依赖，否则 Vue 会被打包进插件：
-
-```js
-// vite.config.ts
-import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import dts from 'vite-plugin-dts'
-
-export default defineConfig({
-  plugins: [vue(), dts()],                       // dts：生成 .d.ts 类型文件
-  build: {
-    lib: {
-      entry: fileURLToPath(new URL('src/index.ts', import.meta.url)),
-      name: 'MyUI',                              // UMD 格式中的全局变量名
-      fileName: 'my-ui',                         // 输出 my-ui.js（ES）和 my-ui.umd.cjs（UMD）
-    },
-    rolldownOptions: {                           // Vite 7 及以前写 rollupOptions
-      external: ['vue'],                         // 不打包 vue
-      output: { globals: { vue: 'Vue' } },       // UMD 中，vue 对应全局变量 Vue
-    },
-  },
-})
-```
-
-Vite 8 用 Rolldown 打包，所以选项名是 `build.rolldownOptions`。Vite 7 及以前用 Rollup，选项名是 `build.rollupOptions`，内容相同。Vite 8 暂时还接受旧名字。
-
-不使用 vite-plugin-dts 时，用 vue-tsc 生成类型文件：`vue-tsc --declaration --emitDeclarationOnly --outDir dist`。
-
-package.json 声明入口文件。vue 写在 peerDependencies 中：
-
-```json
-{
-  "name": "my-ui",
-  "version": "1.0.0",
-  "type": "module",
-  "files": ["dist"],
-  "main": "./dist/my-ui.umd.cjs",
-  "module": "./dist/my-ui.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/my-ui.js",
-      "require": "./dist/my-ui.umd.cjs"
-    },
-    "./style.css": "./dist/style.css"
-  },
-  "peerDependencies": { "vue": "^3.3.0" }
-}
-```
-
-CSS 文件的名字由 Vite 的版本决定。以 dist 目录中实际的文件名为准。
-
-按下面的步骤在本地测试并发布：
-
-1. 在插件目录运行 `npm run build` 和 `npm link`。
-2. 在应用目录运行 `npm link my-ui`。pnpm 用 `pnpm link ../my-ui`。
-3. 在应用的 vite.config 中设置 `resolve.dedupe: ['vue']`。
-4. 运行 `npm pack`，检查压缩包中的文件。
-5. 运行 `npm version patch` 修改版本号。
-6. 运行 `npm publish`。带作用域的包加 `--access public`。
-
-第 3 步的原因：链接的包使用自己目录中的 vue。页面中有两份 Vue 时，响应式会断开，而且没有任何报错。`inject` 和生命周期钩子反而仍然能用（原因见第 41 章）。
+怎样把插件打包、声明类型、写 `package.json` 的出口，以及发布前怎样在本地测试，见[第 41 章](/chapters/41-lib)。
 :::
 
 <Exercise id="pluginOptions" />
 
 ### 11.3 用 app.onUnmount 清理插件的资源
+
+本节在写插件和微前端时才用到，第一遍可以先跳过。
 
 插件不是组件，不能使用 onUnmounted。在 install 中调用 `app.onUnmount(fn)`（3.5+）。`app.unmount()` 运行时，Vue 调用 fn。
 
@@ -325,6 +251,8 @@ export const onlineStatus = {
 不要在根组件的 onUnmounted 中清理插件创建的资源。根组件不知道插件创建了什么。Vue 3.5 以前的版本没有这个 API。
 
 ### 11.4 用 app.runWithContext 在组件之外调用 inject
+
+本节同样偏高级，第一遍可以先跳过。
 
 inject 只在 setup 中能读取 provide 的值。在组件之外直接调用，得到 undefined 和一个警告。`app.runWithContext(fn)`（3.3+）让 fn 中的 inject 读取 `app.provide` 提供的值。
 

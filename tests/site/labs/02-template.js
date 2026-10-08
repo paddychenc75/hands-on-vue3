@@ -52,5 +52,19 @@ module.exports = [
       ok(count(after, 'updated') - count(before, 'updated') === 2, '新增 2 条 updated')
       ok(count(after, 'unmounted') === count(before, 'unmounted'), '没有 unmounted')
     }
+  },
+  {
+    id: 'demo-key', name: '开头插入一项后，key=index 的输入文字留在第一行，key=id 的跟着任务 A 移到第二行', pick: 0,
+    async run(p, body, ok) {
+      await body.locator('[data-key="index"] input').first().waitFor()
+      await body.locator('[data-key="index"] input').first().fill('急')
+      await body.locator('[data-key="id"] input').first().fill('急')
+      await body.getByRole('button', { name: '在开头插入一项' }).click()
+      await p.waitForTimeout(100)
+      const vals = async k => body.locator('[data-key="' + k + '"] input').evaluateAll(els => els.map(e => e.value))
+      const a = await vals('index'), b = await vals('id')
+      ok(a[0] === '急' && a[1] === '', 'key=index：文字仍在第一行（' + JSON.stringify(a) + '）')
+      ok(b[0] === '' && b[1] === '急', 'key=id：文字跟着任务 A 到第二行（' + JSON.stringify(b) + '）')
+    }
   }
 ]

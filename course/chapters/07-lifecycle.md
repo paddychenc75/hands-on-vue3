@@ -312,7 +312,7 @@ nextTick(() => console.log(el.textContent))
 
 ### 7.5 KeepAlive 中的 onActivated 和 onDeactivated
 
-被 `<KeepAlive>` 缓存的组件离开时不卸载。Vue 保留它的实例和 DOM。所以 onMounted 和 onUnmounted 不再随显示和隐藏运行。这时使用两个专用钩子：
+`<KeepAlive>` 是一个内置组件，用来缓存切走的组件，用法在[第 9 章](/chapters/09-builtins)。这里只讲它对钩子的影响。被它缓存的组件离开时不卸载。Vue 保留它的实例和 DOM。所以 onMounted 和 onUnmounted 不再随显示和隐藏运行。这时使用两个专用钩子：
 
 - `onActivated`：第一次挂载时运行，以后每次从缓存中恢复时也运行。
 - `onDeactivated`：组件被切换掉、进入缓存时运行。

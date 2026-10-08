@@ -120,7 +120,7 @@ const visible = computed(() => {
 
 ### 21.2 传递稳定的 props
 
-父组件更新时，Vue 比较每个子组件的新旧 props。props 相同时，Vue 不更新子组件。下图说明这个比较。
+父组件更新时，Vue 比较每个子组件的新旧 props。props 相同时，Vue 不更新子组件。这个判断的实现见第 31 章，这里只用它的结果。下图说明这个比较。
 
 <Figure caption="Vue 比较子组件的新旧 props。模板中的对象字面量每次都是新对象，所以子组件每次都更新。">
 <UnstablePropsRerender />
@@ -175,7 +175,7 @@ const stats = computed(oldValue => {
 
 ### 21.3 用 v-memo 和 v-once 跳过不变的模板
 
-`v-memo` 接收一个数组。重新渲染时，Vue 比较数组中的每个值。所有值都和上次相同时，Vue 复用上次的虚拟节点。这个子树不重新创建，也不比较。
+每次渲染，Vue 都先用普通对象描述出页面的每个节点，这些对象叫虚拟节点（第 28 章），再和上一次的比较，只修改有差别的 DOM。`v-memo` 让 Vue 跳过其中一部分。它接收一个数组。重新渲染时，Vue 比较数组中的每个值。所有值都和上次相同时，Vue 复用上次的虚拟节点。这个子树不重新创建，也不比较。
 
 **场景：大列表中切换选中项。**不使用 v-memo 时，选中项改变，所有行都重新创建虚拟节点并比较。使用 v-memo 后，只有选中状态改变的两行重新渲染。
 
@@ -223,7 +223,7 @@ const stats = computed(oldValue => {
 ```
 
 ::: deep Vapor Mode
-Vapor Mode 是一种不使用虚拟 DOM 的编译模式。编译器直接生成操作 DOM 的代码。Vue 3.6 开始提供它。截至 2026 年 10 月，3.6 处于 RC（候选发布）阶段，npm 上的最新版本是 3.6.0-rc.10，稳定版仍是 3.5。
+Vapor Mode 是一种不使用虚拟 DOM（第 28 章）的编译模式。编译器直接生成操作 DOM 的代码。Vue 3.6 开始提供它。截至 2026 年 10 月，3.6 处于 RC（候选发布）阶段，npm 上的最新版本是 3.6.0-rc.10，稳定版仍是 3.5。
 
 它是可选功能，默认不启用。只支持 `<script setup>` 组件。在单文件组件中用 `<script setup vapor>` 启用。在生产环境使用前，阅读官方文档中的当前状态。
 :::
@@ -246,7 +246,7 @@ reactive 只在读取嵌套对象时创建代理。但是遍历一个大数组�
 
 ### 21.5 用 defineAsyncComponent 减少首次加载的代码
 
-首次加载的 JS 文件太大时，页面显示得慢。把不是马上需要的组件拆为单独的文件。需要时才下载。
+首次加载的 JS 文件太大时，页面显示得慢。把不是马上需要的组件拆为单独的文件。需要时才下载。`defineAsyncComponent` 的基本用法见[第 9 章](/chapters/09-builtins)，这里讲它在性能上的用法。
 
 ```js
 const BigChart = defineAsyncComponent(() => import('./BigChart.vue'))
@@ -309,7 +309,7 @@ const loadReport = () => import('./views/Report.vue')
 
 ### 21.6 减少请求和事件处理的次数
 
-输入框每输入一个字就发请求时，请求太多。用防抖等用户停止输入。滚动事件触发太频繁时，用节流限制次数。
+输入框每输入一个字就发请求时，请求太多。用防抖等用户停止输入。滚动事件触发太频繁时，用节流限制次数。下面的函数来自 VueUse（第 8 章）：
 
 ```js
 import { useDebounceFn, useThrottleFn, watchDebounced } from '@vueuse/core'
@@ -347,7 +347,7 @@ export function useCachedFetch(url) {
 }
 ```
 
-实际项目中，使用 TanStack Query 或 Pinia Colada。它们还处理重复请求、过期时间和失效。
+实际项目中，使用 TanStack Query 或 Pinia Colada。它们还处理重复请求、过期时间和失效。数据请求的缓存和取消，第 18 章会系统地讲。
 :::
 
 ### 21.7 测量，然后选择方法
@@ -355,7 +355,7 @@ export function useCachedFetch(url) {
 没有测量结果时，不要优化。你可能优化了不慢的代码，还让代码更难读。按下面的步骤找到慢的部分：
 
 1. 运行 Lighthouse 或 PageSpeed Insights，看 LCP、INP 和 CLS 等指标。
-2. 打开 Vue DevTools 的 Performance 时间线，找到渲染时间长的组件。
+2. 打开 Vue DevTools（第 6 章）的 Timeline 面板，查看组件渲染和更新所花的时间，找到耗时长的组件。
 3. 开发模式中设置 `app.config.performance = true`。浏览器 Performance 面板中会显示每个组件的渲染时间。
 
 找到问题后，按下表选择方法：

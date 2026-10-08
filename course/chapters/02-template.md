@@ -12,6 +12,7 @@ import IfVsShow from '../figures/02-template/IfVsShow.vue'
 import ClassStyleDemo from '../labs/02-template/ClassStyleDemo.vue'
 import DirectivePlayground from '../labs/02-template/DirectivePlayground.vue'
 import DirectiveHooks from '../labs/02-template/DirectiveHooks.vue'
+import KeyDemo from '../labs/02-template/KeyDemo.vue'
 </script>
 
 # 模板语法与指令
@@ -25,7 +26,7 @@ import DirectiveHooks from '../labs/02-template/DirectiveHooks.vue'
 :::
 
 ::: rt
-阅读主线约 14 分钟，深入内容约 4 分钟（可选）。另外留时间做实验台、练习和自测。
+阅读主线约 15 分钟，深入内容约 3 分钟（可选）。另外留时间做实验台、练习和自测。
 :::
 
 ::: analogy
@@ -88,6 +89,15 @@ key
 <label :for="id">邮箱</label>
 <input :id="id">          <!-- 同名简写：等于 :id="id" -->
 ```
+
+一次绑定多个属性时，用不带参数的 `v-bind="对象"`。对象的每个键成为一个属性。属性名要在运行时决定时，用方括号写动态参数。
+
+```html
+<input v-bind="inputAttrs">             <!-- inputAttrs = { type: 'email', placeholder: '邮箱' } -->
+<a :[attrName]="url">链接</a>             <!-- attrName 是 'href' 时，等于 :href="url" -->
+```
+
+第 6 章的 `v-bind="$attrs"` 就是这种写法。
 
 ::: think 可以在 {{ }} 中写 if 语句吗？
 不可以。插值只接受一个表达式。`{{ ok ? '是' : '否' }}` 和 `{{ list.length }}` 是正确的。`{{ if (ok) {} }}` 是错误的。把复杂逻辑写在计算属性或方法中。
@@ -216,6 +226,37 @@ v-for 为数组的每一项渲染一个元素。每个 v-for 都要写 `:key`，
 ::: think 可以在同一个元素上同时使用 v-if 和 v-for 吗？
 不要这样做。在 Vue3 中，v-if 先运行。v-if 不能读取 v-for 的循环变量。要过滤列表，使用计算属性（第 4 章）。也可以用 `<template v-for>` 包住元素，然后在元素上写 v-if。
 :::
+
+数组改变后列表会更新，两种方式都可以：用 `push`、`splice`、`sort` 等方法原地修改，或者用 `filter`、`map` 的结果替换整个数组。
+
+key 的作用可以直接看到。下面的实验台里，输入框没有绑定数据，文字只存在于页面上的输入框里。在列表开头插入一项后，Vue 按 key 决定哪个输入框跟着哪一项走。
+
+<Lab id="demo-key" title="实验台：key 用 index 还是 id" note="运行真实的 Vue">
+<template #predict>
+<Sc predict :a="0">
+
+先猜：两边都先在“任务 A”那一行的输入框里输入“急”。点击“在开头插入一项”。左边用 `:key="index"`。“急”现在在哪一行？
+
+```html
+<div v-for="(item, index) in items" :key="index">
+  <span>{{ item.name }}</span><input>
+</div>
+```
+
+<Opt>仍在第一行，这一行现在显示新任务</Opt>
+<Opt>跟着任务 A 移到第二行</Opt>
+<Opt>输入框被清空</Opt>
+
+<template #explain>
+
+解析：用 index 作 key 时，第一行的 key 始终是 0。Vue 认为它还是同一个元素，只把文字改成新任务，输入框原样保留，所以“急”留在第一行。用 id 作 key 时，任务 A 的元素跟着任务 A 走，“急”移到第二行。第三项以为 Vue 会重建输入框。打开实验台，在两边都输入文字，再点击“在开头插入一项”，比较两边。
+
+</template>
+</Sc>
+</template>
+
+<KeyDemo />
+</Lab>
 
 <Exercise id="list" />
 
@@ -406,30 +447,14 @@ function safeHref(url) {
 :::
 
 ::: deep 自定义指令
-需要直接操作 DOM 时，使用自定义指令。[第 10 章](/chapters/10-directives)讲完整用法。指令对象有和组件相似的钩子：
-
-| 钩子 | 运行时间 |
-|---|---|
-| `created` | 元素的属性和事件监听应用之前 |
-| `beforeMount / mounted` | 元素插入页面之前 / 之后 |
-| `beforeUpdate / updated` | 所在组件更新之前 / 之后 |
-| `beforeUnmount / unmounted` | 元素移除之前 / 之后 |
-
-每个钩子接收 4 个参数：`el`、`binding`、`vnode`、`prevVnode`。`binding` 包含 value、oldValue、arg 和 modifiers。
+需要直接操作 DOM 时，使用自定义指令。[第 10 章](/chapters/10-directives)讲完整用法。指令对象有 `created`、`mounted`、`updated`、`unmounted` 等钩子。下面的实验台里，两个 `<p>` 用了同一个指令：
 
 ```js
 // v-highlight:color.bold="条件"
 const vHighlight = {
   mounted(el, binding) { apply(el, binding) },
-  updated(el, binding) {
-    if (binding.value !== binding.oldValue) apply(el, binding)  // 值改变时才更新
-  }
+  updated(el, binding) { apply(el, binding) }
 }
-function apply(el, { value, arg = 'yellow', modifiers }) {
-  el.style.background = value ? arg : ''
-  el.style.fontWeight = value && modifiers.bold ? '700' : ''
-}
-// 在 <script setup> 中，以 v 开头并且第二个字母大写的驼峰变量（如 vFocus）自动注册为 v-focus 指令
 ```
 
 <Lab id="demo-directive" title="实验台：自定义指令的钩子" note="运行真实的 Vue">
@@ -461,7 +486,7 @@ function apply(el, { value, arg = 'yellow', modifiers }) {
 :::
 
 ::: pitfalls
-1. 每个 `v-for` 都要写 `:key`，值用数据的 id。原因：Vue 用 key 判断哪个节点可以复用。用 index 时，插入一项后输入框的值会留在错误的行（第 30 章）。
+1. 每个 `v-for` 都要写 `:key`，值用数据的 id。原因：Vue 用 key 判断哪个节点可以复用。用 index 时，插入一项后输入框的值会留在错误的行（2.3 节的实验台，原因见第 30 章）。
 2. 要传数据，写 `:value="x"`。原因：没有冒号时，`value="x"` 传的是字符串 "x"。
 3. 元素需要频繁显示和隐藏时，使用 `v-show`。原因：`v-if` 每次都删除并重新创建元素，代价更大。
 :::

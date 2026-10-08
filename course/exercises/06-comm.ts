@@ -1,4 +1,5 @@
 import type { Exercise } from './types'
+import { nextTick } from 'vue'
 
 export const emit: Exercise = {
   title: '子组件通知父组件', ch: 6,
@@ -189,5 +190,137 @@ return { users, components: { UserList } }`
   wrong: [
     { js: 'const UserList = {\n  props: [\'users\'],\n  template: \'<ul><li v-for="u in users" :key="u.id"><slot :user="u"></slot></li></ul>\'\n}\n\nconst users = ref([\n  { id: 1, name: \'Alice\', age: 30 },\n  { id: 2, name: \'Bob\', age: 25 }\n])\n\nreturn { users, components: { UserList } }', why: '去掉了 slot 里的后备内容。没有提供插槽内容的第二个列表什么也不显示。' },
     { tpl: '<UserList :users="users" class="custom">\n  <template #default="user">{{ user.name }}（{{ user.age }} 岁）</template>\n</UserList>\n<UserList :users="users" class="plain" />', why: '#default="user" 得到的是整个插槽 props 对象 { user: u }。user.name 是 undefined，要解构 { user }，或写 user.user.name。' }
+  ]
+}
+
+export const propFollow: Exercise = {
+  title: '看现象：父组件换了任务，编辑框里还是旧标题', ch: 6,
+  task: '<p>TitleEditor 用 <code>ref(props.title)</code> 把标题 prop 当作编辑框的初始值。父组件切换任务后，编辑框里还是旧标题。修复它，同时保持：</p><ol><li>切换任务后，编辑框显示新任务的标题。</li><li>用户可以在编辑框里修改文字，点击“保存”后，父组件收到修改后的文字。</li></ol><p class="cap">说明：返回值中的 components 是本练习台的约定。可以改脚本，也可以改模板。</p>',
+  tpl: '<button @click="current = tasks[0]">任务 1</button>\n<button @click="current = tasks[1]">任务 2</button>\n<TitleEditor :title="current.title" @save="saved = $event" />\n<p class="saved">已保存：{{ saved }}</p>',
+  js: `const TitleEditor = {
+  props: ['title'],
+  emits: ['save'],
+  setup(props) {
+    // 只在创建时读取一次 props.title
+    const draft = ref(props.title)
+    return { draft }
+  },
+  template: '<input v-model="draft"> <button @click="$emit(\\'save\\', draft)">保存</button>'
+}
+
+const tasks = [{ id: 1, title: '写周报' }, { id: 2, title: '改论文' }]
+const current = ref(tasks[0])
+const saved = ref('')
+
+return { tasks, current, saved, components: { TitleEditor } }`,
+  solJs: `const TitleEditor = {
+  props: ['title'],
+  emits: ['save'],
+  setup(props) {
+    const draft = ref(props.title)
+    // prop 变化时，同步到本地副本。watch 的来源要写成 getter
+    watch(() => props.title, (t) => { draft.value = t })
+    return { draft }
+  },
+  template: '<input v-model="draft"> <button @click="$emit(\\'save\\', draft)">保存</button>'
+}
+
+const tasks = [{ id: 1, title: '写周报' }, { id: 2, title: '改论文' }]
+const current = ref(tasks[0])
+const saved = ref('')
+
+return { tasks, current, saved, components: { TitleEditor } }`,
+  faded: {
+    js: `const TitleEditor = {
+  props: ['title'],
+  emits: ['save'],
+  setup(props) {
+    const draft = ref(props.title)
+    // ✏️ 在 prop 变化时，把新值写进 draft。侦听来源要写成 getter：() => ……
+    watch(() => /* ✏️ 读取哪个 prop */ 0, (t) => { draft.value = t })
+    return { draft }
+  },
+  template: '<input v-model="draft"> <button @click="$emit(\\'save\\', draft)">保存</button>'
+}
+
+const tasks = [{ id: 1, title: '写周报' }, { id: 2, title: '改论文' }]
+const current = ref(tasks[0])
+const saved = ref('')
+
+return { tasks, current, saved, components: { TitleEditor } }`
+  },
+  hints: [
+    '`ref(props.title)` 只在组件创建时读取一次。父组件换了任务，子组件不会重新创建，draft 就不会变。第 6 章“6.1 用 props 接收数据”的“子组件想改传进来的值”讲了这个问题。',
+    '两种常见做法：1. 在子组件里侦听 prop，变化时更新 draft：`watch(() => props.title, …)`。2. 在父组件的 <TitleEditor> 上加 `:key="current.id"`，任务变化时重新创建子组件。',
+    'watch(() => props.title, (t) => { draft.value = t })。也可以改模板：<TitleEditor :key="current.id" :title="current.title" @save="saved = $event" />。'
+  ],
+  async check(T) {
+    const inp = () => T.$('input') as HTMLInputElement | null
+    const saved = () => (T.$('.saved') || {}).textContent || ''
+    if (!inp()) { T.ok(false, '页面上有编辑框'); return }
+    T.ok(inp()!.value === '写周报', '初始显示任务 1 的标题“写周报”')
+    await T.click(T.btn('任务 2'))
+    await T.settle()
+    T.ok(!!inp() && inp()!.value === '改论文', '切换到任务 2 后，编辑框显示“改论文”（当前：' + (inp() ? inp()!.value : '没有编辑框') + '）')
+    if (!inp()) return
+    inp()!.value = '改论文终稿'
+    inp()!.dispatchEvent(new Event('input'))
+    await nextTick()
+    T.ok(inp()!.value === '改论文终稿', '可以在编辑框里修改文字')
+    await T.click(T.btn('保存'))
+    T.ok(/改论文终稿/.test(saved()), '点击“保存”后，父组件收到“改论文终稿”（当前：' + saved() + '）')
+    await T.click(T.btn('任务 1'))
+    await T.settle()
+    T.ok(!!inp() && inp()!.value === '写周报', '切回任务 1 后，编辑框显示“写周报”')
+  },
+  wrong: [
+    { js: `const TitleEditor = {
+  props: ['title'],
+  emits: ['save'],
+  setup(props) {
+    const draft = ref(props.title)
+    // 把 prop 解构成普通变量再侦听
+    watch(props.title, (t) => { draft.value = t })
+    return { draft }
+  },
+  template: '<input v-model="draft"> <button @click="$emit(\\'save\\', draft)">保存</button>'
+}
+
+const tasks = [{ id: 1, title: '写周报' }, { id: 2, title: '改论文' }]
+const current = ref(tasks[0])
+const saved = ref('')
+
+return { tasks, current, saved, components: { TitleEditor } }`, why: 'watch(props.title, …) 在调用时就读出了字符串，传给 watch 的不是响应式来源。要写 getter：() => props.title。', expectFail: /改论文/ },
+    { js: `const TitleEditor = {
+  props: ['title'],
+  emits: ['save'],
+  setup(props) {
+    const draft = computed(() => props.title)
+    return { draft }
+  },
+  template: '<input v-model="draft"> <button @click="$emit(\\'save\\', draft)">保存</button>'
+}
+
+const tasks = [{ id: 1, title: '写周报' }, { id: 2, title: '改论文' }]
+const current = ref(tasks[0])
+const saved = ref('')
+
+return { tasks, current, saved, components: { TitleEditor } }`, why: 'computed 默认只读。它能跟随 prop，但用户修改编辑框时无法写入，输入的文字不会保留。需要“能跟随 prop、又能编辑”的副本时，用 ref 加 watch，或者让子组件在 prop 变化时重新创建。', expectFail: /修改文字|保存/ },
+    { js: `const TitleEditor = {
+  props: ['title'],
+  emits: ['save'],
+  setup(props) {
+    const draft = ref('')
+    onMounted(() => { draft.value = props.title })
+    return { draft }
+  },
+  template: '<input v-model="draft"> <button @click="$emit(\\'save\\', draft)">保存</button>'
+}
+
+const tasks = [{ id: 1, title: '写周报' }, { id: 2, title: '改论文' }]
+const current = ref(tasks[0])
+const saved = ref('')
+
+return { tasks, current, saved, components: { TitleEditor } }`, why: 'onMounted 也只在挂载时运行一次，和 ref(props.title) 一样不会跟随 prop。', expectFail: /改论文/ }
   ]
 }

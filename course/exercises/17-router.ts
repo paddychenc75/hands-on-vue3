@@ -1,404 +1,325 @@
 import type { Exercise } from './types'
 import { sub } from './types'
-import { nextTick } from 'vue'
+
+// ===== 路由表：动态参数、props、嵌套路由、404（真实的 Vue Router）=====
+const routeTableSolJs = `const Home = { template: '<p class="view">首页</p>' }
+const TaskDetail = { props: ['id'], template: '<p class="view">任务 {{ id }} 的详情</p>' }
+const UserLayout = { template: '<div><h3>用户</h3><RouterView /></div>' }
+const UserHome = { template: '<p class="view">用户首页</p>' }
+const UserPosts = { template: '<p class="view">用户的文章</p>' }
+const NotFound = { template: '<p class="view">404：页面不存在</p>' }
+
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: [
+    { path: '/', component: Home },
+    { path: '/task/:id', component: TaskDetail, props: true },    // :id 是动态参数，props: true 把它传给组件
+    {
+      path: '/user',
+      component: UserLayout,                                      // UserLayout 里有 <RouterView />
+      children: [
+        { path: '', component: UserHome },                        // /user
+        { path: 'posts', component: UserPosts }                   // /user/posts：子路由的 path 不以 / 开头
+      ]
+    },
+    { path: '/:pathMatch(.*)*', component: NotFound }             // 404：匹配所有其他地址
+  ]
+})
+
+return { router }`
 
 export const routeTable: Exercise = {
-  title: '补全：路由表的动态参数和 404 页面', ch: 17,
-  task: '<p>说明：练习台不能运行真实的 Vue Router。脚本中有一个迷你路由。它按 Vue Router 的规则匹配地址：静态路径优先，然后是动态参数，最后是 <code>/:pathMatch(.*)*</code>。路由写 <code>props: true</code> 时，它把参数作为 props 传给组件。</p><ol><li>TODO 1：路径 /task/:id 显示 TaskDetail，并把参数 id 作为 props 传入。</li><li>TODO 2：其他所有地址显示 NotFound。</li><li>依次点击按钮。确认首页、任务详情和 404 页面都正确。</li></ol>',
-  tpl: '<button @click="push(\'/\')">首页</button>\n<button @click="push(\'/task/2\')">任务 2</button>\n<button @click="push(\'/task/3\')">任务 3</button>\n<button @click="push(\'/abc\')">错误的地址</button>\n<p class="url">地址：{{ current }}</p>\n<component :is="view.component" v-bind="view.props" />',
+  title: '配置路由表：动态参数、props、嵌套路由和 404', ch: 17,
+  libs: ['vue-router'],
+  task: '<p>这道题运行在真实的 Vue Router 上。路由必须用 <code>createMemoryHistory()</code>（用 <code>createWebHistory</code> 会改动页面真实的地址栏），并在脚本最后 <code>return { router }</code>，运行器替你安装。组件已经写好，补全路由表。</p><ol><li>TODO 1：<code>/task/:id</code> 显示 TaskDetail，并把参数 id 作为 props 传入。</li><li>TODO 2：<code>/user</code> 显示 UserLayout，里面嵌套两个子路由：<code>/user</code> 显示 UserHome，<code>/user/posts</code> 显示 UserPosts。</li><li>TODO 3：其他所有地址显示 NotFound。</li><li>点击链接，确认首页、任务详情、嵌套页面和 404 都正确；用户页的外框“用户”标题在两个子页面里都保留。</li></ol>',
+  tpl: `<nav>
+  <RouterLink to="/">首页</RouterLink> |
+  <RouterLink to="/task/2">任务 2</RouterLink> |
+  <RouterLink to="/user">用户</RouterLink> |
+  <RouterLink to="/user/posts">用户的文章</RouterLink> |
+  <RouterLink to="/abc">错误的地址</RouterLink>
+</nav>
+<RouterView />`,
   js: `const Home = { template: '<p class="view">首页</p>' }
 const TaskDetail = { props: ['id'], template: '<p class="view">任务 {{ id }} 的详情</p>' }
+const UserLayout = { template: '<div><h3>用户</h3><RouterView /></div>' }
+const UserHome = { template: '<p class="view">用户首页</p>' }
+const UserPosts = { template: '<p class="view">用户的文章</p>' }
 const NotFound = { template: '<p class="view">404：页面不存在</p>' }
 
-const routes = [
-  { path: '/', component: Home },
-  // TODO 1：路径 /task/:id 显示 TaskDetail。把参数作为 props 传入
-  // TODO 2：其他所有地址显示 NotFound
-]
-
-// ===== 已给出：迷你路由（不用修改） =====
-const current = ref('/')
-function push(path) { current.value = path }
-function compile(r) {
-  if (r.path === '*') throw new Error('Vue Router 4 不支持 path: \\'*\\'')
-  const keys = []
-  const src = r.path
-    .replace(/\\/:(\\w+)\\(\\.\\*\\)\\*/g, (_, k) => { keys.push(k); return '/(.*)' })
-    .replace(/:(\\w+)/g, (_, k) => { keys.push(k); return '([^/]+)' })
-  const score = r.path.includes('(.*)') ? 0 : r.path.includes(':') ? 1 : 2
-  return { ...r, keys, re: new RegExp('^' + src + '$'), score }
-}
-const view = computed(() => {
-  const table = routes.map(compile).sort((a, b) => b.score - a.score)   // 分数高的先匹配
-  for (const r of table) {
-    const m = r.re.exec(current.value)
-    if (!m) continue
-    const params = {}
-    r.keys.forEach((k, i) => { params[k] = m[i + 1] })
-    return { component: r.component, props: r.props === true ? params : {} }
-  }
-  return { component: null, props: {} }
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: [
+    { path: '/', component: Home }
+    // TODO 1：/task/:id 显示 TaskDetail，参数作为 props 传入
+    // TODO 2：/user 显示 UserLayout，children 里放 UserHome（path 是空字符串）和 UserPosts（path 是 'posts'）
+    // TODO 3：其他所有地址显示 NotFound
+  ]
 })
 
-return { current, push, view }`,
-  solJs: `const Home = { template: '<p class="view">首页</p>' }
-const TaskDetail = { props: ['id'], template: '<p class="view">任务 {{ id }} 的详情</p>' }
-const NotFound = { template: '<p class="view">404：页面不存在</p>' }
-
-const routes = [
-  { path: '/', component: Home },
-  { path: '/task/:id', component: TaskDetail, props: true },   // :id 是动态参数
-  { path: '/:pathMatch(.*)*', component: NotFound }            // 404 页面
-]
-
-// ===== 已给出：迷你路由（不用修改） =====
-const current = ref('/')
-function push(path) { current.value = path }
-function compile(r) {
-  if (r.path === '*') throw new Error('Vue Router 4 不支持 path: \\'*\\'')
-  const keys = []
-  const src = r.path
-    .replace(/\\/:(\\w+)\\(\\.\\*\\)\\*/g, (_, k) => { keys.push(k); return '/(.*)' })
-    .replace(/:(\\w+)/g, (_, k) => { keys.push(k); return '([^/]+)' })
-  const score = r.path.includes('(.*)') ? 0 : r.path.includes(':') ? 1 : 2
-  return { ...r, keys, re: new RegExp('^' + src + '$'), score }
-}
-const view = computed(() => {
-  const table = routes.map(compile).sort((a, b) => b.score - a.score)   // 分数高的先匹配
-  for (const r of table) {
-    const m = r.re.exec(current.value)
-    if (!m) continue
-    const params = {}
-    r.keys.forEach((k, i) => { params[k] = m[i + 1] })
-    return { component: r.component, props: r.props === true ? params : {} }
-  }
-  return { component: null, props: {} }
-})
-
-return { current, push, view }`,
+return { router }`,
+  solJs: routeTableSolJs,
   hints: [
-    '路由表是一个数组。每个路由把 path 映射到 component。路径中的 :id 是动态参数。props: true 把参数作为 props 传给组件。404 路由用 /:pathMatch(.*)* 匹配所有地址。第 17 章“17.1 定义路由表并显示页面”的代码讲了它。',
-    '在 routes 数组中加两个对象。TODO 1：path 是 \'/task/:id\'，component 是 TaskDetail，再加 props: true。TODO 2：path 是 \'/:pathMatch(.*)*\'，component 是 NotFound。',
-    "{ path: '/task/:id', component: TaskDetail, props: true },\n{ path: '/:pathMatch(.*)*', component: NotFound }"
-  ],
-  wrong: [
-    { js: `const Home = { template: '<p class="view">首页</p>' }
-const TaskDetail = { props: ['id'], template: '<p class="view">任务 {{ id }} 的详情</p>' }
-const NotFound = { template: '<p class="view">404：页面不存在</p>' }
-
-const routes = [
-  { path: '/', component: Home },
-  { path: '/task/:id', component: TaskDetail },
-  { path: '/:pathMatch(.*)*', component: NotFound }
-]
-
-const current = ref('/')
-function push(path) { current.value = path }
-function compile(r) {
-  if (r.path === '*') throw new Error('Vue Router 4 不支持 path: \\'*\\'')
-  const keys = []
-  const src = r.path
-    .replace(/\\/:(\\w+)\\(\\.\\*\\)\\*/g, (_, k) => { keys.push(k); return '/(.*)' })
-    .replace(/:(\\w+)/g, (_, k) => { keys.push(k); return '([^/]+)' })
-  const score = r.path.includes('(.*)') ? 0 : r.path.includes(':') ? 1 : 2
-  return { ...r, keys, re: new RegExp('^' + src + '$'), score }
-}
-const view = computed(() => {
-  const table = routes.map(compile).sort((a, b) => b.score - a.score)
-  for (const r of table) {
-    const m = r.re.exec(current.value)
-    if (!m) continue
-    const params = {}
-    r.keys.forEach((k, i) => { params[k] = m[i + 1] })
-    return { component: r.component, props: r.props === true ? params : {} }
-  }
-  return { component: null, props: {} }
-})
-
-return { current, push, view }`, why: '没有 props: true 时，参数只在 route.params 中，TaskDetail 的 prop id 是 undefined。' },
-    { js: `const Home = { template: '<p class="view">首页</p>' }
-const TaskDetail = { props: ['id'], template: '<p class="view">任务 {{ id }} 的详情</p>' }
-const NotFound = { template: '<p class="view">404：页面不存在</p>' }
-
-const routes = [
-  { path: '/', component: Home },
-  { path: '/task/:id', component: TaskDetail, props: true },
-  { path: '*', component: NotFound }
-]
-
-const current = ref('/')
-function push(path) { current.value = path }
-function compile(r) {
-  if (r.path === '*') throw new Error('Vue Router 4 不支持 path: \\'*\\'')
-  const keys = []
-  const src = r.path
-    .replace(/\\/:(\\w+)\\(\\.\\*\\)\\*/g, (_, k) => { keys.push(k); return '/(.*)' })
-    .replace(/:(\\w+)/g, (_, k) => { keys.push(k); return '([^/]+)' })
-  const score = r.path.includes('(.*)') ? 0 : r.path.includes(':') ? 1 : 2
-  return { ...r, keys, re: new RegExp('^' + src + '$'), score }
-}
-const view = computed(() => {
-  const table = routes.map(compile).sort((a, b) => b.score - a.score)
-  for (const r of table) {
-    const m = r.re.exec(current.value)
-    if (!m) continue
-    const params = {}
-    r.keys.forEach((k, i) => { params[k] = m[i + 1] })
-    return { component: r.component, props: r.props === true ? params : {} }
-  }
-  return { component: null, props: {} }
-})
-
-return { current, push, view }`, why: 'path: \'*\' 是 Vue Router 3 的写法。Vue Router 4 不接受它，要写 /:pathMatch(.*)*。' }
+    '路由表是一个数组。动态参数写成 /task/:id，props: true 把参数作为 props 传给组件。嵌套路由用 children，父组件里要有 <RouterView />。404 路由用 /:pathMatch(.*)* 匹配所有地址。17.1 和 17.2 讲了它们。',
+    '子路由的 path 不以 / 开头：空字符串 \'\' 匹配 /user 本身，\'posts\' 匹配 /user/posts。404 路由可以写在数组的任何位置，Vue Router 按分数匹配，不按书写顺序。',
+    routeTableSolJs
   ],
   async check(T) {
+    const r = T.router;
+    if (!r) { T.ok(false, '脚本里要 createRouter(…) 并 return { router }，运行器才会安装路由'); return; }
     const view = () => ((T.$('.view') || {}).textContent || '').trim();
-    const go = async t => { const b = T.btn(t); if (b) await T.click(b); return !!b; };
-    T.ok(view() === '首页', '地址 / 显示首页');
-    if (!(await go('任务 2'))) { T.ok(false, '找到“任务 2”按钮'); return; }
-    T.ok(view() === '任务 2 的详情', 'TODO 1：地址 /task/2 显示“任务 2 的详情”（当前：' + (view() || '空') + '）');
-    await go('任务 3');
-    T.ok(view() === '任务 3 的详情', 'TODO 1：地址 /task/3 显示“任务 3 的详情”（当前：' + (view() || '空') + '）');
-    await go('错误的地址');
-    T.ok(view() === '404：页面不存在', 'TODO 2：地址 /abc 显示“404：页面不存在”（当前：' + (view() || '空') + '）');
-    await go('首页');
-    T.ok(view() === '首页', '回到 /，仍显示首页。404 路由没有覆盖首页');
+    const link = t => T.$$('a').find(a => (a.textContent || '').includes(t));
+    const go = async (t, expect, msg) => {
+      const a = link(t);
+      if (!a) { T.ok(false, '模板里有“' + t + '”链接'); return; }
+      await T.click(a);
+      await T.waitFor(() => view() === expect);
+      T.ok(view() === expect, msg + '（当前：' + (view() || '空') + '）');
+    };
+    T.ok(view() === '首页', '地址 / 显示首页（当前：' + (view() || '空') + '）');
+    await go('任务 2', '任务 2 的详情', 'TODO 1：/task/2 显示“任务 2 的详情”：路由要写 props: true');
+    await T.push('/task/3');
+    T.ok(view() === '任务 3 的详情', 'TODO 1：/task/3 显示“任务 3 的详情”（当前：' + (view() || '空') + '）');
+    await go('用户', '用户首页', 'TODO 2：/user 显示 UserHome：子路由里 path 为空字符串的那一条');
+    T.ok(/用户\s*用户首页/.test(T.text()), 'TODO 2：UserLayout 的外框“用户”标题和 UserHome 同时显示');
+    await go('用户的文章', '用户的文章', 'TODO 2：/user/posts 显示 UserPosts：子路由的 path 写 \'posts\'，不要以 / 开头');
+    T.ok(/用户\s*用户的文章/.test(T.text()), 'TODO 2：切换到 /user/posts 后，外框“用户”标题仍在');
+    await go('错误的地址', '404：页面不存在', 'TODO 3：/abc 显示 404');
+    await T.push('/user/zzz');
+    T.ok(view() === '404：页面不存在', 'TODO 3：/user/zzz 没有对应的子路由，也显示 404（当前：' + (view() || '空') + '）');
+    await go('首页', '首页', '回到 /，仍显示首页。404 路由没有覆盖首页');
+  },
+  wrong: [
+    { js: sub(routeTableSolJs, "{ path: '/task/:id', component: TaskDetail, props: true },    // :id 是动态参数，props: true 把它传给组件", "{ path: '/task/:id', component: TaskDetail },"),
+      why: '没有 props: true 时，参数只在 route.params 里，TaskDetail 的 prop id 是 undefined。页面显示“任务  的详情”。', expectFail: /props: true/ },
+    { js: sub(routeTableSolJs, "{ path: '/:pathMatch(.*)*', component: NotFound }             // 404：匹配所有其他地址", "{ path: '*', component: NotFound }"),
+      why: 'path: \'*\' 是 Vue Router 3 的写法。Vue Router 4 和 5 不接受它（会在创建 router 时报错），要写 /:pathMatch(.*)*。' },
+    { js: sub(routeTableSolJs, "{ path: 'posts', component: UserPosts }                   // /user/posts：子路由的 path 不以 / 开头", "{ path: '/posts', component: UserPosts }"),
+      why: '子路由的 path 以 / 开头时，它是根路径 /posts，不是 /user/posts。访问 /user/posts 找不到对应的路由，显示 404。', expectFail: /\/user\/posts/ },
+    { js: sub(routeTableSolJs, "        { path: '', component: UserHome },                        // /user\n", ""),
+      why: '没有 path 为空字符串的子路由，访问 /user 时只显示外框，里面的 RouterView 是空的。', expectFail: /UserHome/ }
+  ],
+  faded: {
+    js: sub(sub(sub(routeTableSolJs,
+      "{ path: '/task/:id', component: TaskDetail, props: true },    // :id 是动态参数，props: true 把它传给组件", "{ path: /* ✏️ 带动态参数 id 的路径 */ '', component: TaskDetail /* ✏️ 让参数作为 props 传给组件 */ },"),
+      "        { path: '', component: UserHome },                        // /user\n        { path: 'posts', component: UserPosts }                   // /user/posts：子路由的 path 不以 / 开头", "        /* ✏️ 两个子路由：/user 显示 UserHome，/user/posts 显示 UserPosts */"),
+      "{ path: '/:pathMatch(.*)*', component: NotFound }             // 404：匹配所有其他地址", "{ path: /* ✏️ 能匹配所有其他地址的路径 */ '', component: NotFound }")
   }
 }
 
-export const fbRouter: Exercise = {
-  title: '补全：用 meta 和守卫保护后台', ch: 17,
-  task: '<p>说明：练习台不能运行真实的 Vue Router。脚本中有一个迷你路由。它按 beforeEach 的规则处理守卫的返回值：返回字符串时重定向，不返回值时放行。</p><ol><li>TODO 1：给 /admin 路由加上 meta: { requiresAuth: true }。</li><li>TODO 2：在守卫中返回 \'/login\'。</li><li>确认未登录时进入登录页，登录后可以进入后台。</li></ol>',
-  tpl: '<p>当前页面：{{ routes[current].title }}</p>\n<p>登录状态：{{ loggedIn ? \'已登录\' : \'未登录\' }}</p>\n<button @click="push(\'/\')">去首页</button>\n<button @click="push(\'/admin\')">去后台</button>\n<button @click="loggedIn = true">登录</button>\n<ul>\n  <li v-for="(line, i) in log" :key="i">{{ line }}</li>\n</ul>',
-  js: `const routes = {
-  '/': { title: '首页' },
-  '/login': { title: '登录页' },
-  '/admin': { title: '管理后台' }   // TODO 1：加上 meta，标记这个路由需要登录
+// ===== 参数变化时组件被复用（真实的 Vue Router）=====
+const paramSolJs = `// 假接口：20 毫秒后返回任务内容
+const fetchTask = id => new Promise(resolve => setTimeout(() => resolve('任务 ' + id + ' 的内容'), 20))
+
+const Home = { template: '<p class="content">首页</p>' }
+
+const TaskDetail = {
+  setup() {
+    const route = useRoute()
+    const content = ref('加载中…')
+    const loads = ref(0)
+    // 参数变化时，Router 复用同一个组件，setup 和 onMounted 不再运行。侦听参数（getter 写法）
+    watch(() => route.params.id, async (id) => {
+      loads.value++
+      content.value = await fetchTask(id)
+    }, { immediate: true })
+    return { content, loads }
+  },
+  template: '<div><p class="content">{{ content }}</p><p class="loads">请求次数：{{ loads }}</p></div>'
 }
 
-// ===== 已给出：迷你路由（不用修改） =====
-const current = ref('/')
-const loggedIn = ref(false)
-const log = ref([])
-const guards = []
-function beforeEach(guard) { guards.push(guard) }
-
-function push(path) {
-  let target = path
-  for (let hops = 0; hops < 10; hops++) {
-    const to = { path: target, meta: routes[target].meta || {} }
-    const from = { path: current.value }
-    let redirect = null
-    for (const guard of guards) {
-      const result = guard(to, from)
-      if (result === false) { log.value.push('取消导航：' + target); return }
-      if (typeof result === 'string') { redirect = result; break }
-    }
-    if (redirect === null) {
-      current.value = target
-      log.value.push('到达 ' + target)
-      return
-    }
-    log.value.push(target + ' → 重定向到 ' + redirect)
-    target = redirect
-  }
-  log.value.push('重定向超过 10 次，导航停止。')
-}
-
-// ===== 导航守卫 =====
-beforeEach((to, from) => {
-  if (to.meta.requiresAuth && !loggedIn.value) {
-    // TODO 2：返回 '/login'，重定向到登录页
-  }
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: [
+    { path: '/', component: Home },
+    { path: '/task/:id', component: TaskDetail }
+  ]
 })
 
-return { routes, current, loggedIn, log, push }`,
-  solJs: `const routes = {
-  '/': { title: '首页' },
-  '/login': { title: '登录页' },
-  '/admin': { title: '管理后台', meta: { requiresAuth: true } }   // 需要登录
+return { router }`
+
+export const paramReuse: Exercise = {
+  title: '修复：从任务 1 切到任务 2，详情没有更新', ch: 17,
+  libs: ['vue-router'],
+  task: '<p>任务详情页在 <code>onMounted</code> 里请求数据。从“任务 1”点到“任务 2”，页面还显示任务 1 的内容，“请求次数”也停在 1。原因：两个地址匹配同一条路由，Router 复用同一个 TaskDetail，<code>setup</code> 和 <code>onMounted</code> 不再运行。</p><ol><li>先点“任务 1”，再点“任务 2”，观察现象。</li><li>修改 TaskDetail，让它在 id 每次变化时都重新请求。进入页面的第一次也要请求。</li><li>确认依次访问任务 1、2、3，内容分别正确。</li></ol>',
+  tpl: `<nav>
+  <RouterLink to="/">首页</RouterLink> |
+  <RouterLink to="/task/1">任务 1</RouterLink> |
+  <RouterLink to="/task/2">任务 2</RouterLink> |
+  <RouterLink to="/task/3">任务 3</RouterLink>
+</nav>
+<RouterView />`,
+  js: `// 假接口：20 毫秒后返回任务内容
+const fetchTask = id => new Promise(resolve => setTimeout(() => resolve('任务 ' + id + ' 的内容'), 20))
+
+const Home = { template: '<p class="content">首页</p>' }
+
+const TaskDetail = {
+  setup() {
+    const route = useRoute()
+    const content = ref('加载中…')
+    const loads = ref(0)
+    // 问题：onMounted 只在组件创建时运行一次
+    onMounted(async () => {
+      loads.value++
+      content.value = await fetchTask(route.params.id)
+    })
+    return { content, loads }
+  },
+  template: '<div><p class="content">{{ content }}</p><p class="loads">请求次数：{{ loads }}</p></div>'
 }
 
-// ===== 已给出：迷你路由（不用修改） =====
-const current = ref('/')
-const loggedIn = ref(false)
-const log = ref([])
-const guards = []
-function beforeEach(guard) { guards.push(guard) }
-
-function push(path) {
-  let target = path
-  for (let hops = 0; hops < 10; hops++) {
-    const to = { path: target, meta: routes[target].meta || {} }
-    const from = { path: current.value }
-    let redirect = null
-    for (const guard of guards) {
-      const result = guard(to, from)
-      if (result === false) { log.value.push('取消导航：' + target); return }
-      if (typeof result === 'string') { redirect = result; break }
-    }
-    if (redirect === null) {
-      current.value = target
-      log.value.push('到达 ' + target)
-      return
-    }
-    log.value.push(target + ' → 重定向到 ' + redirect)
-    target = redirect
-  }
-  log.value.push('重定向超过 10 次，导航停止。')
-}
-
-// ===== 导航守卫 =====
-beforeEach((to, from) => {
-  if (to.meta.requiresAuth && !loggedIn.value) {
-    return '/login'   // 返回新地址：重定向
-  }
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: [
+    { path: '/', component: Home },
+    { path: '/task/:id', component: TaskDetail }
+  ]
 })
 
-return { routes, current, loggedIn, log, push }`,
+return { router }`,
+  solJs: paramSolJs,
   hints: [
-    '路由用 meta 保存自定义信息。导航守卫读取 to.meta。守卫返回一个地址时，Router 重定向到这个地址。第 17 章开头的路由表和 router.beforeEach 示例讲了它。',
-    'TODO 1：在 \'/admin\' 的对象中加一个键 meta，值是 { requiresAuth: true }。TODO 2：在 if 中写一个 return 语句。',
-    "'/admin': { title: '管理后台', meta: { requiresAuth: true } }\n\nif (to.meta.requiresAuth && !loggedIn.value) {\n  return '/login'\n}"
+    '组件被复用时，setup 和 onMounted 不会再运行，但 useRoute() 返回的 route 是响应式的，route.params.id 会变。所以要侦听它。17.5 的场景讲了两种办法：watch 和 onBeforeRouteUpdate。',
+    'watch 的数据源要写 getter：watch(() => route.params.id, 回调, { immediate: true })。直接写 route.params.id 只传入一个字符串，watch 不会触发。immediate: true 让第一次进入页面时也运行回调。',
+    paramSolJs
   ],
   async check(T) {
-    const page = () => { const m = T.text().match(/当前页面：\s*(\S+?)\s*登录状态/); return m ? m[1] : ''; };
-    const go = async t => { const b = T.btn(t); if (b) await T.click(b); return !!b; };
-    const root = T.$(':scope > div');
-    const inst = root && root._vnode && root._vnode.component;
-    const r = inst && inst.setupState.routes;
-    T.ok(!!(r && r['/admin'] && r['/admin'].meta && r['/admin'].meta.requiresAuth === true), '/admin 路由有 meta: { requiresAuth: true }');
-    if (!(await go('去后台'))) { T.ok(false, '找到“去后台”按钮'); return; }
-    T.ok(page() === '登录页', '未登录访问 /admin，重定向到登录页（当前：' + page() + '）');
-    // 临时加一个新的受保护路由再导航：守卫要读 to.meta，不能把 /admin 写死
-    const S = inst && inst.setupState;
-    if (S && S.routes && typeof S.push === 'function') {
-      S.routes['/report'] = { title: '报表', meta: { requiresAuth: true } };
-      S.push('/report');
-      await nextTick();
-      T.ok(page() === '登录页', '未登录访问另一个带 requiresAuth 的路由 /report，也重定向到登录页（守卫要看 to.meta，不能写死 /admin；当前：' + page() + '）');
-    }
-    await go('去首页');
-    T.ok(page() === '首页', '未登录也可以访问首页（当前：' + page() + '）');
-    if (!(await go('登录'))) { T.ok(false, '找到“登录”按钮'); return; }
-    await go('去后台');
-    T.ok(page() === '管理后台', '登录后访问 /admin，到达管理后台（当前：' + page() + '）');
+    const r = T.router;
+    if (!r) { T.ok(false, '脚本里要 createRouter(…) 并 return { router }'); return; }
+    const content = () => ((T.$('.content') || {}).textContent || '').trim();
+    await T.push('/task/1');
+    await T.waitFor(() => content() === '任务 1 的内容');
+    T.ok(content() === '任务 1 的内容', '进入 /task/1 时请求数据，显示“任务 1 的内容”（当前：' + content() + '）');
+    const link2 = T.$$('a').find(a => (a.textContent || '').includes('任务 2'));
+    await T.click(link2);
+    await T.waitFor(() => content() === '任务 2 的内容');
+    T.ok(r.currentRoute.value.path === '/task/2', '点“任务 2”后，路由是 /task/2');
+    T.ok(content() === '任务 2 的内容', '从任务 1 切到任务 2，内容更新为“任务 2 的内容”（当前：' + content() + '）：组件被复用，要在 id 变化时重新请求');
+    await T.push('/task/3');
+    await T.waitFor(() => content() === '任务 3 的内容');
+    T.ok(content() === '任务 3 的内容', '再切到任务 3，内容更新为“任务 3 的内容”（当前：' + content() + '）');
+    await T.push('/');
+    T.ok(content() === '首页', '回到首页后不再显示任务内容');
+  },
+  wrong: [
+    { js: sub(paramSolJs, "    watch(() => route.params.id, async (id) => {\n      loads.value++\n      content.value = await fetchTask(id)\n    }, { immediate: true })", "    watch(route.params.id, async (id) => {\n      loads.value++\n      content.value = await fetchTask(id)\n    }, { immediate: true })"),
+      why: 'watch 的数据源写成了 route.params.id，它只是一个字符串，不是响应式数据源。watch 立即用它运行一次，之后永远不会再触发。要写 getter：() => route.params.id。', expectFail: /任务 2/ },
+    { js: sub(paramSolJs, "    }, { immediate: true })", "    })"),
+      why: '用了 getter，但没有 immediate: true。第一次进入页面时，id 没有变化，回调不运行，页面停在“加载中…”。', expectFail: /任务 1/ },
+    { js: sub(paramSolJs, "    watch(() => route.params.id, async (id) => {\n      loads.value++\n      content.value = await fetchTask(id)\n    }, { immediate: true })", "    const id = route.params.id          // 只取了一次\n    watch(() => id, async (id) => {\n      loads.value++\n      content.value = await fetchTask(id)\n    }, { immediate: true })"),
+      why: '在 setup 里把 route.params.id 取出来存成普通变量，它不会再变。组件被复用时，id 变量还是第一次的值。要在 getter 里读 route.params.id。', expectFail: /任务 2/ },
+    { js: sub(paramSolJs, "    // 参数变化时，Router 复用同一个组件，setup 和 onMounted 不再运行。侦听参数（getter 写法）\n    watch(() => route.params.id, async (id) => {\n      loads.value++\n      content.value = await fetchTask(id)\n    }, { immediate: true })", "    onBeforeRouteUpdate(async (to) => {\n      loads.value++\n      content.value = await fetchTask(to.params.id)\n    })"),
+      why: 'onBeforeRouteUpdate 只在“复用组件、参数变化”时运行，第一次进入页面时不运行，所以第一次没有请求数据。要在第一次进入时也请求一次（例如再加一个 onMounted，或者改用 watch 的 immediate）。', expectFail: /任务 1/ }
+  ],
+  faded: {
+    js: sub(paramSolJs, "    watch(() => route.params.id, async (id) => {\n      loads.value++\n      content.value = await fetchTask(id)\n    }, { immediate: true })", "    watch(/* ✏️ 侦听哪个值？要写成 getter */ () => '', async (id) => {\n      loads.value++\n      content.value = await fetchTask(id)\n    }, /* ✏️ 第一次进入页面时也要运行回调 */ {})")
   }
 }
 
-export const authGuard: Exercise = {
-  title: '修复：未登录时，所有页面都重定向到登录页', ch: 17,
-  task: '<p>脚本中有一个迷你路由。守卫返回字符串时，路由重定向到这个地址。守卫不返回值时，导航继续。现在的守卫有错误：未登录时，访问任何页面都重定向到 /login，包括 /login 本身。</p><ol><li>只在目标路由有 <code>meta.requiresAuth</code> 且未登录时，返回 \'/login\'。</li><li>确认 /login 和首页不重定向。</li><li>确认登录后可以进入后台。</li></ol>',
-  tpl: '<p>当前页面：{{ routes[current].title }}</p>\n<p>登录状态：{{ loggedIn ? \'已登录\' : \'未登录\' }}</p>\n<button @click="push(\'/\')">去首页</button>\n<button @click="push(\'/admin\')">去后台</button>\n<button @click="loggedIn = true">登录</button>\n<ul>\n  <li v-for="(line, i) in log" :key="i">{{ line }}</li>\n</ul>',
-  js: `// ===== 已给出：迷你路由（不用修改） =====
-const routes = {
-  '/': { title: '首页' },
-  '/login': { title: '登录页' },
-  '/admin': { title: '管理后台', meta: { requiresAuth: true } }
-}
-const current = ref('/')
-const loggedIn = ref(false)
-const log = ref([])
-const guards = []
-function beforeEach(guard) { guards.push(guard) }
+// ===== 刷新后停在动态添加的路由上：addRoute（真实的 Vue Router）=====
+const addRouteSolJs = `const Home = { template: '<p class="page">首页</p>' }
+const Reports = { template: '<p class="page">报表</p>' }
+const NotFound = { template: '<p class="page">404：页面不存在</p>' }
 
-function push(path) {
-  let target = path
-  for (let hops = 0; hops < 10; hops++) {
-    const to = { path: target, meta: routes[target].meta || {} }
-    const from = { path: current.value }
-    let redirect = null
-    for (const guard of guards) {
-      const result = guard(to, from)
-      if (result === false) { log.value.push('取消导航：' + target); return }
-      if (typeof result === 'string') { redirect = result; break }
-    }
-    if (redirect === null) {
-      current.value = target
-      log.value.push('到达 ' + target)
-      return
-    }
-    log.value.push(target + ' → 重定向到 ' + redirect)
-    target = redirect
-  }
-  log.value.push('重定向超过 10 次，导航停止。守卫可能无限重定向。')
-}
+const history = createMemoryHistory()
+history.replace('/reports')            // 模拟用户刷新页面：浏览器直接打开 /reports
 
-// ===== TODO：修复这个守卫 =====
-beforeEach((to, from) => {
-  if (!loggedIn.value) return '/login'
+const router = createRouter({
+  history,
+  routes: [
+    { path: '/', component: Home },
+    { path: '/:pathMatch(.*)*', component: NotFound }
+  ]
 })
 
-return { routes, current, loggedIn, log, push }`,
+// 假接口：50 毫秒后返回这个用户能访问的页面
+const fetchPermissions = () => new Promise(resolve => setTimeout(() => resolve(['reports']), 50))
+
+let loaded = false
+router.beforeEach(async (to) => {
+  if (loaded) return
+  loaded = true
+  const pages = await fetchPermissions()
+  if (pages.includes('reports')) {
+    router.addRoute({ path: '/reports', name: 'reports', component: Reports })
+  }
+  return to.fullPath           // 导航开始时 /reports 还不存在，已经匹配到了 404。返回原地址，让 Router 重新匹配
+})
+
+return { router }`
+
+export const addRouteRefresh: Exercise = {
+  title: '修复：刷新后停在动态添加的路由，页面却是 404', ch: 17,
+  libs: ['vue-router'],
+  task: '<p>“报表”页面只对有权限的用户开放，所以路由在守卫里、拿到权限之后才用 <code>router.addRoute</code> 加入。现在用户在 /reports 刷新页面（脚本用 <code>history.replace(\'/reports\')</code> 模拟），页面却显示 404。原因：第一次导航开始时，/reports 还不存在，Router 已经把它匹配到了 404 路由；守卫里后加的路由，这次导航不会再看。</p><ol><li>在守卫里添加路由之后，让这次导航重新匹配。</li><li>确认刷新后直接显示“报表”，之后在首页、报表和未知地址之间切换都正确。</li></ol>',
+  tpl: `<nav>
+  <RouterLink to="/">首页</RouterLink> |
+  <RouterLink to="/reports">报表</RouterLink>
+</nav>
+<RouterView />`,
+  js: `const Home = { template: '<p class="page">首页</p>' }
+const Reports = { template: '<p class="page">报表</p>' }
+const NotFound = { template: '<p class="page">404：页面不存在</p>' }
+
+const history = createMemoryHistory()
+history.replace('/reports')            // 模拟用户刷新页面：浏览器直接打开 /reports
+
+const router = createRouter({
+  history,
+  routes: [
+    { path: '/', component: Home },
+    { path: '/:pathMatch(.*)*', component: NotFound }
+  ]
+})
+
+// 假接口：50 毫秒后返回这个用户能访问的页面
+const fetchPermissions = () => new Promise(resolve => setTimeout(() => resolve(['reports']), 50))
+
+let loaded = false
+router.beforeEach(async (to) => {
+  if (loaded) return
+  loaded = true
+  const pages = await fetchPermissions()
+  if (pages.includes('reports')) {
+    router.addRoute({ path: '/reports', name: 'reports', component: Reports })
+  }
+  // TODO：这次导航已经匹配到了 404。怎样让它重新匹配？
+})
+
+return { router }`,
+  solJs: addRouteSolJs,
   hints: [
-    '原因：守卫对每一次导航都检查登录状态，包括去 /login 的导航，所以 /login 又被重定向到 /login。守卫只应该拦截需要登录的页面。路由表已经标记了哪些页面需要登录。第 17 章的实验台“简化的路由和导航守卫”讲了守卫和重定向。',
-    '只改守卫中的 if 条件。在 !loggedIn.value 前面加一个条件：目标路由 to 的 meta 中有 requiresAuth。',
-    'beforeEach((to, from) => {\n  if (to.meta.requiresAuth && !loggedIn.value) return \'/login\'\n})'
+    'addRoute 只影响以后的导航。正在进行的这次导航，在守卫运行之前已经匹配过路由了。要让它重新匹配，守卫可以返回一个地址，Router 会用这个地址重新导航。',
+    '守卫返回 to.fullPath（原来要去的完整地址）。因为 loaded 已经设为 true，第二次进入守卫时直接放行，不会循环。',
+    addRouteSolJs
   ],
   async check(T) {
-    const page = () => { const m = T.text().match(/当前页面：\s*(\S+?)\s*登录状态/); return m ? m[1] : ''; };
-    const loop = () => /超过 10 次/.test(T.text());
-    const go = async t => { const b = T.btn(t); if (b) await T.click(b); return !!b; };
-    if (!(await go('去后台'))) { T.ok(false, '找到“去后台”按钮'); return; }
-    T.ok(!loop(), '没有发生无限重定向');
-    T.ok(page() === '登录页', '未登录访问 /admin，到达登录页（当前：' + page() + '）');
-    // 临时加一个新的受保护路由再导航：守卫要读 to.meta，不能把 /admin 写死
-    const S = ((T.$(':scope > div') as any)?._vnode?.component?.setupState);
-    if (S && S.routes && typeof S.push === 'function') {
-      S.routes['/report'] = { title: '报表', meta: { requiresAuth: true } };
-      S.push('/report');
-      await nextTick();
-      T.ok(page() === '登录页', '未登录访问另一个带 requiresAuth 的路由 /report，也重定向到登录页（守卫要看 to.meta，不能写死 /admin；当前：' + page() + '）');
-    }
-    await go('去首页');
-    const last = () => { const lis = T.$$('li'); return lis.length ? lis[lis.length - 1].textContent.trim() : ''; };
-    T.ok(page() === '首页' && last() === '到达 /', '未登录也可以访问首页（当前：' + page() + '）');
-    if (!(await go('登录'))) { T.ok(false, '找到“登录”按钮'); return; }
-    await go('去后台');
-    T.ok(page() === '管理后台', '登录后访问 /admin，到达管理后台（当前：' + page() + '）');
-    T.ok(!loop(), '整个过程没有无限重定向');
+    const r = T.router;
+    if (!r) { T.ok(false, '脚本里要 createRouter(…) 并 return { router }'); return; }
+    const page = () => ((T.$('.page') || {}).textContent || '').trim();
+    const path = () => r.currentRoute.value.path;
+    T.ok(r.hasRoute('reports'), '守卫里用 addRoute 添加了 reports 路由');
+    T.ok(path() === '/reports' && page() === '报表', '刷新后停在 /reports，页面显示“报表”（当前 ' + path() + '，页面：' + (page() || '空') + '）：addRoute 之后要让这次导航重新匹配');
+    await T.push('/');
+    T.ok(path() === '/' && page() === '首页', '切换到首页');
+    await T.push('/reports');
+    T.ok(path() === '/reports' && page() === '报表', '再次访问 /reports 显示“报表”（当前 ' + page() + '）');
+    await T.push('/nope');
+    T.ok(page() === '404：页面不存在', '未知地址仍然显示 404（当前 ' + page() + '）');
+    T.ok(r.getRoutes().filter(x => x.name === 'reports').length === 1, '报表路由只添加了一次');
+  },
+  wrong: [
+    { js: sub(addRouteSolJs, "  return to.fullPath           // 导航开始时 /reports 还不存在，已经匹配到了 404。返回原地址，让 Router 重新匹配\n", ""),
+      why: '添加了路由，但这次导航仍然使用守卫运行之前的匹配结果，也就是 404 路由。addRoute 只影响以后的导航。', expectFail: /刷新后/ },
+    { js: sub(addRouteSolJs, "  return to.fullPath           // 导航开始时 /reports 还不存在，已经匹配到了 404。返回原地址，让 Router 重新匹配\n", "  return true\n"),
+      why: '返回 true 表示“放行”，Router 继续用已经匹配好的 404 路由，不会重新匹配。要重新匹配，必须返回一个地址。', expectFail: /刷新后/ },
+    { js: sub(addRouteSolJs, "  loaded = true\n", ""),
+      why: '没有记录“已经加载过”。每次进入守卫都会重新请求权限、重新添加路由、再重定向一次，形成无限重定向。用一个标记（或检查 router.hasRoute）保证只添加一次。' }
+  ],
+  faded: {
+    js: sub(addRouteSolJs, "  return to.fullPath           // 导航开始时 /reports 还不存在，已经匹配到了 404。返回原地址，让 Router 重新匹配\n", "  /* ✏️ 路由是在导航进行中才加的。返回什么，才能让这次导航重新匹配？ */\n")
   }
-}
-
-// 旧脚本在对象外面补充的字段（原样保留，需要的话可以整理进上面的对象）
-authGuard.solJs = authGuard.js.replace(`beforeEach((to, from) => {
-  if (!loggedIn.value) return '/login'
-})`, `beforeEach((to, from) => {
-  // 只保护需要登录的路由。/login 没有 requiresAuth，所以不重定向
-  if (to.meta.requiresAuth && !loggedIn.value) return '/login'
-})`);
-
-// ===== 错误解法（基于参考答案做小改动）=====
-fbRouter.wrong = [
-  { js: sub(fbRouter.solJs, "return '/login'   // 返回新地址：重定向", "return false   // 取消导航"), why: '守卫返回 false 是“取消导航”，不是重定向。用户停在原地，没有到达登录页。要重定向，返回目标地址。' },
-  { js: sub(fbRouter.solJs, "meta: { requiresAuth: true } }", "requiresAuth: true }"), why: '自定义字段没有放在 meta 里。守卫读取的是 to.meta，读到的是空对象，/admin 不会被保护。' },
-  { js: sub(fbRouter.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.meta.requiresAuth"), why: '守卫没有检查登录状态。登录后访问 /admin 也被重定向到登录页，用户永远进不去。' },
-  { js: sub(fbRouter.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.path === '/admin' && !loggedIn.value"), why: '把 /admin 写死在守卫里，没有读 to.meta。路由表里再加一个受保护的页面，守卫就不认识它了。', expectFail: /requiresAuth 的路由 \/report/ }
-]
-
-authGuard.wrong = [
-  { js: sub(authGuard.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.path !== '/login' && !loggedIn.value"), why: '只排除了 /login。首页没有标记 requiresAuth，却也被重定向到登录页。要看 to.meta.requiresAuth，不要把页面一个个写死。' },
-  { js: sub(authGuard.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.meta.requiresAuth"), why: '漏了登录状态的判断。登录后访问 /admin 也被重定向到登录页。' },
-  { js: sub(authGuard.solJs, "return '/login'", "return false"), why: '返回 false 是取消导航，不是重定向。未登录时用户停在原来的页面，没有到达登录页。' },
-  { js: sub(authGuard.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.path === '/admin' && !loggedIn.value"), why: '把 /admin 写死在守卫里，没有读 to.meta。路由表里再加一个受保护的页面，守卫就不认识它了。', expectFail: /requiresAuth 的路由 \/report/ }
-]
-
-// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
-routeTable.faded = {
-  js: sub(sub(routeTable.solJs, "{ path: '/task/:id', component: TaskDetail, props: true },   // :id 是动态参数",
-    "{ path: /* ✏️ 带动态参数 id 的路径 */ '', component: TaskDetail, /* ✏️ 让参数作为 props 传给组件 */ },"),
-    "{ path: '/:pathMatch(.*)*', component: NotFound }            // 404 页面",
-    "{ path: /* ✏️ 能匹配所有其他地址的路径 */ '', component: NotFound }")
-}
-
-fbRouter.faded = {
-  js: sub(sub(fbRouter.solJs, ", meta: { requiresAuth: true } }   // 需要登录", " /* ✏️ 加上 meta，标记这个路由需要登录 */ }"),
-    "return '/login'   // 返回新地址：重定向", "/* ✏️ 返回什么，路由才会重定向到登录页？ */")
-}
-
-authGuard.faded = {
-  js: sub(sub(authGuard.solJs, "  // 只保护需要登录的路由。/login 没有 requiresAuth，所以不重定向\n", ''),
-    'to.meta.requiresAuth && !loggedIn.value', 'false /* ✏️ 只在目标路由要求登录、且当前未登录时才重定向 */')
 }
 
 // ===== 真实的 Vue Router：声明 libs: ['vue-router']，脚本里直接用 createRouter / useRoute（见 AUTHORING.md 4.10）=====
@@ -493,7 +414,7 @@ const router = createRouter({
 return { router, auth }`,
   solJs: realRouterSolJs,
   hints: [
-    '路由表里，动态参数写成 /user/:id；自定义字段放在 meta 里，守卫通过 to.meta 读到它。守卫收到目标路由 to，返回一个地址就是重定向。第 17 章 17.1 讲了路由表，17.6 讲了守卫。',
+    '路由表里，动态参数写成 /user/:id；自定义字段放在 meta 里，守卫通过 to.meta 读到它。守卫收到目标路由 to，返回一个地址就是重定向。17.1 讲了路由表，17.6 讲了守卫。',
     '守卫：router.beforeEach(to => { if (to.meta.requiresAuth && !auth.loggedIn) return { path: \'/login\', query: { redirect: to.fullPath } } })。User 组件：const route = useRoute()，模板里读 route.params.id。',
     realRouterSolJs
   ],
@@ -542,3 +463,209 @@ return { router, auth }`,
       "    const route = useRoute()   // 响应式的当前路由：参数变了，页面跟着变\n    return { route }", "    /* ✏️ 拿到响应式的当前路由，并交给模板 */\n    return {}")
   }
 }
+
+// ===== 登录鉴权的完整流程：真实的 Pinia 加真实的 Vue Router =====
+const authFlowSolJs = `const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+// 假接口：密码是 123456 才能登录。用户名 admin 是管理员，其他是普通成员
+const api = {
+  async login(name, password) {
+    await sleep(10)
+    if (password !== '123456') throw new Error('用户名或密码错误')
+    return { token: 'token-' + name, user: { name, role: name === 'admin' ? 'admin' : 'member' } }
+  },
+  async me(token) {
+    await sleep(10)
+    const name = token.replace('token-', '')
+    return { name, role: name === 'admin' ? 'admin' : 'member' }
+  }
+}
+
+// ===== 已给出：第 16 章的 auth store（不用修改）=====
+const useAuthStore = defineStore('auth', () => {
+  const token = ref('token-ann')      // 模拟：用户上次登录过，token 被保存了下来。user 在内存里，刷新后是空的
+  const user = ref(null)
+  const loading = ref(false)
+  const error = ref('')
+  const loggedIn = computed(() => user.value !== null)
+  const isAdmin = computed(() => user.value?.role === 'admin')
+  async function login(name, password) {
+    loading.value = true
+    error.value = ''
+    try {
+      const res = await api.login(name, password)
+      token.value = res.token
+      user.value = res.user
+    } catch (e) {
+      error.value = e.message
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+  function logout() { token.value = ''; user.value = null }
+  let restoring
+  function restore() {                // 用保存的 token 换回用户。整个页面生命周期只请求一次
+    restoring ??= (async () => {
+      if (!token.value || user.value) return
+      try { user.value = await api.me(token.value) } catch { logout() }
+    })()
+    return restoring
+  }
+  return { token, user, loading, error, loggedIn, isAdmin, login, logout, restore }
+})
+const auth = useAuthStore()
+
+// ===== 页面组件 =====
+const Home = { template: '<p class="page">首页</p>' }
+const Dashboard = { template: '<p class="page">工作台</p>' }
+const Admin = { template: '<p class="page">管理后台</p>' }
+const Forbidden = { template: '<p class="page">没有权限</p>' }
+const NotFound = { template: '<p class="page">404：页面不存在</p>' }
+const Login = {
+  setup() {
+    const route = useRoute()
+    const router = useRouter()
+    async function submit(name) {
+      try {
+        await auth.login(name, '123456')
+        const back = route.query.redirect       // 登录成功，回到原来要去的地方
+        router.replace(typeof back === 'string' && back.startsWith('/') && !back.startsWith('//') ? back : '/')
+      } catch { /* 错误已经在 auth.error 里 */ }
+    }
+    return { submit, auth }
+  },
+  template: '<div><p class="page">请登录</p><button @click="submit(\\'ann\\')">登录为 ann</button> <button @click="submit(\\'admin\\')">登录为 admin</button> <span class="err">{{ auth.error }}</span></div>'
+}
+
+// ===== 路由 =====
+const history = createMemoryHistory()
+history.replace('/dashboard')         // 模拟用户刷新页面：浏览器直接打开 /dashboard
+
+const router = createRouter({
+  history,
+  routes: [
+    { path: '/', component: Home },
+    { path: '/login', component: Login },
+    { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
+    { path: '/admin', component: Admin, meta: { requiresAuth: true, roles: ['admin'] } },
+    { path: '/403', component: Forbidden },
+    { path: '/:pathMatch(.*)*', component: NotFound }
+  ]
+})
+
+router.beforeEach(async (to) => {
+  await auth.restore()                 // 刷新后先恢复登录状态，再判断
+  if (to.meta.requiresAuth && !auth.loggedIn) {
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
+  if (to.meta.roles && !to.meta.roles.includes(auth.user.role)) {
+    return '/403'
+  }
+})
+
+async function logout() {
+  auth.logout()
+  await router.push('/login')          // 退出后离开受保护的页面
+}
+
+return { router, auth, logout }`
+
+export const authFlow: Exercise = {
+  title: '登录鉴权的完整流程：store、守卫、回跳、角色和退出', ch: 17,
+  libs: ['pinia', 'vue-router'],
+  task: '<p>这道题同时用真实的 Pinia 和 Vue Router，把整条登录线串起来。第 16 章的 <code>auth</code> store 已经给出（<code>restore()</code> 用保存的 token 换回用户）。脚本模拟“用户在 /dashboard 刷新了页面”：token 还在，用户信息在内存里已经没有了。</p><ol><li>TODO 1：给路由加 meta。/dashboard 需要登录（<code>requiresAuth</code>）；/admin 需要登录，并且只有 admin 角色能进（<code>roles: [\'admin\']</code>）。</li><li>TODO 2：写全局守卫。先等 <code>auth.restore()</code> 完成再判断；需要登录而没登录，重定向到 /login 并在 query 的 <code>redirect</code> 里记下原来的 <code>fullPath</code>；角色不符，重定向到 /403。</li><li>TODO 3：登录页登录成功后，回到 <code>redirect</code> 记下的地方；只接受站内路径（以单个 <code>/</code> 开头，不是 <code>//</code>），否则去首页。</li><li>TODO 4：退出登录后，跳到 /login。</li></ol>',
+  tpl: `<nav>
+  <RouterLink to="/">首页</RouterLink> |
+  <RouterLink to="/dashboard">工作台</RouterLink>
+  <template v-if="auth.isAdmin"> | <RouterLink to="/admin">后台</RouterLink></template>
+  <template v-if="auth.loggedIn"> | {{ auth.user.name }} <button @click="logout">退出</button></template>
+</nav>
+<RouterView />`,
+  js: authFlowSolJs.replace(`    { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
+    { path: '/admin', component: Admin, meta: { requiresAuth: true, roles: ['admin'] } },`, `    // TODO 1：/dashboard 需要登录；/admin 需要登录，并且只有 admin 角色能进
+    { path: '/dashboard', component: Dashboard },
+    { path: '/admin', component: Admin },`)
+    .replace(`router.beforeEach(async (to) => {
+  await auth.restore()                 // 刷新后先恢复登录状态，再判断
+  if (to.meta.requiresAuth && !auth.loggedIn) {
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
+  if (to.meta.roles && !to.meta.roles.includes(auth.user.role)) {
+    return '/403'
+  }
+})`, `// TODO 2：全局守卫。先等 auth.restore()；需要登录而没登录 → /login 并带上 redirect；角色不符 → /403
+router.beforeEach(async (to) => {
+})`)
+    .replace(`        const back = route.query.redirect       // 登录成功，回到原来要去的地方
+        router.replace(typeof back === 'string' && back.startsWith('/') && !back.startsWith('//') ? back : '/')`, `        // TODO 3：回到 route.query.redirect 记下的地方（只接受站内路径），否则去首页
+        router.replace('/')`)
+    .replace(`  auth.logout()
+  await router.push('/login')          // 退出后离开受保护的页面`, `  auth.logout()
+  // TODO 4：退出后跳到 /login`),
+  solJs: authFlowSolJs,
+  hints: [
+    '17.8 讲了整条流程。守卫是 async 函数，Router 会等它。守卫里先 await auth.restore()，再读 auth.loggedIn。to.meta 合并了所有匹配的路由记录的 meta，所以读 to.meta.requiresAuth 和 to.meta.roles 就行。',
+    '守卫：需要登录而没登录，return { path: \'/login\', query: { redirect: to.fullPath } }；to.meta.roles 存在而 roles 不包含 auth.user.role，return \'/403\'。登录页：redirect 是字符串、以 / 开头、不以 // 开头才能用。退出：auth.logout() 之后 await router.push(\'/login\')。',
+    authFlowSolJs
+  ],
+  async check(T) {
+    const r = T.router, auth = T.store('auth');
+    if (!r) { T.ok(false, '脚本里要 createRouter(…) 并 return { router }'); return; }
+    if (!auth) { T.ok(false, '用 defineStore("auth", …) 定义了 auth store 并调用了它'); return; }
+    const path = () => r.currentRoute.value.path;
+    const page = () => ((T.$('.page') || {}).textContent || '').trim();
+    const btn = t => T.btn(t);
+    // 1. 刷新场景
+    T.ok(path() === '/dashboard' && page() === '工作台', 'TODO 2：刷新后停在 /dashboard，显示“工作台”（当前 ' + r.currentRoute.value.fullPath + '，页面：' + (page() || '空') + '）：守卫要先 await auth.restore()，再判断是否登录');
+    T.ok(auth.user && auth.user.name === 'ann', 'TODO 2：restore 用 token 换回了用户 ann');
+    // 2. 角色
+    await T.push('/admin');
+    T.ok(path() === '/403' && page() === '没有权限', 'TODO 1、2：普通成员 ann 访问 /admin，被送到 /403（当前 ' + path() + '）：给 /admin 加 roles，守卫检查角色');
+    T.ok(!T.$$('a').some(a => (a.textContent || '').includes('后台')), '普通成员看不到“后台”链接');
+    // 3. 退出
+    const out = btn('退出');
+    if (!out) { T.ok(false, '登录后导航栏有“退出”按钮'); return; }
+    await T.click(out);
+    await T.waitFor(() => path() === '/login');
+    T.ok(path() === '/login' && !auth.loggedIn, 'TODO 4：退出后跳到 /login（当前 ' + path() + '）：只清空 store 不会离开受保护的页面');
+    // 4. 未登录访问受保护页面
+    await T.push('/dashboard');
+    T.ok(path() === '/login' && r.currentRoute.value.query.redirect === '/dashboard', 'TODO 1、2：未登录访问 /dashboard，重定向到 /login，query.redirect 是 /dashboard（当前 ' + r.currentRoute.value.fullPath + '）');
+    await T.push('/');
+    T.ok(path() === '/' && page() === '首页', '未登录也能访问首页（守卫只拦标了 requiresAuth 的路由）');
+    // 5. 登录后回跳
+    await T.push('/admin');
+    T.ok(path() === '/login' && r.currentRoute.value.query.redirect === '/admin', '未登录访问 /admin，也重定向到 /login，redirect 是 /admin');
+    await T.click(btn('登录为 admin'));
+    await T.waitFor(() => path() === '/admin');
+    T.ok(path() === '/admin' && page() === '管理后台', 'TODO 3：以 admin 登录后，回到原来要去的 /admin（当前 ' + path() + '）');
+    T.ok(T.$$('a').some(a => (a.textContent || '').includes('后台')), 'admin 能看到“后台”链接');
+    // 6. 不安全的 redirect
+    await T.click(btn('退出'));
+    await T.waitFor(() => path() === '/login');
+    await T.push({ path: '/login', query: { redirect: '//evil.com' } });
+    await T.click(btn('登录为 ann'));
+    await T.waitFor(() => path() !== '/login');
+    T.ok(path() === '/', 'TODO 3：redirect 是 //evil.com 这样的非站内地址时，登录后回首页（当前 ' + path() + '）');
+  },
+  wrong: [
+    { js: sub(authFlowSolJs, "  await auth.restore()                 // 刷新后先恢复登录状态，再判断\n", ""),
+      why: '守卫没有等 restore() 完成。刷新后 user 还是空的，守卫以为没登录，把用户踢到登录页。守卫可以是 async 函数，先 await 恢复，再判断。', expectFail: /刷新后/ },
+    { js: sub(authFlowSolJs, "  if (to.meta.roles && !to.meta.roles.includes(auth.user.role)) {\n    return '/403'\n  }\n", ""),
+      why: '只检查了登录，没有检查角色。普通成员也能进入 /admin。', expectFail: /403/ },
+    { js: sub(authFlowSolJs, "        router.replace(typeof back === 'string' && back.startsWith('/') && !back.startsWith('//') ? back : '/')", "        router.replace(back || '/')"),
+      why: '没有检查 redirect 是不是站内路径。redirect 来自地址栏，谁都能改。//evil.com 这样的值会让 router 跳到一个错误的地址（控制台警告，页面显示 404）；如果登录页改用 location.href 整页跳转，就会真的跳到别的网站。只接受以单个 / 开头的字符串。', expectFail: /evil\.com/ },
+    { js: sub(authFlowSolJs, "return { path: '/login', query: { redirect: to.fullPath } }", "return '/login'"),
+      why: '重定向到了登录页，但没有在 query.redirect 里记下原来要去的地方，登录后只能回首页。', expectFail: /redirect/ },
+    { js: sub(authFlowSolJs, "  auth.logout()\n  await router.push('/login')          // 退出后离开受保护的页面", "  auth.logout()"),
+      why: '退出只清空了 store，用户还停在受保护的页面。守卫只在导航时运行，页面不会自己离开。', expectFail: /退出后/ }
+  ],
+  faded: {
+    js: sub(sub(sub(sub(authFlowSolJs,
+      "    { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },\n    { path: '/admin', component: Admin, meta: { requiresAuth: true, roles: ['admin'] } },", "    { path: '/dashboard', component: Dashboard /* ✏️ 需要登录 */ },\n    { path: '/admin', component: Admin /* ✏️ 需要登录，并且只有 admin 角色能进 */ },"),
+      "  await auth.restore()                 // 刷新后先恢复登录状态，再判断\n  if (to.meta.requiresAuth && !auth.loggedIn) {\n    return { path: '/login', query: { redirect: to.fullPath } }\n  }\n  if (to.meta.roles && !to.meta.roles.includes(auth.user.role)) {\n    return '/403'\n  }\n", "  /* ✏️ 先等 restore() 完成；需要登录而没登录 → /login 并带上 redirect；角色不符 → /403 */\n"),
+      "        const back = route.query.redirect       // 登录成功，回到原来要去的地方\n        router.replace(typeof back === 'string' && back.startsWith('/') && !back.startsWith('//') ? back : '/')", "        /* ✏️ 回到 route.query.redirect（只接受站内路径），否则去首页 */\n        router.replace('/')"),
+      "  await router.push('/login')          // 退出后离开受保护的页面", "  /* ✏️ 退出后跳到 /login */")
+  }
+}
+

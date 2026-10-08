@@ -17,10 +17,6 @@
 7. 具体的 Markdown 写法（容器、`<Sc>`、`<Lab>`、示意图、练习字段、写作规范、`check:content` 检查的规则、站内链接和 base）以 [`course/AUTHORING.md`](course/AUTHORING.md) 为准，本文件讲规则和流程，不重复抄写法。两份文档里同一条规则只写一处，另一处指过去。
 8. **站内链接带 base**：站点部署在 `/hands-on-vue3/` 下，组件里手写链接用 `withBase`，localStorage 里存不带 base 的路径（见 AUTHORING 4.14）。
 
-## 待写的章（写完后删掉这一节）
-
-**第 17 章 `runtime`（组件运行时：从 vnode 到组件实例）、第 21 章 `state-arch`（状态归属与规模化）、第 28 章 `perf-clinic`（性能诊断实战）目前只有骨架**：文字是“【待写】”占位，练习和自测是脚手架生成的示例，还没有发布。写正文时：把占位换成真内容；这三章的卡片键（`runtime#N`、`state-arch#N`、`perf-clinic#N`）和指纹因为从未发布，可以用 `npm run check:content -- --update --force` 重写；用 `npm run check:content -- --strict` 确认占位清完；写完后**删掉本节这一段说明**。
-
 ## 命令
 
 ```bash
@@ -75,7 +71,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `course/.vitepress/` | `config.mts`（站点配置、base、自定义容器、章头和热身的自动注入、并行构建变量）、`sidebar.mts`、`course-data.mts`（构建时从各章抽数据，生成虚拟模块）、`markdown-cjk.mts`、`theme/`（`components/*.vue` 全局注册，`composables/learn.ts` 是界面读写进度的唯一入口，`composables/terms.ts` + `term-match.ts` 是术语标注，`style.css` 全部样式） | 学习机制的逻辑 |
 | `course/AUTHORING.md` | 内容写作细则：每种 Markdown 写法、练习字段、实验台、示意图、测试数据、踩过的坑 | — |
 | `editor/entry.js` | 练习编辑器（CodeMirror 6），被 `Exercise` 组件直接导入 | — |
-| `scripts/` | `check-content.mjs`（内容校验）、`check-docs.mjs`（文档数字核对）、`new-chapter.mjs`（加章脚手架）、`e2e.mjs`（浏览器测试入口）、`setup-hooks.mjs`（启用提交前钩子）、`shot.mjs`（截图）；`lib/` 是它们共用的（`validate.mjs` 是全部校验规则，`known-issues.mjs` 是临时豁免） | — |
+| `scripts/` | `check-content.mjs`（内容校验）、`check-docs.mjs`（文档数字核对）、`new-chapter.mjs`（加章脚手架）、`e2e.mjs`（浏览器测试入口）、`setup-hooks.mjs`（启用提交前钩子）、`shot.mjs`（截图）；`lib/` 是它们共用的（`validate.mjs` 是全部校验规则，`section-refs.mjs` 是小节引用的统一扫描（校验和改号共用），`known-issues.mjs` 是临时豁免，目前是空的） | — |
 | `tests/unit/` | Vitest 单元测试（`*.test.ts`）；规则对照表见 `tests/unit/README.md` | 需要浏览器的测试 |
 | `tests/site/` | Playwright 测试：`exercises.test.js`、`progress.test.js`、`mechanics.test.js`、`glossary.test.js`，`helpers.js` 是共用的；`labs/NN-id.js` 是各章实验台的测试数据 | — |
 | `tests/expected.cjs` | 测试里**锁定**的章数和每阶段题数，集中在这一个文件；其余数字都从元数据算 | 别处再写死数字 |
@@ -115,7 +111,7 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 
 1. 生成 `course/chapters/NN-id.md`（frontmatter、目标、阅读时间、类比、术语、为什么需要它、一个小节、一道示例练习、一道自测、小结，文字是“【待写】”占位）、`course/exercises/NN-id.ts`（一道能通过的小练习，带 `hints`、`wrong`、`faded`）、`tests/site/labs/NN-id.js`（空数组）。
 2. 追加新卡片键到 `course/card-keys.snapshot.json`。
-3. **插在中间时**，后面的章全部顺延：文件改名（章、练习、`labs/`、`figures/`、测试数据）、frontmatter 的 `chapter`、练习的 `ch`、小节标题 `### N.M`、所有写到旧文件名的地方，以及章节、练习、题库、术语表、首页、阶段测验页、实验台和示意图注释、浏览器测试里的“第 N 章”（含“第 N、M 章”“第 N–M 章”写法）“N.M 节”“N.M 标题”引用，全部 +1。题干里带章号引用的自测题，指纹会随之改写，脚本会列出是哪几道（卡片键不变）。动手之前它要求 `check:content` 已通过、工作区干净（`--allow-dirty` 可跳过后一条），做完用 `check:content` 复核。`--dry-run` 只列计划不改文件。
+3. **插在中间时**，后面的章全部顺延：文件改名（章、练习、`labs/`、`figures/`、测试数据）、frontmatter 的 `chapter`、练习的 `ch`、小节标题 `### N.M`、所有写到旧文件名的地方，以及章节、练习、题库、术语表、首页、阶段测验页、实验台和示意图注释、浏览器测试里的“第 N 章”（含“第 N、M 章”“第 N–M 章”写法）、小节引用（“N.M 节”、并列和区间、不带“节”的“见 N.M”、“第 X 章 N.M”、表格引用列，认法见 `scripts/lib/section-refs.mjs`，校验和改号共用）和“N.M 标题”引用，全部 +1。题干里带章号引用的自测题，指纹会随之改写，脚本会列出是哪几道（卡片键不变）。动手之前它要求 `check:content` 已通过、工作区干净（`--allow-dirty` 可跳过后一条），做完用 `check:content` 复核。`--dry-run` 只列计划不改文件。
 
 **移动一章**（换位置、换阶段）用 `npm run move-chapter -- <章id> --after <章id> [--stage N]`：夹在中间的章顺延或前移，改名和改引用的规则与插入相同（两个脚本共用 `scripts/lib/renumber-plan.mjs`）；快照里已有键的顺序和值不动，只有题干里写着章号的自测题指纹会改写。做完同样要人工核对 `tests/expected.cjs`、`course/stages.ts` 和文档里写着章顺序的文字。
 4. 脚本不改、但会列出来的地方：`tests/expected.cjs`（锁定的章数和“每个阶段的可用题数”表，章数变了测试会在这里失败）、`course/stages.ts` 里提到章范围的说明、文档里的章数（`README.md`、本文件；`npm run check:docs` 会查出过期的数字）。首页的章数、章头的总章数、侧边栏、进度统计都是从章元数据算的，不用改。
@@ -211,6 +207,7 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 
 - **进度**只存在浏览器 `localStorage['hands-on-vue3-v1']`（单个键，结构见 `course/engine/types.ts` 的 `Progress`，细则见 `course/AUTHORING.md` 第 6 节）；服务端渲染时为空。界面读写只经过 `theme/composables/learn.ts`，它封装 `course/engine/`。旧版零散的进度键由引擎第一次读取时一次性迁移，之后不再读写。依赖进度的组件挂载后才显示真实数字（`ensureReady()`），避免水合不一致；引擎的进度对象是原地修改的，**不要把 `cpOf()` 的结果缓存在 `computed` 里**（引用不变，下游不会重算），要在每个 `computed` 里直接调用。存进去的页面路径（`__last.path`）不带 base。
 - **章数据在构建时抽取**：`course/.vitepress/course-data.mts` 是一个 Vite 插件，用 `content-parse.mjs` 从各章 Markdown 抽出元数据、自测题、小结、术语，生成虚拟模块（`virtual:course-meta`、`-selfchecks`、`-summaries`、`-glossary`，说明见 `course/AUTHORING.md` 第 7 节）。复习页、阶段测验、热身用动态 import 载入大的那一个。术语表页和术语标注（章里术语的虚线下划线）也由它供数据。
+- **实验台直接用的 Vue 编译器和开发构建**：第 15 章的实验台动态载入 `@vue/compiler-dom` 和 `@vue/compiler-sfc` 的浏览器构建，第 28 章的实验台动态载入 `vue/dist/vue.esm-browser.js`（开发构建，因为 `onRenderTriggered` 等钩子只有开发构建才有）。它们都是按需加载的独立分块，只在这两章的页面预加载，不在站点入口里；页面上因此有两份互不相干的 Vue（站点自己的生产构建和实验台里的开发构建，各有各的响应式、调度队列和当前实例，实验台的应用挂在自己新建的 div 里）。`@vue/compiler-dom`、`@vue/compiler-sfc` 在 `devDependencies` 里固定为和 `vue` 相同的版本，升级 `vue` 时三个一起升（Dependabot 已把 `@vue/*` 和 `vue` 分在同一组）。
 - **练习和实验台只在浏览器里渲染**，服务端渲染出来的只有占位。练习需要运行时编译模板，`Exercise` 组件挂载后动态 `import('vue/dist/vue.esm-bundler.js')`，所以**不要给站点的 `vue` 做 alias**。
 - **侧边栏**由 `sidebar.mts` 从各章 frontmatter（`chapter`、`stage`、`title`）自动生成，不用手写；顶部固定入口是今日复习、术语表、速查表；动态标记由 `AppEffects` 写成属性（`data-badge`、`data-count`、`data-check`）。
 - **章头**（`ChapterMeta`：阶段标签、第 N / 总章数 章、`desc`、阅读时间）由 `config.mts` 在一级标题后自动注入；阅读时间取自章里的 `::: rt` 块，正文里不再渲染那个块。

@@ -9,7 +9,7 @@ updates:
     open-pull-requests-limit: 5
     groups:
       vitepress:
-        patterns: ["vitepress", "vue", "markdown-it-*"]
+        patterns: ["vitepress", "vue", "@vue/*", "markdown-it-*"]
       codemirror:
         patterns: ["@codemirror/*", "@lezer/*"]
       tooling:

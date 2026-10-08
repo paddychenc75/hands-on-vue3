@@ -38,7 +38,7 @@
 | 以最近一次为准；通过后清掉 `weak` | `stageCheck > 交卷后的记录（以最近一次为准）` |
 | 35 天后提示复测 | `stageCheck > 35 天后提示复测` |
 | 一课的完成标准：测验全对 + 练习通过 | `completion > 一章的完成标准`（适配：一章多道练习，全部通过；速查表不参与） |
-| 卡片键 `课id#N` / `课id#cN` 不能变（快照） | `cards > 卡片键规则`、`60 道阶段测验专用题…`（用每章题数锁住分组；没有 React 那种指纹快照脚本） |
+| 卡片键 `课id#N` / `课id#cN` 不能变（快照） | `cards > 卡片键规则`、`91 道阶段测验专用题…`（用每章题数锁住分组）、`check-content > 卡片键快照（纯函数）`（题干指纹快照 `course/card-keys.snapshot.json`，由 `scripts/check-content.mjs` 对照，键消失、顺序变、指纹变都会报错） |
 | `logic/` 不碰 DOM / localStorage / `Date.now()` | `purity` |
 | 不允许循环依赖 | `cycles` |
 | 进度存单个 localStorage 键、SSR 安全、发变化事件 | `store`（适配：键 `hands-on-vue3-v1`，事件 `hov-progress`） |

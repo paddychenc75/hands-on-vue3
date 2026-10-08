@@ -1,7 +1,7 @@
 ---
 title: 综合实战
 id: project
-stage: 4
+stage: 6
 chapter: 26
 desc: 五步完成一个任务看板
 ---
@@ -16,7 +16,7 @@ import TaskBoard from '../labs/26-project/TaskBoard.vue'
 ::: goals
 <Goal checks="sc:1,sc:2,ex:kanbanSave">为一个小应用设计数据、组件和逻辑，并把数据保存到 localStorage。</Goal>
 <Goal checks="sc:0,sc:1,sc:2,ex:kanbanItem,ex:kanbanDue">在一个项目中使用第 2–9 章的知识。</Goal>
-<Goal checks="sc:3,ex:kanbanStore,ex:kanbanRoute">完成项目后的练习使用阶段四的知识。</Goal>
+<Goal checks="sc:3,ex:kanbanStore,ex:kanbanRoute">完成项目后的练习使用阶段五的知识。</Goal>
 
 :::
 

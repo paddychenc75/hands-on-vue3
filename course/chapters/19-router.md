@@ -1,7 +1,7 @@
 ---
 title: Vue Router
 id: router
-stage: 4
+stage: 5
 chapter: 19
 desc: 路由匹配、动态参数、导航守卫
 ---

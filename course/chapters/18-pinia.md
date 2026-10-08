@@ -1,7 +1,7 @@
 ---
 title: Pinia 状态管理
 id: pinia
-stage: 4
+stage: 5
 chapter: 18
 desc: setup store、跨组件共享
 ---

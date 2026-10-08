@@ -99,7 +99,7 @@ export interface Progress {
   __pred?: Record<string, PredictRecord>
   /** 间隔复习卡片：卡片键 → 卡片 */
   __srs?: Record<string, SrsCard>
-  /** 阶段测验记录：阶段号（1 到 4）→ 记录 */
+  /** 阶段测验记录：阶段号（1 到 6，见 course/stages.ts）→ 记录 */
   __stage?: Record<string, StageRecord>
   /** 上次阅读位置 */
   __last?: LastPos
@@ -128,8 +128,9 @@ export interface SelfCheckData {
   explain: string
 }
 
-/** 综合测验题库的一行（labs/27-quiz/questions.ts 的 Q）：[题目, 选项（第一个是正确答案）, 解析, 章 id, 阶段, 代码（可选）] */
-export type QuizBankRow = readonly [string, readonly string[], string, string, number] | readonly [string, readonly string[], string, string, number, string]
+/** 综合测验题库的一行（labs/27-quiz/questions.ts 的 Q）：[题目, 选项（第一个是正确答案）, 解析, 章 id, 代码（可选）]。
+    不存阶段号：题的阶段看它所属章的 stage */
+export type QuizBankRow = readonly [string, readonly string[], string, string] | readonly [string, readonly string[], string, string, string]
 
 /** 一张复习卡片背后的题目 */
 export interface CardItem {
@@ -148,6 +149,6 @@ export interface CardItem {
   format: 'html' | 'text'
   /** 题目附带的代码（只有综合测验题库有） */
   code?: string
-  /** 阶段 1 到 4（只有综合测验题库有；章内自测的阶段看所属章） */
+  /** 阶段 1 到 6（只有综合测验题库有，由所属章的阶段推出；章内自测的阶段看所属章） */
   stage?: number
 }

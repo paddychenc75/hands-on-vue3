@@ -1,7 +1,7 @@
 ---
 title: 性能优化
 id: perf
-stage: 4
+stage: 5
 chapter: 21
 desc: 虚拟列表、props 稳定性、懒加载
 ---

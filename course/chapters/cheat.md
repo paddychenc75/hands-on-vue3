@@ -1,7 +1,6 @@
 ---
 title: 速查表
 id: cheat
-stage: 4
 order: 100
 desc: 常用 API
 ---

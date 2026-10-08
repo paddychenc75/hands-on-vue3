@@ -29,14 +29,17 @@ const chapters = fs
     const src = fs.readFileSync(path.join(chaptersDir, f), 'utf8')
     const fm = /^---\n([\s\S]*?)\n---/.exec(src)![1]
     const id = /^id:\s*(\S+)/m.exec(fm)![1]
-    const stage = Number(/^stage:\s*(\d)/m.exec(fm)![1])
+    // 速查表和综合测验页没有 stage（固定入口，不属于任何阶段）
+    const m = /^stage:\s*(\d)/m.exec(fm)
+    const stage = m ? Number(m[1]) : null
     const scCount = [...src.matchAll(/<Sc\b([^>]*)>/g)].filter(m => !/\bpredict\b/.test(m[1])).length
     return { id, stage, scCount }
   })
 const selfchecks: SelfCheckData[] = chapters.flatMap(c =>
   Array.from({ length: c.scCount }, (_, i) => ({ key: `${c.id}:${i}`, chapterId: c.id, a: i % 4, stem: `${c.id}-${i}`, opts: ['a', 'b', 'c', 'd'], explain: 'e' }))
 )
-const catalog = buildCatalog(selfchecks, Q)
+const stageOfChapter = new Map(chapters.map(c => [c.id, c.stage]))
+const catalog = buildCatalog(selfchecks, Q, id => stageOfChapter.get(id))
 
 describe('卡片键规则：章内自测 章id#N，阶段测验专用题 章id#cN', () => {
   it('键的写法', () => {
@@ -113,9 +116,9 @@ describe('60 道综合测验题 = 阶段测验专用题，按所属章分组、�
     for (const r of Q) expect(ids.has(r[3]), `题「${r[0].slice(0, 20)}」的章 ${r[3]} 不存在`).toBe(true)
   })
 
-  it('每题的阶段和所属章的阶段一致（阶段测验按章的阶段取题，两者不能矛盾）', () => {
-    const stageOf = new Map(chapters.map(c => [c.id, c.stage]))
-    for (const r of Q) expect(r[4], `章 ${r[3]}`).toBe(stageOf.get(r[3]))
+  it('题的阶段由所属章推出，题库里不再单独存阶段号', () => {
+    for (const c of catalog.all.filter(c => c.kind === 'check')) expect(c.stage, `章 ${c.chapterId}`).toBe(stageOfChapter.get(c.chapterId))
+    for (const r of Q) expect(typeof stageOfChapter.get(r[3]), `章 ${r[3]} 必须属于某个阶段`).toBe('number')
   })
 
   it('键不重复', () => {
@@ -151,15 +154,33 @@ describe('阶段题池', () => {
     const { pool, fresh } = stagePools(catalog, ids)
     expect(pool.every(c => c.kind === 'sc' && ids.includes(c.chapterId))).toBe(true)
     expect(fresh.every(c => c.kind === 'check' && ids.includes(c.chapterId))).toBe(true)
-    expect(fresh.length).toBe(Q.filter(r => r[4] === 1).length)
+    expect(fresh.length).toBe(Q.filter(r => stageOfChapter.get(r[3]) === 1).length)
   })
 
-  it('阶段 1 到 4 都能抽满 12 题：8 道专用题 + 4 道自测', () => {
-    for (const stage of [1, 2, 3, 4]) {
+  it('每个阶段的可用题数（锁住：补题时这张表要跟着改）：章数、章内自测数、专用题（#cN）数', () => {
+    const table = [1, 2, 3, 4, 5, 6].map(stage => {
+      const ids = chapters.filter(c => c.stage === stage).map(c => c.id)
+      const { pool, fresh } = stagePools(catalog, ids)
+      return [stage, ids.length, pool.length, fresh.length]
+    })
+    expect(table).toEqual([
+      [1, 4, 21, 11],
+      [2, 7, 39, 16],
+      [3, 3, 15, 9],
+      [4, 3, 15, 6],
+      [5, 5, 24, 10],
+      [6, 4, 20, 8]
+    ])
+  })
+
+  it('阶段 1 到 6 都能抽满 12 题；专用题最多 8 道，不够 8 道时用章内自测补足（阶段 4 只有 6 道专用题，抽 6 道专用题 + 6 道自测）', () => {
+    const fresh8: Record<number, number> = { 1: 8, 2: 8, 3: 8, 4: 6, 5: 8, 6: 8 }
+    for (const stage of [1, 2, 3, 4, 5, 6]) {
       const { pool, fresh } = stagePools(catalog, chapters.filter(c => c.stage === stage).map(c => c.id))
       const picks = pickStageQuestions(pool, fresh, {}, () => 0.5)
       expect(picks.length, `阶段 ${stage}`).toBe(12)
-      expect(picks.filter(p => p.kind === 'check').length).toBe(8)
+      expect(picks.filter(p => p.kind === 'check').length, `阶段 ${stage} 的专用题数`).toBe(fresh8[stage])
+      expect(new Set(picks.map(p => p.key)).size, `阶段 ${stage} 不重复`).toBe(12)
     }
   })
 })

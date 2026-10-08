@@ -8,25 +8,21 @@ import {
   agoText, chapterByPath, chapterState, dueChapters, nextDue, progressChapters, STATE_LABEL, chapterById, type LastPos
 } from '../composables/progress'
 import { chapters } from 'virtual:course-meta'
+import { STAGES } from '../../../stages'
 
-const STAGES: Record<number, { lv: string; title: string; aim: string }> = {
-  1: { lv: '阶段一 · 入门', title: '使用 Vue', aim: '模板、指令、响应式基础' },
-  2: { lv: '阶段二 · 基础', title: '编写组件', aim: '组件、内置组件、指令、组合式函数、插件、表单' },
-  3: { lv: '阶段三 · 原理', title: '内部原理', aim: '响应式、更新队列、渲染函数、编译、diff' },
-  4: { lv: '阶段四 · 进阶', title: '生态和工程', aim: '设计模式、Pinia、Router、TS、性能、工程化、SSR' }
-}
 const cheat = chapters.find(c => c.chapter == null)
 
 onMounted(markStoreReady)
 
 const cards = computed(() =>
-  Object.entries(STAGES).map(([s, info]) => {
-    const list = progressChapters.filter(c => c.stage === Number(s)).map(c => ({
+  STAGES.map((info, i) => {
+    const s = i + 1
+    const list = progressChapters.filter(c => c.stage === s).map(c => ({
       ...c,
       state: storeReady.value ? chapterState(c.id) : ('todo' as const)
     }))
     const done = list.filter(c => c.state === 'done').length
-    return { stage: Number(s), ...info, list, done, pct: list.length ? (done / list.length) * 100 : 0 }
+    return { stage: s, ...info, list, done, pct: list.length ? (done / list.length) * 100 : 0 }
   })
 )
 const total = computed(() => cards.value.reduce((a, c) => a + c.list.length, 0))
@@ -63,7 +59,7 @@ const review = computed(() => {
     <header class="hero">
       <div class="eyebrow">VUE 3.5 · 中文互动课程</div>
       <h1>动手学 <em>Vue 3</em></h1>
-      <p>本课程有 4 个阶段：25 章正文、1 个综合实战和一套综合测验。阶段一和阶段二教你使用 Vue：组件、内置组件、自定义指令、插件和表单。阶段三说明 Vue 的内部原理。阶段四介绍组件设计模式、Pinia、Router、TypeScript、性能、工程化、SSR 和迁移，并包含一个完整的小项目。</p>
+      <p>本课程有 6 个阶段：25 章正文、1 个综合实战和一套综合测验。阶段一和阶段二教你使用 Vue：模板、响应式、组件、内置组件、自定义指令、组合式函数、插件和表单。阶段三和阶段四说明 Vue 的内部原理：响应式、更新队列、渲染函数、模板编译、虚拟 DOM 与 diff，以及组件设计模式。阶段五介绍 Pinia、Router、TypeScript、性能优化和工程化。阶段六讲 SSR、自定义渲染器和 Vue 2 迁移，并包含一个完整的小项目。</p>
 
       <div class="resume show" id="resume">
         <span id="resumeTxt">{{ resume.text }}</span>
@@ -81,15 +77,15 @@ const review = computed(() => {
 
       <div class="path" id="path">
         <div v-for="c in cards" :key="c.stage" class="stage" :data-stage="c.stage">
-          <div class="lv">{{ c.lv }}</div>
-          <h3>{{ c.title }}</h3>
-          <div class="aim">{{ c.aim }}</div>
+          <div class="lv">{{ c.no }} · {{ c.en }}</div>
+          <h3>{{ c.name }}</h3>
+          <div class="aim">{{ c.desc }}</div>
           <ul>
             <li v-for="x in c.list" :key="x.id" :data-id="x.id" :data-state="x.state">
               <a :href="withBase(x.link)"><span class="num">{{ x.chapter }}.</span> {{ x.title }}</a>
               <span class="st">{{ STATE_LABEL[x.state] }}</span>
             </li>
-            <li v-if="c.stage === 4 && cheat" class="aside"><a :href="withBase(cheat.link)">附：{{ cheat.title }}</a></li>
+            <li v-if="c.stage === STAGES.length && cheat" class="aside"><a :href="withBase(cheat.link)">附：{{ cheat.title }}</a></li>
           </ul>
           <div class="cap stage-sum">已完成 {{ c.done }} / {{ c.list.length }} 章</div>
           <div class="meter"><i :style="{ width: c.pct + '%' }"></i></div>

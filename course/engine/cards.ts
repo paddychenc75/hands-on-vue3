@@ -34,8 +34,9 @@ export interface Catalog {
 }
 
 /** 用自测题数据和综合测验题库建卡片目录。
-    selfchecks 的 key 是 `章id:序号`；序号用 key 里的，不看数组位置，所以数组顺序打乱也不会错位。 */
-export function buildCatalog(selfchecks: readonly SelfCheckData[], quiz: readonly QuizBankRow[]): Catalog {
+    selfchecks 的 key 是 `章id:序号`；序号用 key 里的，不看数组位置，所以数组顺序打乱也不会错位。
+    stageOf 给出一章所属的阶段（1 到 6），专用题的 stage 由它推出；省略时专用题没有 stage。 */
+export function buildCatalog(selfchecks: readonly SelfCheckData[], quiz: readonly QuizBankRow[], stageOf?: (chapterId: string) => number | null | undefined): Catalog {
   const byKey = new Map<string, CardItem>()
   const sc: CardItem[] = []
   for (const s of selfchecks) {
@@ -62,10 +63,11 @@ export function buildCatalog(selfchecks: readonly SelfCheckData[], quiz: readonl
       options: [...row[1]],
       answer: 0, // 题库里第一个选项总是正确答案
       explain: row[2],
-      format: 'text',
-      stage: row[4]
+      format: 'text'
     }
-    if (row.length > 5) item.code = row[5]
+    const stage = stageOf?.(chapterId)
+    if (stage != null) item.stage = stage
+    if (row.length > 4) item.code = row[4]
     byKey.set(key, item)
     check.push(item)
   }

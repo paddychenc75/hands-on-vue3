@@ -1,7 +1,7 @@
 ---
 title: SSR 与水合
 id: ssr
-stage: 4
+stage: 6
 chapter: 23
 desc: renderToString、水合、不匹配
 ---

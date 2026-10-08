@@ -1,7 +1,7 @@
 ---
 title: 模板编译
 id: compiler
-stage: 3
+stage: 4
 chapter: 15
 desc: 渲染函数、PatchFlags、Block Tree
 ---

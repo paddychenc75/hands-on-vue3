@@ -1,7 +1,7 @@
 ---
 title: 工程化与测试
 id: tooling
-stage: 4
+stage: 5
 chapter: 22
 desc: Vite、环境变量、scoped CSS、ESLint、部署、Vitest
 ---

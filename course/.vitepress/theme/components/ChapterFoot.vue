@@ -8,7 +8,7 @@ import { chapterById, chapterState, exProgress, isDone, nextDue, scProgress, set
 
 const { frontmatter } = useData()
 const meta = computed(() => chapterById(frontmatter.value.id))
-const show = computed(() => !!meta.value && meta.value.chapter != null)
+const show = computed(() => !!meta.value && meta.value.stage != null)
 const ready = computed(() => storeReady.value && show.value)
 const id = computed(() => frontmatter.value.id as string)
 const state = computed(() => (ready.value ? chapterState(id.value) : 'todo'))

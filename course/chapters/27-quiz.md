@@ -1,7 +1,6 @@
 ---
 title: 综合测验
 id: quiz
-stage: 4
 chapter: 27
 desc: 60 题，按阶段筛选，有解析
 ---

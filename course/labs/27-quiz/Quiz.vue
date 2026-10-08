@@ -10,7 +10,8 @@ import { store, storeReady, markStoreReady } from '../../.vitepress/theme/compos
 import { selfchecks } from 'virtual:course-selfchecks'
 import type { SelfCheckItem } from '../../.vitepress/course-data.mts'
 import { dueChapters, chapterById, markReviewed } from '../../.vitepress/theme/composables/progress'
-import { Q, STAGES } from './questions'
+import { Q } from './questions'
+import { STAGES } from '../../stages'
 
 const KEY = 'quiz3'
 
@@ -37,7 +38,10 @@ const order = Q.map((q, qi) => {
   return idx
 })
 
-const TABS = ['全部', '阶段一', '阶段二', '阶段三', '阶段四', '只看错题', '随机 10 题', '待复习']
+const TABS = ['全部', ...STAGES.map(s => s.no + ' ' + s.name), '只看错题', '随机 10 题', '待复习']
+const N = STAGES.length // 阶段数。标签序号：0 全部，1..N 各阶段，N+1 只看错题，N+2 随机 10 题，N+3 待复习
+/** 题所属的阶段：看它所属章的 stage */
+const stageOfQ = (qi: number) => chapterById(Q[qi][3])?.stage ?? 0
 const shuffle = <T,>(a: T[]) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] } return a }
 
 interface Item { id: string; sid: string; qi: number; sc?: SelfCheckItem }
@@ -51,7 +55,7 @@ const sess = ref<Sess | null>(null)
 onMounted(() => {
   markStoreReady()
   // 首页的“开始复习”链接带 #review
-  if (location.hash === '#review') setMode(7)
+  if (location.hash === '#review') setMode(N + 3)
 })
 const ans = computed<Record<string, number>>(() => (storeReady.value ? store.get(KEY, {}) : {}))
 
@@ -64,7 +68,7 @@ function pool(): Item[] {
 }
 function buildSession(mode: number): Item[] {
   const all = pool()
-  if (mode === 6) return shuffle(all.slice()).slice(0, 10)
+  if (mode === N + 2) return shuffle(all.slice()).slice(0, 10)
   const last = new Set(store.get<string[]>('revLast', []))
   const scAns = store.get<Record<string, number>>('sc', {})
   const qAns = ans.value
@@ -82,8 +86,8 @@ function setMode(i: number) {
   filter.value = i
   sess.value = null
   pick.value = null
-  if (i === 6 || i === 7) sess.value = reactive({ items: buildSession(i), ans: {}, done: {} }) as Sess
-  else if (i === 5) pick.value = new Set(Object.keys(ans.value).filter(k => Q[+k] && ans.value[k] !== 0).map(Number))
+  if (i === N + 2 || i === N + 3) sess.value = reactive({ items: buildSession(i), ans: {}, done: {} }) as Sess
+  else if (i === N + 1) pick.value = new Set(Object.keys(ans.value).filter(k => Q[+k] && ans.value[k] !== 0).map(Number))
 }
 function reset() {
   if (sess.value) { setMode(filter.value); return }
@@ -102,7 +106,7 @@ const boxes = computed<Box[]>(() => {
   }
   const out: Box[] = []
   Q.forEach((q, qi) => {
-    if (pick.value ? !pick.value.has(qi) : filter.value && q[4] !== filter.value) return
+    if (pick.value ? !pick.value.has(qi) : filter.value && stageOfQ(qi) !== filter.value) return
     out.push({ id: 'q' + qi, qi, sid: q[3], n: 'Q' + (qi + 1), chosen: qi in ans.value ? ans.value[qi] : null })
   })
   return out
@@ -119,7 +123,7 @@ function choose(b: Box, oi: number) {
 // 待复习：一章的复习题都答完后，才更新这一章的复习时间（全对：下次间隔变长；有错：2 天后再复习）
 function after(sid: string) {
   const s = sess.value
-  if (!s || filter.value !== 7 || s.done[sid]) return
+  if (!s || filter.value !== N + 3 || s.done[sid]) return
   const mine = s.items.filter(x => x.sid === sid)
   if (!mine.every(x => x.id in s.ans)) return
   s.done[sid] = mine.every(x => s.ans[x.id]) ? 'ok' : 'miss'
@@ -136,7 +140,7 @@ const rightLetter = (b: Box) => letters(b).find(x => isRight(b, x.oi))!.letter
 
 const empty = computed(() => {
   if (!storeReady.value || boxes.value.length) return ''
-  if (sess.value) return filter.value === 7 ? '现在没有需要复习的章节。学完一章两天后，它会出现在这里。' : '没有题目。'
+  if (sess.value) return filter.value === N + 3 ? '现在没有需要复习的章节。学完一章两天后，它会出现在这里。' : '没有题目。'
   return pick.value ? '没有答错的题目。' : ''
 })
 
@@ -146,7 +150,7 @@ const stat = computed(() => {
     const real = Object.keys(sess.value.ans).filter(k => !k.endsWith(':i'))
     const right = real.filter(k => sess.value!.ans[k]).length
     const msg = !n ? '' : real.length < n ? '本次复习：已答 ' + real.length + ' 题。这些答案不影响综合测验的成绩。'
-      : '本次复习完成，答对 ' + right + ' 题。' + (right < n ? (filter.value === 7 ? missNote.value : '') + '答错的题目，回到对应章节再看一次。' : '')
+      : '本次复习完成，答对 ' + right + ' 题。' + (right < n ? (filter.value === N + 3 ? missNote.value : '') + '答错的题目，回到对应章节再看一次。' : '')
     return { score: right + ' / ' + n, msg }
   }
   const keys = Object.keys(ans.value).filter(k => Q[+k])
@@ -171,9 +175,9 @@ const stat = computed(() => {
     <div id="qzList">
       <div v-for="b in boxes" :key="b.id" class="q" :data-kind="b.sc ? 'sc' : 'q'" :data-key="b.id">
         <h4 v-if="b.sc"><span class="qn">{{ b.n }}</span>章内自测<span class="lvl">{{ chapterById(b.sid)?.title }}</span></h4>
-        <h4 v-else><span class="qn">{{ b.n }}</span>{{ Q[b.qi][0] }}<span class="lvl">{{ STAGES[Q[b.qi][4]].lv.split(' · ')[0] }}</span></h4>
+        <h4 v-else><span class="qn">{{ b.n }}</span>{{ Q[b.qi][0] }}<span class="lvl">{{ TABS[stageOfQ(b.qi)] }}</span></h4>
         <div v-if="b.sc" class="sc-stem" v-html="b.sc.stem"></div>
-        <LabCode v-else-if="Q[b.qi][5]" :code="Q[b.qi][5] as string" />
+        <LabCode v-else-if="Q[b.qi][4]" :code="Q[b.qi][4] as string" />
         <div class="opts">
           <button
             v-for="o in letters(b)" :key="o.oi" type="button" class="opt"

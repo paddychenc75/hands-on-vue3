@@ -14,6 +14,7 @@ import path from 'node:path'
 import type { Plugin } from 'vite'
 import { createMarkdownRenderer } from 'vitepress'
 import { readFrontmatter } from './sidebar.mts'
+import { STAGE_COUNT } from '../stages.ts'
 import { cjkFriendlyEmphasis } from './markdown-cjk.mts'
 
 export interface ChapterMeta {
@@ -22,9 +23,10 @@ export interface ChapterMeta {
   link: string // 页面路径，例如 /chapters/03-refs
   title: string
   desc: string
-  stage: number
-  chapter: number | null // 没有章号的页面（速查表）是 null，不计入进度
+  stage: number | null // 阶段 1 到 6（见 course/stages.ts）。速查表和综合测验不属于任何阶段，是 null，不计入进度
+  chapter: number | null // 没有章号的页面（速查表）是 null
   scCount: number // 本章自测题数（不含先猜）
+  scAnswers: number[] // 本章自测的正确选项序号，按题号排列（长度 = scCount）
   ex: string[] // 本章练习 id
 }
 
@@ -67,6 +69,13 @@ export function readChapters(chaptersDir: string): { meta: ChapterMeta; src: str
     const fm = readFrontmatter(path.join(chaptersDir, f))
     if (!fm || !fm.id || !fm.title) continue
     const src = fs.readFileSync(path.join(chaptersDir, f), 'utf8')
+    const stage = fm.stage ? Number(fm.stage) : null
+    if (stage != null && !(Number.isInteger(stage) && stage >= 1 && stage <= STAGE_COUNT)) {
+      throw new Error(`${f}：stage 必须是 1 到 ${STAGE_COUNT} 的整数（实际是 ${fm.stage}）`)
+    }
+    // 有章号的正文章必须指定阶段，否则它不会计入进度。只有综合测验页（id: quiz）可以有章号而没有阶段
+    if (stage == null && fm.chapter && fm.id !== 'quiz') throw new Error(`${f}：有 chapter 的章必须写 stage（1 到 ${STAGE_COUNT}）`)
+    const selfChecks = parseSelfChecks(src)
     out.push({
       src,
       meta: {
@@ -75,15 +84,16 @@ export function readChapters(chaptersDir: string): { meta: ChapterMeta; src: str
         link: '/chapters/' + file,
         title: fm.title,
         desc: fm.desc || '',
-        stage: Number(fm.stage) || 4,
+        stage,
         chapter: fm.chapter ? Number(fm.chapter) : null,
-        scCount: parseSelfChecks(src).length,
+        scCount: selfChecks.length,
+        scAnswers: selfChecks.map(x => x.a),
         ex: [...src.matchAll(/<Exercise\s+id="([^"]+)"/g)].map(m => m[1])
       }
     })
   }
-  // 按阶段、章号排序（没有章号的排在后面）
-  return out.sort((x, y) => x.meta.stage - y.meta.stage || (x.meta.chapter ?? 1e9) - (y.meta.chapter ?? 1e9) || x.meta.file.localeCompare(y.meta.file))
+  // 按阶段、章号排序（不属于任何阶段的页面排在后面，没有章号的排在最后）
+  return out.sort((x, y) => (x.meta.stage ?? 1e9) - (y.meta.stage ?? 1e9) || (x.meta.chapter ?? 1e9) - (y.meta.chapter ?? 1e9) || x.meta.file.localeCompare(y.meta.file))
 }
 
 export function courseDataPlugin(courseDir: string): Plugin {

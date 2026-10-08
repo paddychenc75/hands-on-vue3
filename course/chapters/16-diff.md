@@ -1,7 +1,7 @@
 ---
 title: 虚拟 DOM 与 diff
 id: diff
-stage: 3
+stage: 4
 chapter: 16
 desc: 头尾同步 + 最长递增子序列
 ---

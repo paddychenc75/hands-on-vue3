@@ -12,8 +12,8 @@ export const DAY = 864e5
 /** 完成后第 1 次复习隔 2 天，第 2 次再隔 7 天，之后每次隔 30 天 */
 export const GAPS = [2, 7, 30]
 
-/** 计入进度的章：有章号的页面（速查表不计入）。已按阶段、章号排好 */
-export const progressChapters = chapters.filter(c => c.chapter != null)
+/** 计入进度的章：属于某个阶段的页面（速查表、综合测验不计入）。已按阶段、章号排好 */
+export const progressChapters = chapters.filter(c => c.stage != null)
 export const chapterById = (id: string) => chapters.find(c => c.id === id)
 export const chapterByFile = (file: string) => chapters.find(c => c.file === file)
 export const chapterByPath = (p: string) => {
@@ -61,7 +61,7 @@ export function exProgress(id: string) {
  */
 export function autoDone(id: string) {
   const c = chapterById(id)
-  if (!c || c.chapter == null || c.scCount === 0 || isDone(id)) return false
+  if (!c || c.stage == null || c.scCount === 0 || isDone(id)) return false
   const s = scProgress(id), e = exProgress(id)
   if (s.answered < s.total || e.passed < e.total) return false
   setDone(id, true)

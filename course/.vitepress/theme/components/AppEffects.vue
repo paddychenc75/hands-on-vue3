@@ -18,7 +18,7 @@ function paintSidebar() {
   paintRaf = 0
   document.querySelectorAll<HTMLAnchorElement>('.VPSidebar a[href*="/chapters/"]').forEach(a => {
     const c = chapterByPath(new URL(a.href, location.href).pathname)
-    if (!c || c.chapter == null) return
+    if (!c || c.stage == null) return
     const st = chapterState(c.id)
     if (a.dataset.state !== st) a.dataset.state = st
   })
@@ -42,7 +42,7 @@ function headingText(h: Element) {
 }
 function savePos() {
   const c = chapterByPath(route.path)
-  if (!c || c.chapter == null || !acted) return
+  if (!c || c.stage == null || !acted) return
   const line = window.innerHeight * 0.25
   const heads = [...document.querySelectorAll('.vp-doc h2[id], .vp-doc h3[id]')]
   let cur: Element | null = null
@@ -51,7 +51,7 @@ function savePos() {
 }
 function enterChapter() {
   const c = chapterByPath(route.path)
-  if (!c || c.chapter == null) return
+  if (!c || c.stage == null) return
   const hash = decodeURIComponent(location.hash.slice(1))
   const last = store.get<LastPos | null>('last', null)
   // 同一章保留已有的小节位置，除非地址里带了锚点

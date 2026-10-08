@@ -33,7 +33,7 @@ npm run test:e2e -- 03-refs 04-computed   # 浏览器测试只测指定的章
 ## 目录
 
 - `course/chapters/`：章节 Markdown（`NN-id.md`，自测题内联在里面），`cheat.md` 是速查表
-- `course/`：`exercises/`（练习判题数据）、`labs/`（实验台）、`figures/`（示意图）、`checks/`（阶段测验专用题）、`stages.ts`（阶段定义）、`site.mjs`（部署路径 base）、`content-parse.mjs`（章节解析）、`writing-terms.mjs`（写作规则用词表）、`learning-paths.mjs`（首页的三条学习路线）、`glossary.md`（术语表页）、`engine/`（学习机制，纯逻辑在 `engine/logic/`）
+- `course/`：`exercises/`（练习判题数据）、`labs/`（实验台）、`figures/`（示意图）、`checks/`（阶段测验专用题）、`stages.ts`（阶段定义）、`site.mjs`（部署路径 base）、`content-parse.mjs`（章节解析）、`writing-terms.mjs`（写作规则用词表）、`learning-paths.mjs`（首页的三条学习路线）、`mini/`（迷你 Vue 零件库，原理阶段的练习和实验台共用）、`glossary.md`（术语表页）、`engine/`（学习机制，纯逻辑在 `engine/logic/`）
 - `course/.vitepress/`：站点配置、构建时抽取数据的插件、主题组件和样式
 - `editor/`：练习编辑器（CodeMirror 6）
 - `scripts/`：内容校验、文档数字核对、新建一章、浏览器测试入口、截图、启用钩子

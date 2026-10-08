@@ -343,6 +343,8 @@ export function useWindowWidth(): { width: Readonly<Ref<number>> } {
 
 ### 8.5 用 effectScope 停止一组副作用
 
+这一节讲的是组合式函数在组件之外使用时的清理，第一遍可以跳过，写到需要在 setup 之外创建侦听器时再回来看。
+
 在 setup 之外创建的 watch 和 watchEffect 不属于任何组件。它们不会自动停止。`effectScope()` 收集在 `scope.run()` 中创建的这类副作用。`scope.stop()` 一次停止它们。`computed` 不在其中：3.5 的 computed 不登记在作用域里，`scope.stop()` 之后它仍可读取、仍会更新，但没有订阅者时它不挂在任何依赖上，所以不会泄漏（第 26 章讲这个实现）。
 
 ```js

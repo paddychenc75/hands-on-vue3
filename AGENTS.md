@@ -6,18 +6,6 @@
 
 姊妹课程是 [hands-on-react](https://github.com/paddychenc75/hands-on-react)（本机在 `../hands-on-react`）：两门课共用同一套学习机制、命令名和检查思路。差别只在内容形态：React 课用 MDX 加每课一个数据文件，Vue 课用 Markdown 加章内自测。
 
-## 发布前重构进行中（主控完成重构后删除本节）
-
-课程从未发布，没有真实学习者的记录，所以**这一轮结构重构（含后面写新章、改旧章的阶段）暂时豁免下面几条冻结规则**：
-
-- 复习卡片键（`章id#N`、`章id#cN`）和已有自测题**不冻结**：允许拆章、合并、改章 id、调整和改写已有自测题、重排小节、调整专用题的所属章。需要时用 `npm run check:content -- --update --force` 重写快照；不必逐条保护旧指纹。
-- 「先记住这几条」第 3 条、「改已有的章」第一条、「卡片键快照」一节、AUTHORING.md 里「已有题不能动」的规则**原文保留**，重构全部完成、由主控重新定一次基线（重写 `course/card-keys.snapshot.json`）之后恢复生效。
-- 章 id、实验台 id、练习 id 仍是存储键，非必要不改；拆章或合并时改了，就在提交信息里写明。
-- 学习进度（`__stage`、按章 id 存的记录）不写迁移：读到对不上的旧记录时页面忽略它，不报错（有单元测试）。
-- **不豁免**的：引用必须正确（`check:content` 照常查）、章号和文件名一致、`npm run check` 通过、提交前钩子不绕过。
-
-本轮新增的 6 个章只有骨架（文字是「【待写】」占位，`npm run check:content -- --strict` 会因此报错，这是预期的），等待写内容：`05-project-todo`、`13-project-board`、`18-data-fetching`、`20-testing`、`37-nuxt`、`42-capstone`。
-
 ## 先记住这几条
 
 1. **加章用脚手架**：`npm run new-chapter -- …`（见「怎样加一章」），不要手工拼多处。
@@ -48,18 +36,19 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | **`npm run check`** | typecheck + check:content + check:docs + test:unit。**每次提交前跑** | 约 3 秒 |
 | `npm run test:e2e` | 浏览器测试（Playwright），读 `course/.vitepress/dist`（或 `COURSE_OUT_DIR` 指向的目录），**先 `npm run build`** | 全部约 9 分钟 |
 | `npm run test:e2e -- 03-refs 04-computed` | 只测指定章（exercises 套件）。它自己只构建这些章到临时目录，不用先 build | 每章几秒到十几秒 |
-| `npm run test:e2e -- mechanics progress glossary` | 只跑学习机制 / 跨章功能 / 术语表套件 | 各约 1 到 3 分钟 |
+| `npm run test:e2e -- mechanics progress glossary folds` | 只跑学习机制 / 跨章功能 / 术语表 / 折叠只读块套件 | 各约 1 到 3 分钟 |
 | **`npm test`** | check + build + test:e2e，**完整验收**。改引擎、主题组件、样式后必跑 | 约 9 分钟 |
 | `npm run test:site` | build + test:e2e（旧名字，保留） | 约 9 分钟 |
 | `npm run new-chapter -- <章id> --stage <1-6> --after <已有章id> --title "标题"` | 加一章 | 即时 |
 | `npm run move-chapter -- <章id> --after <已有章id> [--stage <1-6>]` | 把一章移到另一个位置（可同时改阶段），自动改名和改引用 | 即时 |
 | `npm run reorder-chapters -- <计划.json>` | 一次重排所有章的顺序和阶段（计划文件写新顺序），只扫一遍，所有章号同时映射 | 即时 |
-| `npm run screenshots -- 03-refs` | 给一章截浅色和深色整页图（只构建这一章），改版面后人工看一眼 | 十几秒 |
+| `npm run screenshots -- 03-refs` | 给一章截浅色和深色整页图（只构建这一章），改版面后人工看一眼。整页长图缩小后看不清，细看用下一行 | 十几秒 |
+| `node scripts/shot.mjs --blocks 13-project-board [--out 目录]` | **逐区块截图**：章头与目标、每个实验台（先猜没答时和答完之后）、每道练习（编辑器加载完成后；含折叠块的再截展开后的）、每张表格、每张示意图、自测块（答一题后），浅色和深色各一套，桌面宽度；另外 390px 宽度下截实验台和练习。目标可写多个章，`all` 是全部章，`pages` 是首页、复习页、术语表页、一个阶段测验页和速查表页（这两个目标会构建全站）。还会写 `findings.txt`：自动发现残留的字面 `**`、`:::`、`【待写】`、HTML 实体，手机宽度横向溢出，控制台报错，实验台或练习没渲染。图片要用 Read 逐张看：自动检查只能发现文字层面的问题 | 一章约半分钟；全站约 40 分钟 |
 
-- `npm run test:e2e` 的用法：`-- <套件> [章名 …]`，套件是 `exercises`（逐章：练习、半成品、自测、实验台）、`progress`（跨章功能）、`mechanics`（学习机制）、`glossary`（术语表和术语标注）；写了章名就只跑 exercises；什么都不写就依次跑四个。
+- `npm run test:e2e` 的用法：`-- <套件> [章名 …]`，套件是 `exercises`（逐章：练习、半成品、自测、实验台）、`progress`（跨章功能）、`mechanics`（学习机制）、`glossary`（术语表和术语标注）、`folds`（练习里的折叠只读块）；写了章名就只跑 exercises；什么都不写就依次跑五个。
 - 单个测试文件也可以直接运行：`node tests/site/exercises.test.js 03-refs`。
 - 本机 shell 设了 HTTP 代理时，访问 localhost 的命令前加 `NO_PROXY=localhost,127.0.0.1`（`npm run test:e2e` 已自动加）。
-- 并行构建的环境变量：`COURSE_CHAPTERS`（只构建这些章）、`COURSE_OUT_DIR`、`COURSE_CACHE_DIR`（独立的输出和缓存目录）。多个 agent 同时工作时，用独立目录构建，不要都写默认的 `course/.vitepress/dist`。**四个浏览器测试套件都认 `COURSE_OUT_DIR`**：先 `COURSE_OUT_DIR=/tmp/x/dist COURSE_CACHE_DIR=/tmp/x/cache npx vitepress build course`，再 `COURSE_OUT_DIR=/tmp/x/dist npm run test:e2e -- progress`。
+- 并行构建的环境变量：`COURSE_CHAPTERS`（只构建这些章）、`COURSE_OUT_DIR`、`COURSE_CACHE_DIR`（独立的输出和缓存目录）。多个 agent 同时工作时，用独立目录构建，不要都写默认的 `course/.vitepress/dist`。**五个浏览器测试套件都认 `COURSE_OUT_DIR`**：先 `COURSE_OUT_DIR=/tmp/x/dist COURSE_CACHE_DIR=/tmp/x/cache npx vitepress build course`，再 `COURSE_OUT_DIR=/tmp/x/dist npm run test:e2e -- progress`。
 - Node 版本：`.nvmrc` 是 24，`engines` 要求 `>=24`。`package.json` 没有 `"type": "module"`（测试用 CommonJS，VitePress 配置是 `.mts`），所以脚本都是 `.mjs`，不要给 `package.json` 加 `type`。
 - **提交前钩子**：`npm install` 的 `prepare` 会把 `core.hooksPath` 设为 `.githooks/`（手动启用：`node scripts/setup-hooks.mjs`），每次提交前自动跑 `check:content` 和 `check:docs`（2 秒内）。CI 里和没有 `.git` 的环境不会启用。紧急跳过：`git commit --no-verify`。
 - 本仓库没有 Biome：现有代码风格不统一（有的文件写分号，有的不写），强行格式化会改动大量文件。以后要加，先统一风格再启用。
@@ -70,6 +59,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 |---|---|---|
 | `course/chapters/NN-id.md` | 一章一个文件，`NN` 是两位章号，`id` 是章的稳定编号。`cheat.md` 是速查表（没有章号）。`27-quiz.md` 只是旧地址的跳转页（它的文件名带 27，和第 27 章 `27-reactivity-pitfalls.md` 并存、互不冲突（文件名不同，输出的页面地址也不同）：它没有 `id`，不是章，`REDIRECT_PAGES` 把它排除在所有校验和侧边栏之外；URL 要保持 `/chapters/27-quiz`，所以不改名） | 练习判题、实验台代码 |
 | `course/site.mjs` | 站点部署路径 `BASE_PATH`，**唯一的定义处**：`config.mts`、测试、脚本都从它取 | — |
+| `course/mini/` | 迷你 Vue 零件库（响应式原理和渲染原理两个阶段共用：`reactive`、`effect`、`queueJob`、`watch`、`mountComponent`……），`src/` 是各章累加的源码，`index.ts` 汇总，`load.ts` 在练习和实验台里载入；编号约定、术语（渲染副作用函数、更新任务、调度函数、更新队列）和折叠块用法见 `course/mini/README.md` | 练习里另写一份零件 |
 | `course/content-parse.mjs` | 章节 Markdown 的纯文本解析（frontmatter、自测题、小结、术语块、阅读时间、术语汇总）。站点构建和 Node 脚本共用这一份 | 读文件、DOM |
 | `course/writing-terms.mjs` | 首页「写作规则」表的数据（带“不使用的同义词”），术语表页的“不这样说”一栏也用它 | — |
 | `course/stages.ts` | 6 个阶段的唯一定义（编号、名称、英文副标题、说明）。一章属于哪个阶段，由它 frontmatter 的 `stage` 决定 | 章的内容 |
@@ -80,6 +70,8 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `course/checks/questions.ts` | 阶段测验专用题库（卡片键 `章id#cN` 靠它的出现顺序编号，只能在末尾追加） | — |
 | `course/review.md`、`course/glossary.md`、`course/check/N.md` | 今日复习页、术语表页（自动汇总各章术语块）、各阶段测验页（内容是组件 `ReviewPage`、`GlossaryPage`、`StageCheck`） | — |
 | `course/card-keys.snapshot.json` | 复习卡片键快照，**提交进仓库**，由脚本更新（见「卡片键快照」） | 手改 |
+| `course/.vitepress/theme/composables/exerciseLibs.ts` | 练习声明 `libs: ['pinia' | 'vue-router']` 时，运行器载入真实的 Pinia 和 Vue Router 并装进练习应用（写法见 `AUTHORING.md` 4.10） | 其他练习的运行逻辑 |
+| `course/engine/logic/folds.ts` | 练习代码里 `//#fold` 折叠只读块的解析（纯函数）；编辑器接线在 `editor/folds.js`，浏览器测试 `tests/site/folds.test.js` | DOM |
 | `course/engine/logic/` | **纯函数**：不碰 DOM、localStorage，不读 `Date.now()`（时间由参数传入）。有单元测试，`tests/unit/purity.test.ts` 会挡住副作用；`tests/unit/cycles.test.ts` 检查没有循环依赖 | DOM、存储、`window` |
 | `course/engine/*.ts` | 进度结构和存储（`types.ts`、`store.ts`）、复习卡片（`cards.ts`），模块清单见下面「引擎模块」 | 业务规则（放进 `logic/` 并写测试） |
 | `course/.vitepress/` | `config.mts`（站点配置、base、自定义容器、章头和热身的自动注入、并行构建变量）、`sidebar.mts`、`course-data.mts`（构建时从各章抽数据，生成虚拟模块）、`markdown-cjk.mts`、`theme/`（`components/*.vue` 全局注册，`composables/learn.ts` 是界面读写进度的唯一入口，`composables/terms.ts` + `term-match.ts` 是术语标注，`style.css` 全部样式） | 学习机制的逻辑 |
@@ -87,7 +79,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `editor/entry.js` | 练习编辑器（CodeMirror 6），被 `Exercise` 组件直接导入 | — |
 | `scripts/` | `check-content.mjs`（内容校验）、`check-docs.mjs`（文档数字核对）、`new-chapter.mjs`（加章脚手架）、`e2e.mjs`（浏览器测试入口）、`setup-hooks.mjs`（启用提交前钩子）、`shot.mjs`（截图）；`lib/` 是它们共用的（`validate.mjs` 是全部校验规则，`section-refs.mjs` 是小节引用的统一扫描（校验和改号共用），`known-issues.mjs` 是临时豁免，目前是空的；`ref-tense.mjs` 查引用的措辞和对象章的位置是否一致；`reorder.mjs` 和 `reorder-chapters.mjs` 一次重排所有章） | — |
 | `tests/unit/` | Vitest 单元测试（`*.test.ts`）；规则对照表见 `tests/unit/README.md` | 需要浏览器的测试 |
-| `tests/site/` | Playwright 测试：`exercises.test.js`、`progress.test.js`、`mechanics.test.js`、`glossary.test.js`，`helpers.js` 是共用的；`labs/NN-id.js` 是各章实验台的测试数据 | — |
+| `tests/site/` | Playwright 测试：`exercises.test.js`、`progress.test.js`、`mechanics.test.js`、`glossary.test.js`、`folds.test.js`，`helpers.js` 是共用的；`labs/NN-id.js` 是各章实验台的测试数据 | — |
 | `tests/expected.cjs` | 测试里**锁定**的章数、选读章 id 和每阶段题数，集中在这一个文件；其余数字都从元数据算 | 别处再写死数字 |
 | `docs/` | 三份旧审查报告和教学设计调研。**它们针对的是第 14 版单文件课程**（`vue3-course.html`，已删除，取回见提交 `a2fe105`），只作背景参考，不检查 | — |
 | `.github/` | `workflows/ci.yml`（check + e2e）、`deploy.yml`（CI 通过后部署）、`dependabot.yml` | — |
@@ -150,6 +142,8 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 - **自测题必须按 `AUTHORING.md` 4.11 的格式写**（`<Sc :a="N">`、`<Opt>` 一行一个、`<template #explain>`），否则构建时抽不出复习题库；`check:content` 会查。
 - 改小节（`### N.M`）：小节从 N.1 起连续编号；移动后更新练习提示、测验解析里引用的“N.M 节”“N.M 标题”（`check:content` 会查引用对不对）。
 - 改练习的检查函数：必须实测（参考答案通过、起始代码被拒、每个 `wrong` 被拒）。每道练习至少 1 个 `wrong`；`sub()` 造 wrong 时参考答案改了要同步（`WRONG_SUB_FAILED` 会被查出来）。
+- **写用真实库的练习**（Pinia、Vue Router）：练习里写 `libs: ['pinia']` 或 `['vue-router']`，写法见 `course/AUTHORING.md` 4.10；讲库内部原理的练习不用声明，用迷你版。
+- **用迷你零件和折叠块**（响应式原理和渲染原理两个阶段的练习）：零件来自 `course/mini/`，练习里已经写好、不要学习者改的大段代码用 `//#fold` 圈起来（编辑器里折叠并只读）。用法见 `course/mini/README.md` 和 `course/AUTHORING.md` 的“折叠只读块”一节；改了零件要重新跑用到它的所有章的练习测试。
 - 改了任何章：`npm run check` → `node tests/site/exercises.test.js <章>`。
 - 章文字改动要遵守「写作规范」。用户报告的缺陷：先写一个会失败的测试，再修复。
 

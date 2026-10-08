@@ -76,7 +76,7 @@ desc: ref、reactive、toRefs
 - 每个 API 的小节：问题 → 最小代码 → 1 到 3 个“场景：” → 注意 → 实验台/练习 → 深入（原理，放在 `::: deep`）。阶段一、二先讲用法后讲原理。
 - 用到后面章节才讲的 API 时，写“（第 N 章）”或换掉。
 - **引用的措辞要和对象章的位置一致**：对象章在本章后面，写“详见第 N 章”“第 N 章会讲”，不写“讲过”“回顾”；对象章在本章前面，写“第 N 章讲过”“回顾（第 N 章）”，不写“会讲”“后面的第 N 章”。章的顺序会变（重排章以后很多引用的前后会翻过来），所以 `check:content` 会查这类紧贴着引用的措辞，其余同一句里有“前面 / 之后 / 已经”等词的，用 `npm run check:content -- --tense` 列出来人工看。
-- 技术内容以 Vue 3.5 为准。已核实（2026-10）：vue 3.5.43，vue-router 5.3.1（第 17 章讲的路由行为在 5.4.0 下相同，正文只写主版本号 5），vite 8.3.3（Rolldown），pinia 4.0.3。第 41 章（组件库工程）实测用的工具链：`@vitejs/plugin-vue` 6.0.9，`vue-tsc` 3.3.12，TypeScript 5.9.3（`vue-tsc` 3.3.12 与 TypeScript 7.0.2 不兼容，库项目钉在 5.9 或 6.0；本仓库自己用 7.0.2），`vite-plugin-dts` 5.1.2，`unplugin-vue-components` 32.1.0，publint 0.3.25，`@arethetypeswrong/cli` 0.18.5。有疑问时用 `node_modules/vue` 运行代码核实。
+- 技术内容以 Vue 3.5 为准。已核实（2026-10）：vue 3.5.43，vue-router 5.3.1（第 17 章讲的路由行为在 5.4.0 下相同，正文只写主版本号 5），vite 8.3.3（Rolldown），pinia 4.0.3。第 41 章（组件库工程）实测用的工具链：`@vitejs/plugin-vue` 6.0.9，`vue-tsc` 3.3.12，TypeScript 5.9.3（`vue-tsc` 3.3.12 与 TypeScript 7.0.2 不兼容，库项目钉在 5.9 或 6.0；本仓库自己用 7.0.2），`vite-plugin-dts` 5.1.2，`unplugin-vue-components` 32.1.0，publint 0.3.25，`@arethetypeswrong/cli` 0.18.5。另外已核实：Nuxt 4.6（第 37 章，2026-10 的稳定版）、Vitest 4.1（第 20 章，脚手架当前安装 4，4.1 和 5.0 写法相同）、`@pinia/testing` 2.0.1（与 Pinia 4 配套）、`@tanstack/vue-query` 5.104.1 与 `@pinia/colada` 1.4.8（第 18 章）、Zod 4.6.5 与 Valibot 1.5.0（第 39 章）；`npm create vue@latest`（create-vue）生成的 TypeScript 项目固定 TypeScript `~6.0.0`，实测 6.0.3，`vue-tsc` 3.3.12（第 14 章）。有疑问时用 `node_modules/vue` 运行代码核实。
 - 一章内块的顺序：目标、阅读时间、类比、本章术语、为什么需要它、小节 `### N.M 标题`（含正文、代码、图、实验台、练习、深入块、注意框）、注意、自测、小结。
 - 小节从 N.1 起连续编号，不能放在 `::: deep` 里。移动小节后，要更新练习提示和测验解析里引用的“N.M 标题”或“N.M 节”。
 - 目标：`<Goal checks="…">` 的标签（自测 N 题 · 练习 M 道）自动算，不要手写。不要给目标挂“回顾”题。

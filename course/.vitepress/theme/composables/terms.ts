@@ -4,11 +4,13 @@
 //   1. 只在章正文的文字里标。代码块、行内代码、标题、链接、术语块自身、目标、类比、自测、实验台、练习、热身、自我解释、图都不标
 //   2. 每个术语在每个小节（h2/h3 之间）只标第一次出现
 //   3. 只标“已经学过”的术语：这一章或更早的章里有术语块定义它的
-//   4. 同一位置有多个术语匹配时，取最长的（“单文件组件”优先于“组件”）
+//   4. 匹配规则（最长优先、复合词里的子串不标、纯英文术语要词边界）在 term-match.ts，有单元测试
 // 做法：在浏览器里遍历文本节点，把匹配的文字换成 <abbr class="term">。Vue 的静态内容不会被再次修补，所以不会和 Vue 冲突；
 // 每次换页前先把上一次的标注还原，所以重复执行是安全的。
 import { glossary as GLOSSARY } from 'virtual:course-glossary'
 import type { GlossaryEntry } from '../../course-data.mts'
+import { WRITING_TERMS } from '../../../writing-terms.mjs'
+import { buildMatcher, findTerms } from './term-match'
 
 const SKIP = [
   'code', 'pre', 'a', 'abbr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'summary', 'button', 'textarea', 'input', 'figure', 'svg', 'script', 'style',
@@ -16,10 +18,8 @@ const SKIP = [
 ].join(',')
 
 const glossary: GlossaryEntry[] = GLOSSARY
-
-const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-/** 英文术语前后不能紧挨着字母数字；中文术语直接匹配 */
-const pattern = (term: string) => (/^[A-Za-z0-9]/.test(term) ? '(?<![A-Za-z0-9_$.])' : '') + esc(term) + (/[A-Za-z0-9]$/.test(term) ? '(?![A-Za-z0-9_$])' : '')
+// 全部已知术语：所有章的术语加写作规则表里的术语。用来判断“子组件”这类复合词，见 term-match.ts
+const KNOWN = [...new Set([...glossary.map(g => g.term), ...WRITING_TERMS.flatMap(w => w.terms)])]
 
 /** 还原上一次的标注 */
 export function clearTerms(root: ParentNode) {
@@ -33,7 +33,7 @@ export function markTerms(root: HTMLElement, chapterNo: number): number {
   const known = all.filter(g => g.chapters[0].chapter != null && g.chapters[0].chapter <= chapterNo)
   if (!known.length) return 0
   const byTerm = new Map(known.map(g => [g.term, g]))
-  const re = new RegExp([...byTerm.keys()].sort((a, b) => b.length - a.length).map(pattern).join('|'), 'g')
+  const matcher = buildMatcher([...byTerm.keys()], KNOWN)
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const nodes: Text[] = []
@@ -51,10 +51,10 @@ export function markTerms(root: HTMLElement, chapterNo: number): number {
     if (el.closest(SKIP)) continue
     const text = node.nodeValue || ''
     const hits: { i: number; term: string }[] = []
-    for (const m of text.matchAll(re)) {
-      if (seen.has(m[0])) continue
-      seen.add(m[0])
-      hits.push({ i: m.index!, term: m[0] })
+    for (const h of findTerms(text, matcher)) {
+      if (seen.has(h.term)) continue
+      seen.add(h.term)
+      hits.push(h)
     }
     if (!hits.length) continue
     const frag = document.createDocumentFragment()

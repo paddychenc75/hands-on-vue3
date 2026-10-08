@@ -2,9 +2,10 @@
 //   提示阶梯、课前热身、自我解释、复习页、阶段测验、手机宽度无横向滚动。
 // 用法：node tests/site/mechanics.test.js     （用 course/.vitepress/dist，要先 npm run build；或 COURSE_OUT_DIR=<已构建目录>）
 // 时间用 Playwright 的 page.clock.setFixedTime 控制，不真的等几分钟；进度先用 seed 写进单个 localStorage 键。
-const { makeReporter, startSite, loadChapters, loadExercises, loadQuestions, seed, read, STORE_KEY } = require('./helpers')
+const { makeReporter, startSite, loadChapters, loadExercises, loadQuestions, loadStages, seed, read, STORE_KEY } = require('./helpers')
 
 const R = makeReporter()
+const { STAGE_COUNT } = loadStages()
 const CH = loadChapters()
 const EX = loadExercises()
 const MIN = 60e3, HOUR = 36e5, DAY = 864e5
@@ -478,11 +479,11 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g2.end()
     }
     {
-      const g = R.group('6 个阶段测验页都能抽满 12 题，标题和 stages.ts 一致')
+      const g = R.group('各阶段测验页都能抽满 12 题，标题和 stages.ts 一致')
       const p = await site.newPage()
       await seed(p, base, {})
       const names = ['入门', '进阶', '高级', '原理与架构', '生态与实战', '深入']
-      for (let i = 1; i <= 6; i++) {
+      for (let i = 1; i <= STAGE_COUNT; i++) {
         await p.goto(base + '/check/' + i + '.html'); await p.waitForSelector('.quiz .q'); await p.waitForTimeout(250)
         g.ok(await p.locator('.quiz .q').count() === 12, '阶段 ' + i + ' 抽满 12 题')
         g.ok((await p.locator('.vp-doc h1').innerText()).includes(names[i - 1] + '阶段测验'), '阶段 ' + i + ' 标题 ' + names[i - 1])
@@ -493,14 +494,14 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
 
     // ---------- 手机宽度 ----------
     {
-      const g = R.group('390px 宽下没有横向滚动：首页、复习页（含出题中）、6 个阶段测验页（含交卷后）、章页（有热身和自我解释）')
+      const g = R.group('390px 宽下没有横向滚动：首页、复习页（含出题中）、各阶段测验页（含交卷后）、章页（有热身和自我解释）')
       const p = await site.newPage({ viewport: { width: 390, height: 844 } })
       const wide = []
       const old = T0 - 3 * DAY
       const srs = { 'first#0': card(1, T0 - DAY, old), 'refs#1': card(1, T0 - DAY, old), 'template#0': card(1, T0 + DAY, old), 'refs#0': card(1, T0 + DAY, old) }
       await seed(p, base, { __srs: srs })
       await p.clock.setFixedTime(T0)
-      const pages = [['/', '.home'], ['/review.html', '.review .q'], ...[1, 2, 3, 4, 5, 6].map(i => ['/check/' + i + '.html', '.quiz .q']), ['/chapters/04-computed.html', '.warmup .q'], ['/chapters/03-refs.html', '.selfx']]
+      const pages = [['/', '.home'], ['/review.html', '.review .q'], ...Array.from({ length: STAGE_COUNT }, (_, k) => k + 1).map(i => ['/check/' + i + '.html', '.quiz .q']), ['/chapters/04-computed.html', '.warmup .q'], ['/chapters/03-refs.html', '.selfx']]
       for (const [u, sel] of pages) {
         await p.goto(base + u); await p.waitForSelector(sel, { timeout: 15000 }); await p.waitForTimeout(300)
         if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth)) wide.push(u)

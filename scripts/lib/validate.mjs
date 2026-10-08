@@ -2,7 +2,7 @@
 // 不读文件、不碰网络，所以单元测试可以构造坏输入断言它报错。
 //
 // 每条错误是 { key, text }：text 是给人看的“位置  问题 → 怎么修”，key 是稳定的标识（规则:对象），临时豁免（known-issues.mjs）按 key 匹配。
-import { checkContainers, exercisesOf, frontmatterLines, goalsOf, h1Of, importsOf, labsOf, maskFences, normTitle, readFrontmatter, scanSc, sectionsOf } from './content.mjs';
+import { checkContainers, collectGlossary, exercisesOf, frontmatterLines, goalsOf, h1Of, importsOf, labsOf, maskFences, normTitle, readFrontmatter, scanSc, sectionsOf } from '../../course/content-parse.mjs';
 import { compareSnapshot, computeCards } from './cards.mjs';
 
 /** 不是章的页面：旧地址的跳转页，没有 id */
@@ -17,6 +17,8 @@ const nonEmpty = v => typeof v === 'string' && v.trim() !== '';
 /**
  * inp:
  *   chapterFiles   { 文件名(不带 .md): 源文件文字 }
+ *   extraPages     { 'course/glossary.md': 源文件文字 }：首页、术语表、今日复习、阶段测验页。只扫章引用和站内链接（没有这个字段则不扫）
+ *   writingTerms   首页“写作规则”表的数据（course/writing-terms.mjs 的 WRITING_TERMS）；没有则不检查
  *   exercises      { 练习文件名(不带 .ts): 导出对象 }
  *   questions      checks/questions.ts 的 Q
  *   stageCount     阶段数
@@ -272,6 +274,34 @@ export function validate(inp, opts = {}) {
     }
   }
 
+  // ---------- 术语 ----------
+  // 汇总各章“本章术语”块（格式错了就报出来），再校验首页写作规则表里的术语都能在术语表里找到
+  const glossaryTerms = new Set();
+  {
+    const metas = chapters.filter(c => nonEmpty(c.fm.id) && Number.isInteger(c.stage)).map(c => ({
+      meta: { id: c.fm.id, file: c.file, link: `/chapters/${c.file}`, chapter: c.no, title: c.fm.title, stage: c.stage },
+      src: c.src,
+    }));
+    const safe = [];
+    for (const m of metas) {
+      try { collectGlossary([m]); safe.push(m); } catch (e) { fail(`terms-format:${m.meta.file}`, CH(m.meta.file), String(e.message), '术语块里每个术语：一行术语，下一行以 `: ` 开头写解释，术语之间空一行'); }
+    }
+    for (const e of collectGlossary(safe).entries) glossaryTerms.add(e.term);
+  }
+  if (inp.writingTerms) {
+    const seenTerm = new Map();
+    inp.writingTerms.forEach((w, i) => {
+      const where = `course/writing-terms.mjs 第 ${i + 1} 条（${w?.label}）`;
+      if (!w || !nonEmpty(w.label) || !nonEmpty(w.meaning) || !nonEmpty(w.avoid) || !Array.isArray(w.terms) || !w.terms.length || !w.terms.every(nonEmpty))
+        return fail(`wterm:${i}`, where, '每条要有 label、terms（非空数组）、meaning、avoid');
+      for (const t of w.terms) {
+        if (seenTerm.has(t)) fail(`wterm-dup:${t}`, where, `术语“${t}”和第 ${seenTerm.get(t)} 条重复`);
+        else seenTerm.set(t, i + 1);
+        if (!glossaryTerms.has(t)) fail(`wterm-missing:${t}`, where, `术语“${t}”在术语表里找不到（没有哪一章的“本章术语”块写了它）`, '在合适的章的术语块里补上这个术语，或改这里的 terms 与术语块的写法一致（不要为此改章节内容时，先登记到 scripts/lib/known-issues.mjs）');
+      }
+    });
+  }
+
   // ---------- 阶段测验专用题 ----------
   const checkCount = {};
   inp.questions.forEach((row, i) => {
@@ -326,6 +356,7 @@ export function validate(inp, opts = {}) {
   }
   /** 待扫描的文字来源：{ where, lines: [[行号|null, 文字]] } */
   const sources = pages.map(c => ({ where: c.where, lines: c.masked.split('\n').map((t, i) => [i + 1, t]), rawText: c.src }));
+  for (const [rel, src] of Object.entries(inp.extraPages || {})) sources.push({ where: rel, lines: maskFences(src).masked.split('\n').map((t, i) => [i + 1, t]), rawText: src });
   for (const [file, mod] of Object.entries(inp.exercises)) {
     for (const [id, ex] of Object.entries(mod)) {
       if (!ex || typeof ex !== 'object') continue;
@@ -421,6 +452,7 @@ export function validate(inp, opts = {}) {
     labs: labSeen.size,
     refs: refCount,
     cards: Object.keys(current.cards).length,
+    terms: glossaryTerms.size,
   };
   return { errors, notes, stats, current, snapshotDiff, chapters };
 }

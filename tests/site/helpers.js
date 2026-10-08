@@ -8,6 +8,7 @@ const esbuild = require('esbuild')
 const fs = require('fs')
 const net = require('net')
 const path = require('path')
+const { BASE_NO_SLASH } = require('../../course/site.mjs')
 
 const ROOT = path.resolve(__dirname, '../..')
 const IGNORED_CONSOLE = [/Hydration (completed but contains mismatches|node mismatch|children mismatch|text content mismatch|class attribute mismatch|style mismatch|attribute mismatch)/i]
@@ -38,16 +39,28 @@ async function waitUp(url) {
   throw new Error('preview 没有启动')
 }
 
-/** 起 preview 和浏览器。返回 { base, browser, newPage(opts), stop() }。newPage 返回带控制台报错收集的页面 */
+/**
+ * 起 vitepress preview（读 env 里的 COURSE_OUT_DIR，没有就读默认的 dist）。
+ * 返回 { origin, base, stop }：origin 是 http://127.0.0.1:端口，base 是 origin 加站点的 base 路径（course/site.mjs，不带结尾斜杠），
+ * 测试里页面地址一律写成 base + '/chapters/…'，所以 base 路径只在 course/site.mjs 一处定义。
+ */
+async function startPreview(env = process.env) {
+  const port = await freePort()
+  const srv = spawn(process.execPath, [path.join(ROOT, 'node_modules/vitepress/bin/vitepress.js'), 'preview', 'course', '--port', String(port), '--strictPort'], { cwd: ROOT, env, stdio: 'ignore' })
+  const origin = 'http://127.0.0.1:' + port
+  const base = origin + BASE_NO_SLASH
+  try { await waitUp(base + '/') } catch (e) { srv.kill(); throw e }
+  return { origin, base, stop: () => srv.kill() }
+}
+
+/** 起 preview 和浏览器。返回 { origin, base, browser, newPage(opts), stop() }。newPage 返回带控制台报错收集的页面 */
 async function startSite() {
   const dist = process.env.COURSE_OUT_DIR || path.join(ROOT, 'course/.vitepress/dist')
   if (!fs.existsSync(path.join(dist, 'index.html'))) {
     console.error('没有构建产物（' + dist + '）。先运行 npm run build，或者用 npm run test:site；也可以设 COURSE_OUT_DIR 指向已构建的目录'); process.exit(2)
   }
-  const port = await freePort()
-  const srv = spawn(process.execPath, [path.join(ROOT, 'node_modules/vitepress/bin/vitepress.js'), 'preview', 'course', '--port', String(port), '--strictPort'], { cwd: ROOT, stdio: 'ignore' })
-  const base = 'http://127.0.0.1:' + port
-  await waitUp(base + '/')
+  const pv = await startPreview()
+  const { base, origin } = pv
   const browser = await chromium.launch()
   const ctxs = []
   async function newPage(opts = {}) {
@@ -59,7 +72,7 @@ async function startSite() {
     p.on('console', m => { if (m.type() === 'error' && !IGNORED_CONSOLE.some(re => re.test(m.text()))) p.errs.push(m.text()) })
     return p
   }
-  return { base, browser, newPage, async stop() { await browser.close(); srv.kill() } }
+  return { origin, base, browser, newPage, async stop() { await browser.close(); pv.stop() } }
 }
 
 // 把 .ts / .mts 打成 CJS 在 Node 里读（只取数据）
@@ -73,13 +86,18 @@ function loadTs(file, external = []) {
 /** 全部章的元数据（用站点同一份代码读 chapters/*.md） */
 function loadChapters() {
   const mod = loadTs(path.join(ROOT, 'course/.vitepress/course-data.mts'), ['vitepress', 'vite'])
-  return mod.readChapters(path.join(ROOT, 'course/chapters')).map(c => ({ ...c.meta, selfchecks: mod.parseSelfChecks(c.src) }))
+  const { parseSelfChecks } = require('../../course/content-parse.mjs')
+  return mod.readChapters(path.join(ROOT, 'course/chapters')).map(c => ({ ...c.meta, selfchecks: parseSelfChecks(c.src) }))
 }
 function loadExercises() {
   const dir = path.join(ROOT, 'course/exercises')
   const all = {}
   for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.ts') && f !== 'index.ts' && f !== 'types.ts')) Object.assign(all, loadTs(path.join(dir, f)))
   return all
+}
+/** 阶段定义（course/stages.ts）：{ STAGES, STAGE_COUNT } */
+function loadStages() {
+  return loadTs(path.join(ROOT, 'course/stages.ts'))
 }
 function loadQuestions() {
   return loadTs(path.join(ROOT, 'course/checks/questions.ts')).Q
@@ -107,4 +125,4 @@ function fullChapter(c, overrides = {}) {
   return { sc, ex, done: false, ...overrides }
 }
 
-module.exports = { ROOT, makeReporter, startSite, loadChapters, loadExercises, loadQuestions, seed, seedLegacy, read, fullChapter, STORE_KEY }
+module.exports = { ROOT, IGNORED_CONSOLE, makeReporter, startSite, startPreview, loadChapters, loadExercises, loadQuestions, loadStages, seed, seedLegacy, read, fullChapter, STORE_KEY }

@@ -15,9 +15,11 @@ import {
   srsRecordGated,
   stagePools
 } from '../../course/engine/cards.ts'
-import { pickStageQuestions } from '../../course/engine/logic/stageCheck.ts'
+import { pickStageQuestions, STAGE_FRESH, STAGE_QUESTIONS } from '../../course/engine/logic/stageCheck.ts'
 import type { Progress, SelfCheckData } from '../../course/engine/types.ts'
 import { DAY, NOW, srsCard } from './fixtures.ts'
+import { STAGE_COUNT } from '../../course/stages.ts'
+import EXPECTED from '../expected.cjs'
 
 // ---- 从真实的章节 Markdown 读出章 id、阶段和自测题数（规则和 course-data.mts 的 parseSelfChecks 一致：只认非 predict 的 <Sc>）
 const chaptersDir = path.resolve(import.meta.dirname, '../../course/chapters')
@@ -158,30 +160,22 @@ describe('阶段题池', () => {
     expect(fresh.length).toBe(Q.filter(r => stageOfChapter.get(r[3]) === 1).length)
   })
 
-  it('每个阶段的可用题数（锁住：补题时这张表要跟着改）：章数、章内自测数、专用题（#cN）数', () => {
-    const table = [1, 2, 3, 4, 5, 6].map(stage => {
+  it('每个阶段的可用题数（锁住：补题、增删章时到 tests/expected.cjs 改这张表）：章数、章内自测数、专用题（#cN）数', () => {
+    const table = Array.from({ length: STAGE_COUNT }, (_, k) => k + 1).map(stage => {
       const ids = chapters.filter(c => c.stage === stage).map(c => c.id)
       const { pool, fresh } = stagePools(catalog, ids)
       return [stage, ids.length, pool.length, fresh.length]
     })
-    expect(table).toEqual([
-      [1, 4, 21, 11],
-      [2, 7, 39, 16],
-      [3, 3, 15, 9],
-      [4, 3, 15, 6],
-      [5, 5, 24, 10],
-      [6, 4, 20, 8]
-    ])
+    expect(table).toEqual(EXPECTED.STAGE_POOLS)
   })
 
-  it('阶段 1 到 6 都能抽满 12 题；专用题最多 8 道，不够 8 道时用章内自测补足（阶段 4 只有 6 道专用题，抽 6 道专用题 + 6 道自测）', () => {
-    const fresh8: Record<number, number> = { 1: 8, 2: 8, 3: 8, 4: 6, 5: 8, 6: 8 }
-    for (const stage of [1, 2, 3, 4, 5, 6]) {
+  it('每个阶段都能抽满一套题；专用题最多 STAGE_FRESH 道，不够时用章内自测补足（专用题不足的阶段，抽出的专用题数 = 它的全部专用题数）', () => {
+    for (let stage = 1; stage <= STAGE_COUNT; stage++) {
       const { pool, fresh } = stagePools(catalog, chapters.filter(c => c.stage === stage).map(c => c.id))
       const picks = pickStageQuestions(pool, fresh, {}, () => 0.5)
-      expect(picks.length, `阶段 ${stage}`).toBe(12)
-      expect(picks.filter(p => p.kind === 'check').length, `阶段 ${stage} 的专用题数`).toBe(fresh8[stage])
-      expect(new Set(picks.map(p => p.key)).size, `阶段 ${stage} 不重复`).toBe(12)
+      expect(picks.length, `阶段 ${stage}`).toBe(STAGE_QUESTIONS)
+      expect(picks.filter(p => p.kind === 'check').length, `阶段 ${stage} 的专用题数`).toBe(Math.min(STAGE_FRESH, fresh.length))
+      expect(new Set(picks.map(p => p.key)).size, `阶段 ${stage} 不重复`).toBe(STAGE_QUESTIONS)
     }
   })
 })

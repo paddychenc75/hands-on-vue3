@@ -10,13 +10,12 @@
 //      每章的实验台数据在 tests/site/labs/<章文件名>.js（见下面的 loadLabs），章里每个 <Lab id> 都必须有一项
 //   5. 练习 id 全局不重复
 const { chromium } = require('playwright')
-const { spawn, spawnSync } = require('child_process')
+const { spawnSync } = require('child_process')
 const os = require('os')
 const fs = require('fs')
-const net = require('net')
 const path = require('path')
 const esbuild = require('esbuild')
-const { loadChapters, STORE_KEY } = require('./helpers')
+const { loadChapters, startPreview, STORE_KEY } = require('./helpers')
 const CHAPTERS = loadChapters()
 
 const ROOT = path.resolve(__dirname, '../..')
@@ -50,23 +49,6 @@ function loadLabs(ch) {
   return fs.existsSync(f) ? require(f) : []
 }
 
-function freePort() {
-  return new Promise((res, rej) => {
-    const s = net.createServer().listen(0, () => { const p = s.address().port; s.close(() => res(p)) })
-    s.on('error', rej)
-  })
-}
-
-async function waitUp(url) {
-  for (let i = 0; i < 60; i++) {
-    try { if ((await fetch(url)).ok) return } catch (e) { /* 还没起来 */ }
-    await new Promise(r => setTimeout(r, 250))
-  }
-  throw new Error('preview 没有启动')
-}
-
-// ---- 实验台测试 ----
-// run 的参数：p 是页面，body 是实验台正文的 locator，ok(c, msg) 记一条结果。
 async function runLabs(browser, base, ch) {
   for (const lab of loadLabs(ch)) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })
@@ -118,16 +100,14 @@ async function runLabs(browser, base, ch) {
       fs.rmSync(tmp, { recursive: true, force: true })
       process.exit(1)
     }
-  } else if (!fs.existsSync(path.join(ROOT, 'course/.vitepress/dist/index.html'))) {
-    console.error('没有构建产物。先运行 npm run build，或者用 npm run test:site'); process.exit(2)
+  } else if (!fs.existsSync(path.join(env.COURSE_OUT_DIR || path.join(ROOT, 'course/.vitepress/dist'), 'index.html'))) {
+    console.error('没有构建产物。先运行 npm run build，或者用 npm run test:site；也可以设 COURSE_OUT_DIR 指向已构建的目录'); process.exit(2)
   }
   const EX = loadExercises(args.length ? args : null)
-  const port = await freePort()
-  const srv = spawn(process.execPath, [path.join(ROOT, 'node_modules/vitepress/bin/vitepress.js'), 'preview', 'course', '--port', String(port), '--strictPort'], { cwd: ROOT, env, stdio: 'ignore' })
-  const base = 'http://127.0.0.1:' + port
+  const pv = await startPreview(env)
+  const base = pv.base
   const browser = await chromium.launch()
   try {
-    await waitUp(base + '/')
     for (const ch of chapters) {
       const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })
       const p = await ctx.newPage()
@@ -284,7 +264,7 @@ async function runLabs(browser, base, ch) {
     }
   } finally {
     await browser.close()
-    srv.kill()
+    pv.stop()
     if (tmp) fs.rmSync(tmp, { recursive: true, force: true })
   }
   console.log(bad ? '有 ' + bad + ' 项失败' : '全部通过')

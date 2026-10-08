@@ -5,6 +5,7 @@
 import { computed, onMounted } from 'vue'
 import { withBase } from 'vitepress'
 import { chapters } from 'virtual:course-meta'
+import { WRITING_TERMS } from '../../../writing-terms.mjs'
 import { agoText, chapterByPath, chapterState, chaptersOfStage, CHECK_LABEL, checkLink, dueCount, ensureReady, getLast, learnedCount, progressChapters, ready, stageCheckStatus, STAGES, STATE_LABEL } from '../composables/learn'
 
 const cheat = chapters.find(c => c.id === 'cheat')
@@ -48,7 +49,7 @@ const resume = computed(() => {
     <header class="hero">
       <div class="eyebrow">VUE 3.5 · 中文互动课程</div>
       <h1>动手学 <em>Vue 3</em></h1>
-      <p>本课程有 6 个阶段：25 章正文和 1 个综合实战，每个阶段末尾有一次阶段测验。阶段一和阶段二教你使用 Vue：模板、响应式、组件、内置组件、自定义指令、组合式函数、插件和表单。阶段三和阶段四说明 Vue 的内部原理：响应式、更新队列、渲染函数、模板编译、虚拟 DOM 与 diff，以及组件设计模式。阶段五介绍 Pinia、Router、TypeScript、性能优化和工程化。阶段六讲 SSR、自定义渲染器和 Vue 2 迁移，并包含一个完整的小项目。</p>
+      <p>本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章，每个阶段末尾有一次阶段测验。阶段一和阶段二教你使用 Vue：模板、响应式、组件、内置组件、自定义指令、组合式函数、插件和表单。阶段三和阶段四说明 Vue 的内部原理：响应式、更新队列、渲染函数、模板编译、虚拟 DOM 与 diff，以及组件设计模式。阶段五介绍 Pinia、Router、TypeScript、性能优化和工程化。阶段六讲 SSR、自定义渲染器和 Vue 2 迁移，并包含一个完整的小项目。</p>
 
       <p class="prereq"><b>开始前你需要会：</b>HTML 和 CSS 基础（标签、属性、选择器），JavaScript 基础（变量、函数、箭头函数、数组的 map 和 filter、对象和数组的解构与展开、import 和 export 模块、Promise 与 async/await）。讲工程化的章节还会用到命令行和 npm。还不熟的话，先花一两周补 JavaScript，再回来学会轻松很多。</p>
 
@@ -148,20 +149,7 @@ const resume = computed(() => {
           <div class="tbl-wrap"><table class="t" id="glossary">
             <tbody>
               <tr><th>术语</th><th>意思</th><th>不使用的同义词</th></tr>
-              <tr><td>响应式数据</td><td>Vue 跟踪读写的数据。数据改变时，Vue 更新页面。</td><td>响应式状态、可观察数据</td></tr>
-              <tr><td>副作用函数（effect）</td><td>读取响应式数据并且在数据改变时再次运行的函数</td><td>观察者（源码中的 Subscriber 译为“订阅者”，只在深入部分使用）</td></tr>
-              <tr><td>收集依赖（track）</td><td>记录“哪个副作用函数读取了哪个属性”</td><td>订阅、登记</td></tr>
-              <tr><td>触发更新（trigger）</td><td>再次运行读取了被修改属性的副作用函数</td><td>通知、派发</td></tr>
-              <tr><td>组件</td><td>有自己的模板、数据和逻辑的可复用单元</td><td>控件、模块</td></tr>
-              <tr><td>父组件 / 子组件</td><td>在模板中使用另一个组件的组件 / 被使用的组件</td><td>上层组件、下层组件</td></tr>
-              <tr><td>props</td><td>父组件传给子组件的数据</td><td>参数、入参、属性</td></tr>
-              <tr><td>事件（emit）</td><td>子组件发给父组件的消息</td><td>回调、通知</td></tr>
-              <tr><td>渲染函数（render）</td><td>返回虚拟节点的函数</td><td>模板函数</td></tr>
-              <tr><td>虚拟节点（VNode）</td><td>描述一个 DOM 元素的 JavaScript 对象</td><td>虚拟 DOM 节点</td></tr>
-              <tr><td>挂载 / 卸载</td><td>把组件加入页面 / 从页面移除组件。“渲染”是另一个术语：运行渲染函数，得到虚拟节点</td><td>销毁</td></tr>
-              <tr><td>更新队列</td><td>等待执行的组件更新任务列表</td><td>调度队列、任务池</td></tr>
-              <tr><td>组合式函数（composable）</td><td>以 use 开头、使用响应式 API 的函数</td><td>Hook、mixin</td></tr>
-              <tr><td>编译宏</td><td>编译器在构建时替换的函数，例如 defineProps</td><td>宏函数、全局函数</td></tr>
+              <tr v-for="w in WRITING_TERMS" :key="w.label"><td>{{ w.label }}</td><td>{{ w.meaning }}</td><td>{{ w.avoid }}</td></tr>
             </tbody>
           </table></div>
         </div>

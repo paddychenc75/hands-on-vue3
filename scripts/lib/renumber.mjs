@@ -4,7 +4,7 @@
 //   文件名 NN-id.md / exercises/NN-id.ts / labs/NN-id/ / figures/NN-id/ / tests/site/labs/NN-id.js（以及所有写到这些名字的地方）
 //   frontmatter 的 chapter；练习里的 ch；小节标题 ### N.M；正文、练习提示、题库里的“第 N 章”“N.M 节”“N.M 标题”
 // 章 id（frontmatter 的 id）是存储键，不变；复习卡片键快照按 id 记，所以不受影响。
-import { maskFences } from './content.mjs';
+import { maskFences } from '../../course/content-parse.mjs';
 
 /** 把一行里指向章号 >= from 的引用 +1（第 N 章、N.M 节、“N.M 标题”）。规则与 validate.mjs 的引用检查一致 */
 export function shiftRefsInLine(line, from) {

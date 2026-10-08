@@ -11,11 +11,12 @@
 //   2. 自测题：每道 <Sc> 至少 2 个 <Opt>、:a 在范围内、有解析；<Sc> 的书写格式能被构建时的抽取逻辑抽出来（个数对得上）。
 //   3. 目标：<Goal checks="sc:N,ex:id"> 引用的自测序号和练习 id 都存在。
 //   4. 练习：<Exercise id> 都能在 course/exercises/ 找到，且每道练习都被某一章使用；id 全局唯一；字段齐全；hints 非空；
-//      至少 1 个 wrong 且没有 WRONG_SUB_FAILED；有 faded 时格式正确。
+//      至少 1 个 wrong 且没有 WRONG_SUB_FAILED；faded（半成品）必填：格式正确、不与参考答案相同、至少 1 个 ✏️ 占位。
 //   5. 实验台：<Lab id> 全局唯一；import 的实验台和示意图存在；每个 <Lab id> 在 tests/site/labs/ 里有测试数据。
 //   6. 阶段测验专用题（checks/questions.ts）：格式、章 id 存在；阶段：stage 范围、阶段测验页存在、每个阶段题量够抽 12 题。
 //   7. 复习卡片键快照 course/card-keys.snapshot.json：已有的键不能消失、不能换位置，只能在末尾追加。
-//   8. 站内引用：“第 N 章”在范围内；“N.M 节”“N.M 标题”对应真实小节；站内链接目标存在。
+//   8. 站内引用：“第 N 章”在范围内；“N.M 节”“N.M 标题”对应真实小节；站内链接目标存在。除章外，也扫首页、术语表、今日复习、阶段测验页。
+//   8b. 术语：各章“本章术语”块格式正确；首页写作规则表（course/writing-terms.mjs）里的术语都能在术语表里找到。
 //   9. 残留：【待写】占位只提示（--strict 时算错误）。
 import fs from 'node:fs';
 import path from 'node:path';

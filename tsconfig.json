@@ -14,5 +14,5 @@
     "noImplicitAny": false,
     "useUnknownInCatchVariables": false
   },
-  "include": ["course/engine", "tests/unit", "vitest.config.ts"]
+  "include": ["course/engine", "tests/unit", "vitest.config.mts"]
 }

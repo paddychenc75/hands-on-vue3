@@ -1,5 +1,5 @@
 # 部署到 GitHub Pages：只在 main 分支的 CI（check 和 e2e）全部通过之后运行，直接发布 CI 里构建好的站点，不重复构建。
-# 使用前：仓库 Settings → Pages → Source 选 "GitHub Actions"。站点地址是 https://<用户>.github.io/hands-on-vue3/（base 见 course/.vitepress/config.mts）。
+# 使用前：仓库 Settings → Pages → Source 选 "GitHub Actions"。站点地址是 https://<用户>.github.io/hands-on-vue3/（base 见 course/site.mjs）。
 name: Deploy to GitHub Pages
 
 on:

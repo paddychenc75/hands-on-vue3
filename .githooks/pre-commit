@@ -1,5 +1,5 @@
 #!/bin/sh
-# 提交前检查（1 到 2 秒）：内容校验（章节、自测题、练习、实验台、卡片键快照、站内引用）。
+# 提交前检查（2 秒内）：内容校验（章节、自测题、练习、实验台、卡片键快照、站内引用、术语）和文档里的数字核对。
 # 由 npm install 的 prepare 脚本启用（git config core.hooksPath .githooks）。
 # 临时跳过：git commit --no-verify
-npm run --silent check:content
+npm run --silent check:content && npm run --silent check:docs

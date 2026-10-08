@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // 术语表页：全站术语，从各章“本章术语”块在构建时汇总（virtual:course-glossary，规则见 AUTHORING.md 第 7 节）。
+// “不这样说”一栏来自 course/writing-terms.mjs（首页写作规则表的数据）：术语表里有同名术语的才有内容。
 // 按首次出现的先后排（阶段、章号），可以按术语或解释里的文字过滤。服务端也渲染全部条目。
 import { computed, ref } from 'vue'
 import { withBase } from 'vitepress'
@@ -23,17 +24,18 @@ const shown = computed(() => {
     <div class="tbl">
       <table class="gl-table">
         <thead>
-          <tr><th>术语</th><th>含义</th><th>出自</th></tr>
+          <tr><th>术语</th><th>含义</th><th>不这样说</th><th>出自</th></tr>
         </thead>
         <tbody>
           <tr v-for="g in shown" :key="g.term" class="gl-row" :data-term="g.term">
             <td class="gl-term"><b>{{ g.term }}</b></td>
             <td class="gl-def" v-html="g.def"></td>
+            <td class="gl-avoid">{{ g.avoid }}</td>
             <td class="gl-src">
               <template v-for="(c, i) in g.chapters" :key="c.id"><a :href="withBase(c.link)" :title="c.title">第 {{ c.chapter }} 章</a><span v-if="i < g.chapters.length - 1">、</span></template>
             </td>
           </tr>
-          <tr v-if="!shown.length" class="gl-empty"><td colspan="3">没有匹配“{{ q }}”的术语。</td></tr>
+          <tr v-if="!shown.length" class="gl-empty"><td colspan="4">没有匹配“{{ q }}”的术语。</td></tr>
         </tbody>
       </table>
     </div>

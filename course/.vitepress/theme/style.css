@@ -672,6 +672,7 @@ html.fig-open { overflow: hidden; }
 .glossary .gl-term b { font-weight: 700; }
 .glossary .gl-def { min-width: 0; }
 .glossary .gl-def code { font-size: .88em; }
+.glossary .gl-avoid { font-size: 13px; color: var(--muted); min-width: 7em; }
 .glossary .gl-src { font-size: 13px; color: var(--muted); }
 .glossary .gl-src a { white-space: nowrap; }
 .glossary .gl-empty td { color: var(--muted); text-align: center; padding: 24px; }
@@ -682,6 +683,8 @@ html.fig-open { overflow: hidden; }
   .vp-doc .glossary .tbl tr { padding: 10px 0; border-bottom: 1px solid var(--line); }
   .vp-doc .glossary .tbl tr:last-child { border-bottom: 0; }
   .vp-doc .glossary .tbl td.gl-term { padding-top: 0; }
+  .vp-doc .glossary .tbl td.gl-avoid:empty { display: none; }
+  .vp-doc .glossary .tbl td.gl-avoid:not(:empty)::before { content: '不这样说：'; }
 }
 
 /* ---- 术语标注：虚线下划线，悬停或点按显示定义 ---- */

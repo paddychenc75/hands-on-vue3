@@ -1,10 +1,8 @@
-// 章节 Markdown 的纯文本解析：不读文件，只处理字符串。check-content、new-chapter 和单元测试共用。
-//
-// 注意：parseSelfChecks 和 parseSummary 是 course/.vitepress/course-data.mts 里同名函数的独立副本。
-// 构建时站点用 course-data.mts 的版本，这里的版本给 Node 脚本用。两份必须保持一致，
-// tests/unit/content-parity.test.ts 会对全部章节断言两份输出相同。（应当合并成一份，见 AGENTS.md 的说明。）
+// 章节 Markdown 的纯文本解析：不读文件、不碰 DOM、不依赖 Vite，只处理字符串。
+// 站点构建（course/.vitepress/course-data.mts、sidebar.mts）和 Node 脚本（scripts/ 里的 check-content、new-chapter，
+// 以及单元测试）共用这一份实现，不再有第二份副本。要在两边都能 import，所以写成 .mjs。
 
-/** 读 frontmatter 里“键: 值”行（和 course/.vitepress/sidebar.mts 的 readFrontmatter 同一规则）。没有 frontmatter 返回 null */
+/** 读 frontmatter 里“键: 值”行。值可以是引号字符串或普通文字。没有 frontmatter 返回 null */
 export function readFrontmatter(src) {
   const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(src);
   if (!m) return null;
@@ -31,10 +29,59 @@ export function frontmatterLines(src) {
   return m ? m[0].split('\n').length : 0;
 }
 
-/** 一章的小结块（::: summary 到结尾 :::）里的 Markdown 原文 */
-export function parseSummary(md) {
-  const m = /^::: summary[^\n]*\n([\s\S]*?)\n:::[ \t]*$/m.exec(md);
+/** 一个容器块（`::: 名` 到下一行单独的 `:::`）里的 Markdown 原文。没有这个块返回空串 */
+function containerBody(md, name) {
+  const m = new RegExp(`^::: ${name}[^\\n]*\\n([\\s\\S]*?)\\n:::[ \\t]*$`, 'm').exec(md);
   return m ? m[1].trim() : '';
+}
+
+/** 一章的小结块（::: summary）里的 Markdown 原文 */
+export const parseSummary = md => containerBody(md, 'summary');
+
+/** 一章“本章术语”块（::: terms）里的 Markdown 原文 */
+export const parseTermsBlock = md => containerBody(md, 'terms');
+
+/** 一章“阅读时间”块（::: rt）里的文字，例如“阅读主线约 7 分钟，深入内容约 2 分钟（可选）。……”。章头显示它，正文里不再单独渲染 */
+export const parseReadingTime = md => containerBody(md, 'rt').replace(/\s*\n\s*/g, ' ');
+
+/** 把术语块拆成 [{ term, def }]。格式是定义列表：第一行术语，下一行以 `: ` 开头写解释，术语之间空一行 */
+export function parseTerms(block) {
+  const out = [];
+  for (const part of block.split(/\n[ \t]*\n/)) {
+    const lines = part.trim().split('\n');
+    const term = lines[0]?.trim();
+    const def = lines.slice(1).map(l => l.replace(/^:\s+/, '').trim()).join(' ').trim();
+    if (!term || !def || !/^:\s/.test(lines[1] ?? '')) throw new Error('本章术语块格式不对（术语一行，下一行以 `: ` 开头写解释）：' + part.slice(0, 50));
+    out.push({ term, def });
+  }
+  return out;
+}
+
+/**
+ * 汇总全站术语。chapters 是 [{ meta: { id, file, link, chapter, title, stage }, src }]，按章的先后（阶段、章号）排好。
+ * 同名术语合并：保留首次出现的定义，记录出现过的所有章；定义文字不同的同名术语记进 conflicts。只看有阶段的章（速查表没有术语块）。
+ * 返回 { entries: [{ term, defSrc, chapters: [{ id, link, chapter, title }] }], conflicts: [{ term, defs: [{ file, def }] }] }
+ */
+export function collectGlossary(chapters) {
+  const byTerm = new Map();
+  for (const { meta, src } of chapters) {
+    if (meta.stage == null) continue;
+    const block = parseTermsBlock(src);
+    if (!block) continue;
+    const ref = { id: meta.id, link: meta.link, chapter: meta.chapter, title: meta.title };
+    for (const { term, def } of parseTerms(block)) {
+      const e = byTerm.get(term);
+      if (!e) byTerm.set(term, { term, defSrc: def, chapters: [ref], defs: [{ file: meta.file, def }] });
+      else {
+        if (!e.chapters.some(c => c.id === meta.id)) e.chapters.push(ref);
+        e.defs.push({ file: meta.file, def });
+      }
+    }
+  }
+  const entries = [...byTerm.values()];
+  const norm = s => s.replace(/\s+/g, '');
+  const conflicts = entries.filter(e => new Set(e.defs.map(d => norm(d.def))).size > 1).map(e => ({ term: e.term, defs: e.defs }));
+  return { entries: entries.map(({ term, defSrc, chapters }) => ({ term, defSrc, chapters })), conflicts };
 }
 
 /** 从下标换算行号（从 1 起） */
@@ -103,7 +150,7 @@ export function scanSc(md) {
   return out;
 }
 
-/** 和 course-data.mts 的 parseSelfChecks 同一输出：只含“非先猜”的自测题，{ a, stemSrc, opts, explainSrc } */
+/** 只含“非先猜”的自测题（带 predict 的先猜题不算），{ a, stemSrc, opts, explainSrc }。序号规则和 Sc 组件一致：本章第几道非先猜的 <Sc>，从 0 起 */
 export function parseSelfChecks(md) {
   return scanSc(md)
     .filter(s => !s.predict)

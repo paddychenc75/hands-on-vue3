@@ -10,15 +10,14 @@
 //   5. 390px 宽没有横向滚动
 //   6. 术语标注：只标已学过的术语，每小节每个术语最多标一次，不标代码、标题、链接、术语块、目标、自测、实验台、练习；悬停和聚焦显示定义；换页后不叠加
 const { chromium } = require('playwright')
-const { spawn, spawnSync } = require('child_process')
+const { spawnSync } = require('child_process')
 const fs = require('fs')
 const os = require('os')
-const net = require('net')
 const path = require('path')
-const { makeReporter } = require('./helpers')
+const { makeReporter, startPreview, IGNORED_CONSOLE } = require('./helpers')
 
 const ROOT = path.resolve(__dirname, '../..')
-const IGNORED_CONSOLE = [/Hydration (completed but contains mismatches|node mismatch|children mismatch|text content mismatch|class attribute mismatch|style mismatch|attribute mismatch)/i]
+const { WRITING_TERMS } = require('../../course/writing-terms.mjs')
 const R = makeReporter()
 
 // ---- 独立地从章节 Markdown 里数术语 ----
@@ -46,14 +45,6 @@ function readTerms() {
   return { byTerm, chapters }
 }
 
-function freePort() {
-  return new Promise((res, rej) => { const s = net.createServer().listen(0, () => { const p = s.address().port; s.close(() => res(p)) }); s.on('error', rej) })
-}
-async function waitUp(url) {
-  for (let i = 0; i < 80; i++) { try { if ((await fetch(url)).ok) return } catch (e) { /* 还没起来 */ } await new Promise(r => setTimeout(r, 250)) }
-  throw new Error('preview 没有启动')
-}
-
 ;(async () => {
   const { byTerm, chapters } = readTerms()
   const firstChapterNo = Object.fromEntries(chapters.map(c => [c.file, c.chapter]))
@@ -69,9 +60,8 @@ async function waitUp(url) {
     const b = spawnSync(process.execPath, [path.join(ROOT, 'node_modules/vitepress/bin/vitepress.js'), 'build', 'course'], { cwd: ROOT, env, encoding: 'utf8' })
     if (b.status !== 0) { console.error(b.stdout + b.stderr); console.error('构建失败'); process.exit(1) }
   }
-  const port = await freePort()
-  const srv = spawn(process.execPath, [path.join(ROOT, 'node_modules/vitepress/bin/vitepress.js'), 'preview', 'course', '--port', String(port), '--strictPort'], { cwd: ROOT, env, stdio: 'ignore' })
-  const base = 'http://127.0.0.1:' + port
+  const pv = await startPreview(env)
+  const base = pv.base
   const browser = await chromium.launch()
   const newPage = async (opts = {}) => {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, ...opts })
@@ -82,7 +72,6 @@ async function waitUp(url) {
     return p
   }
   try {
-    await waitUp(base + '/')
 
     // ---------- 1. 条目数和合并 ----------
     const p = await newPage()
@@ -208,6 +197,69 @@ async function waitUp(url) {
       g.end()
     }
     {
+      // 复合词里的子串不标：对每一章，每个标注（abbr.term）的前后相邻文字不能和它一起组成另一个更长的已知术语
+      // （已知术语 = 术语表全部术语 + 首页写作规则表里的术语）。例：第 2 到 7 章里的“自定义指令”不能把里面的“指令”标出来
+      const g = R.group('术语标注：不标复合词里的子串（每章的每个标注都不是更长已知术语的一部分）')
+      const known = [...new Set([...rows.map(r => r.term), ...WRITING_TERMS.flatMap(w => w.terms)])]
+      const q = await newPage()
+      let marked = 0, compoundTexts = 0
+      const chapterFiles = [...chapters.map(c => c.file)]
+      for (const c of chapterFiles) {
+        await q.goto(base + `/chapters/${c}.html`)
+        await q.waitForSelector('.vp-doc h1'); await q.waitForTimeout(500)
+        const r = await q.evaluate(known => {
+          const bad = []
+          let n = 0, compounds = 0
+          for (const ab of document.querySelectorAll('.vp-doc abbr.term')) {
+            n++
+            // 同一个文字节点前后的文字（标注把节点拆开了，所以取父元素的整段文字，按 abbr 在其中的位置切）
+            const parent = ab.parentElement
+            let before = '', after = '', seenSelf = false
+            for (const node of parent.childNodes) {
+              if (node === ab) { seenSelf = true; continue }
+              if (seenSelf) after += node.textContent; else before += node.textContent
+            }
+            const t = ab.textContent
+            for (const k of known) {
+              if (k.length <= t.length || !k.includes(t)) continue
+              for (let at = k.indexOf(t); at >= 0; at = k.indexOf(t, at + 1)) {
+                if (before.endsWith(k.slice(0, at)) && after.startsWith(k.slice(at + t.length))) bad.push(`“${t}”在“${k}”里`)
+              }
+            }
+          }
+          // 页面上确实出现了复合词的文字（用来证明这个检查不是空转）
+          const text = document.querySelector('.vp-doc')?.textContent || ''
+          for (const k of known) if (text.includes(k)) compounds++
+          return { n, bad, compounds }
+        }, known)
+        marked += r.n; compoundTexts += r.compounds
+        g.ok(r.bad.length === 0, `${c} 标了复合词里的子串：${r.bad.slice(0, 3)}`)
+      }
+      g.ok(marked > 100, `共检查了 ${marked} 处标注`)
+      g.ok(compoundTexts > 0, '页面里确实出现了已知术语的文字（这个检查不是空转）')
+      g.end()
+    }
+    {
+      const g = R.group('术语表页“不这样说”一栏：来自首页写作规则表（course/writing-terms.mjs），只有同名术语才有内容')
+      const p3 = await newPage()
+      await p3.goto(base + '/glossary.html'); await p3.waitForSelector('.glossary .gl-row'); await p3.waitForTimeout(300)
+      const heads = await p3.locator('.gl-table thead th').allInnerTexts()
+      g.ok(heads.join('|') === '术语|含义|不这样说|出自', '表头：' + heads)
+      const avoids = await p3.$$eval('.glossary .gl-row', es => Object.fromEntries(es.map(e => [e.dataset.term, e.querySelector('.gl-avoid').textContent.trim()])))
+      const expected = {}
+      for (const w of WRITING_TERMS) for (const t of w.terms) if (byTerm.has(t)) expected[t] = w.avoid
+      g.ok(Object.keys(expected).length >= 8, '写作规则表里至少有 8 个术语在术语表里：' + Object.keys(expected).length)
+      for (const [t, a] of Object.entries(expected)) g.ok(avoids[t] === a, `“${t}”的不这样说：${avoids[t]}`)
+      const others = Object.entries(avoids).filter(([t]) => !(t in expected)).filter(([, a]) => a !== '')
+      g.ok(others.length === 0, '没有写作规则的术语，这一栏是空的：' + others.slice(0, 3).map(x => x[0]))
+      // 首页的表和数据文件一致
+      await p3.goto(base + '/'); await p3.waitForSelector('.home')
+      await p3.evaluate(() => { document.querySelector('details.ste').open = true })
+      const homeRows = await p3.$$eval('details.ste table tr', es => es.slice(1).map(e => [...e.children].map(c => c.textContent.trim())))
+      g.ok(JSON.stringify(homeRows) === JSON.stringify(WRITING_TERMS.map(w => [w.label, w.meaning, w.avoid])), `首页写作规则表 ${homeRows.length} 行与数据文件一致`)
+      g.end()
+    }
+    {
       const g = R.group('术语标注：悬停和聚焦显示定义，Esc 或移开隐藏；速查表和阶段测验页不标')
       const q = await newPage()
       await q.goto(base + '/chapters/03-refs.html'); await q.waitForSelector('.vp-doc abbr.term'); await q.waitForTimeout(500)
@@ -262,7 +314,7 @@ async function waitUp(url) {
     R.log(false, '测试异常：' + e.stack)
   } finally {
     await browser.close()
-    srv.kill()
+    pv.stop()
     if (tmp) fs.rmSync(tmp, { recursive: true, force: true })
   }
   console.log(R.bad ? `\n${R.bad} 项没通过` : '\n全部通过')

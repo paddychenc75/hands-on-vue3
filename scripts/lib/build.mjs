@@ -5,6 +5,7 @@ import net from 'node:net'
 import path from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { BASE_NO_SLASH } from '../../course/site.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -27,11 +28,11 @@ export function freePort() {
   })
 }
 
-/** 起 preview，返回 { base, stop } */
+/** 起 preview，返回 { base, stop }。base 带站点的 base 路径（course/site.mjs），不带结尾斜杠：base + '/chapters/…' 就是页面地址 */
 export async function startPreview(env) {
   const port = await freePort()
   const srv = spawn(process.execPath, [VITEPRESS, 'preview', 'course', '--port', String(port), '--strictPort'], { cwd: ROOT, env, stdio: 'ignore' })
-  const base = 'http://127.0.0.1:' + port
+  const base = 'http://127.0.0.1:' + port + BASE_NO_SLASH
   for (let i = 0; i < 60; i++) {
     try { if ((await fetch(base + '/')).ok) return { base, stop: () => srv.kill() } } catch { /* 还没起来 */ }
     await new Promise(r => setTimeout(r, 250))

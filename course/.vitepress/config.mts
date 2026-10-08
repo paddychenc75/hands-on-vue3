@@ -7,6 +7,7 @@ import deflist from 'markdown-it-deflist'
 import { buildSidebar } from './sidebar.mts'
 import { cjkFriendlyEmphasis } from './markdown-cjk.mts'
 import { courseDataPlugin } from './course-data.mts'
+import { BASE_PATH } from '../site.mjs'
 
 // ---- 并行测试用的环境变量（日常开发和正式构建不设）----
 //   COURSE_CHAPTERS=03-refs,04-computed  只构建这些章，其他章 srcExclude 掉
@@ -41,6 +42,8 @@ const SIMPLE: Record<string, [string, string]> = {
 
 export default defineConfig({
   title: '动手学 Vue 3',
+  // 部署路径，只在 course/site.mjs 定义一处（配置、测试、脚本都从那里取）。站内链接用 withBase 或 VitePress 的链接组件，不要手写带 base 的地址
+  base: BASE_PATH,
   // 只构建部分章节时，指向其他章的链接必然找不到，不算死链。全站构建仍然检查
   ignoreDeadLinks: only.length > 0,
   description: 'Vue3 互动课程：每章有讲解、练习和自测',
@@ -149,7 +152,7 @@ export default defineConfig({
           }
         }
       })
-      // 章头：一级标题后面自动放 <ChapterMeta />（阶段标签、第 N / 26 章、约 N 分钟、一句话说明），所有有 id 的章页面都有（速查表也有）。
+      // 章头：一级标题后面自动放 <ChapterMeta />（阶段标签、第 N / 总章数 章、一句话说明、阅读时间），所有有 id 的章页面都有（速查表也有）。
       // 课前热身 <Warmup /> 紧跟在后面，只有写了 stage 的章有。章的 Markdown 里都不用写。
       // 自我解释和掌握标准条在主题布局的 doc-footer-before 插槽里（theme/index.ts）。
       md.core.ruler.push('course_inject_warmup', state => {
@@ -161,6 +164,17 @@ export default defineConfig({
         t.content = '<ChapterMeta />\n' + (fm.stage != null ? '<Warmup />\n' : '')
         t.block = true
         state.tokens.splice(i + 1, 0, t)
+      })
+      // 阅读时间块（::: rt）的内容由章头（ChapterMeta）显示，正文里不再单独渲染：把这个块的 token 整个去掉。
+      // 内容来自同一份源文件（course-data.mts 的 parseReadingTime），所以不用改各章的 Markdown。没有 id 的页面没有章头，保留原样。
+      md.core.ruler.push('course_strip_rt', state => {
+        if (!state.env?.frontmatter?.id) return
+        const toks = state.tokens
+        for (let i = toks.length - 1; i >= 0; i--) {
+          if (toks[i].type !== 'container_rt_close') continue
+          const open = toks.map(t => t.type).lastIndexOf('container_rt_open', i)
+          if (open >= 0) toks.splice(open, i - open + 1)
+        }
       })
       // 文字里的 {{ 一律转成实体，Vue 不会把它当插值。行内代码加 v-pre。
       // 所以正文里可以直接写 {{ count }}，不用特殊处理。

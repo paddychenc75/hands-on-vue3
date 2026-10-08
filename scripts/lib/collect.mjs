@@ -2,6 +2,7 @@
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { loadTs } from './load-ts.mjs';
 
 export const ROOT = path.resolve(import.meta.dirname, '../..');
@@ -31,6 +32,16 @@ export async function collect(root = ROOT) {
   const stageCount = (await loadTs(rd('course/stages.ts'))).STAGE_COUNT;
   const stageQuestions = (await loadTs(rd('course/engine/logic/stageCheck.ts'))).STAGE_QUESTIONS;
 
+  // 不在 chapters/ 里、但也会写章引用和站内链接的页面：首页、术语表、今日复习、阶段测验页
+  const extraPages = {};
+  for (const rel of ['course/index.md', 'course/glossary.md', 'course/review.md'])
+    if (fs.existsSync(rd(rel))) extraPages[rel] = fs.readFileSync(rd(rel), 'utf8');
+  if (fs.existsSync(rd('course/check')))
+    for (const f of fs.readdirSync(rd('course/check')).filter(f => f.endsWith('.md')).sort()) extraPages[`course/check/${f}`] = fs.readFileSync(rd('course/check', f), 'utf8');
+
+  // 首页“写作规则”里的固定用词表（也是术语表页“不这样说”一栏的数据）
+  const writingTerms = (await import(pathToFileURL(rd('course/writing-terms.mjs')).href)).WRITING_TERMS;
+
   const labTests = {};
   const labsDir = rd('tests/site/labs');
   if (fs.existsSync(labsDir))
@@ -42,5 +53,5 @@ export async function collect(root = ROOT) {
   const files = new Set();
   for (const d of ['course', 'tests']) walk(root, d, files);
   const snapshot = fs.existsSync(rd('course/card-keys.snapshot.json')) ? JSON.parse(fs.readFileSync(rd('course/card-keys.snapshot.json'), 'utf8')) : null;
-  return { chapterFiles, exercises, questions, stageCount, stageQuestions, labTests, files, snapshot };
+  return { chapterFiles, extraPages, writingTerms, exercises, questions, stageCount, stageQuestions, labTests, files, snapshot };
 }

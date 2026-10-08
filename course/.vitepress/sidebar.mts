@@ -6,23 +6,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { STAGES, stageTitle } from '../stages.ts'
+import { readFrontmatter } from '../content-parse.mjs'
 
-/** 只读 frontmatter 里的“键: 值”行。值可以是 JSON 风格的引号字符串或普通文字 */
-export function readFrontmatter(file: string): Record<string, string> | null {
+/** 读一个文件的 frontmatter（只读“键: 值”行）。解析规则在 course/content-parse.mjs，站点和 Node 脚本共用同一份。文件不存在返回 null */
+export function readFrontmatterFile(file: string): Record<string, string> | null {
   let src: string
   try { src = fs.readFileSync(file, 'utf8') } catch { return null }
-  const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(src)
-  if (!m) return null
-  const out: Record<string, string> = {}
-  for (const line of m[1].split(/\r?\n/)) {
-    const kv = /^([A-Za-z_][\w-]*):\s*(.*)$/.exec(line)
-    if (!kv) continue
-    let v = kv[2].trim()
-    if (/^".*"$/.test(v)) { try { v = JSON.parse(v) } catch { v = v.slice(1, -1) } }
-    else if (/^'.*'$/.test(v)) v = v.slice(1, -1).replace(/''/g, "'")
-    out[kv[1]] = v
-  }
-  return out
+  return readFrontmatter(src)
 }
 
 export interface SidebarOptions {
@@ -38,7 +28,7 @@ export function buildSidebar(chaptersDir: string, opts: SidebarOptions = {}) {
   for (const f of files) {
     const name = f.replace(/\.md$/, '')
     if (opts.only && !opts.only.includes(name)) continue
-    const fm = readFrontmatter(path.join(chaptersDir, f))
+    const fm = readFrontmatterFile(path.join(chaptersDir, f))
     if (!fm || !fm.title) continue // 写到一半的文件不让它拖垮整个站点
     const stage = fm.stage ? Number(fm.stage) : null
     const chapter = fm.chapter ? Number(fm.chapter) : null

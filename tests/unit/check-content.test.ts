@@ -1,11 +1,12 @@
 // check:content 的规则测试：先在真实内容上通过，再构造坏输入，断言每类错误都被报出来。
 // 校验规则在 scripts/lib/validate.mjs；输入由 scripts/lib/collect.mjs 从仓库读出。
 import { beforeAll, describe, expect, it } from 'vitest'
+import EXPECTED from '../expected.cjs'
 import { collect } from '../../scripts/lib/collect.mjs'
 import { applyExemptions, validate } from '../../scripts/lib/validate.mjs'
 import { KNOWN_ISSUES } from '../../scripts/lib/known-issues.mjs'
 import { compareSnapshot, computeCards, fingerprint, nextSnapshot } from '../../scripts/lib/cards.mjs'
-import { checkContainers, maskFences, scanSc } from '../../scripts/lib/content.mjs'
+import { checkContainers, maskFences, scanSc } from '../../course/content-parse.mjs'
 
 type Inp = any
 let base: Inp
@@ -38,7 +39,7 @@ describe('真实内容', () => {
   })
   it('统计数字合理（读到了章、自测、练习、实验台）', () => {
     const { stats } = validate(base)
-    expect(stats.chapters).toBeGreaterThanOrEqual(26)
+    expect(stats.chapters).toBe(EXPECTED.CHAPTERS)
     expect(stats.sc).toBeGreaterThan(100)
     expect(stats.exercises).toBeGreaterThan(60)
     expect(stats.labs).toBeGreaterThan(40)
@@ -204,6 +205,47 @@ describe('站内引用', () => {
     expectError(run(editChapter('01-first', s => s + '\n[第 5 章](/chapters/03-refs)\n')), /链接文字写的是第 5 章/)
     expectError(run(editChapter('01-first', s => s + '\n[x](/chapters/99-none)\n')), /指向不存在的页面/)
     expectError(run(editChapter('01-first', s => s + '\n[x](/check/9)\n')), /指向不存在的页面/)
+  })
+})
+
+describe('非章页面（首页、术语表、今日复习、阶段测验页）也扫章引用和站内链接', () => {
+  const withPage = (rel: string, text: string): Inp => ({ ...base, extraPages: { ...base.extraPages, [rel]: text } })
+  it('真实仓库里读到了这些页面', () => {
+    for (const rel of ['course/index.md', 'course/glossary.md', 'course/review.md', 'course/check/1.md']) expect(Object.keys(base.extraPages)).toContain(rel)
+  })
+  it('术语表页里的死链 / 不存在的章', () => {
+    expectError(run(withPage('course/glossary.md', '见[某页](/chapters/99-none)')), /course\/glossary\.md:1.*指向不存在的页面|指向不存在的页面/)
+    expectError(run(withPage('course/glossary.md', '详见第 99 章。')), /引用了第 99 章/)
+  })
+  it('阶段测验页和今日复习页里的死链', () => {
+    expectError(run(withPage('course/check/2.md', '[回去](/check/9)')), /course\/check\/2\.md/)
+    expectError(run(withPage('course/review.md', '<a href="/nowhere">x</a>')), /course\/review\.md/)
+  })
+  it('合法的链接通过', () => {
+    expect(run(withPage('course/glossary.md', '[复习](/review) [第 1 章](/chapters/01-first) [测验](/check/1)'))).toEqual([])
+  })
+})
+
+describe('首页写作规则表（course/writing-terms.mjs）和术语表', () => {
+  it('找不到的术语被报出来（真实的三条由 known-issues 豁免）', () => {
+    const wt = [...base.writingTerms, { label: '不存在', terms: ['根本没有这个术语'], meaning: 'm', avoid: 'a' }]
+    expectError(run({ ...base, writingTerms: wt }), /术语“根本没有这个术语”在术语表里找不到/)
+  })
+  it('真实仓库：未豁免的术语都能找到；豁免的是 组件/父组件/子组件', () => {
+    const res = validate(base)
+    const missing = res.errors.filter((e: any) => e.key.startsWith('wterm-missing:')).map((e: any) => e.key.split(':')[1]).sort()
+    expect(missing).toEqual(['子组件', '组件', '父组件'].sort())
+  })
+  it('缺字段 / 重复', () => {
+    expectError(run({ ...base, writingTerms: [{ label: 'x', terms: [], meaning: 'm', avoid: 'a' }] }), /label、terms/)
+    const dup = [{ label: 'a', terms: ['响应式数据'], meaning: 'm', avoid: 'a' }, { label: 'b', terms: ['响应式数据'], meaning: 'm', avoid: 'a' }]
+    expectError(run({ ...base, writingTerms: dup }), /重复/)
+  })
+  it('术语块格式不对 -> 报错', () => {
+    expectError(run(editChapter('01-first', s => s.replace(/^::: terms[^\n]*\n/m, m => m + '没有解释的术语\n\n'))), /本章术语块格式不对/)
+  })
+  it('统计里有术语数', () => {
+    expect(validate(base).stats.terms).toBeGreaterThan(100)
   })
 })
 

@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { ROOT } from './lib/collect.mjs';
-import { readFrontmatter } from './lib/content.mjs';
+import { readFrontmatter } from '../course/content-parse.mjs';
 import { loadTs } from './lib/load-ts.mjs';
 import { mapPath, pad2, renameTokens, shiftExerciseCh, shiftFrontmatterChapter, shiftHeadings, shiftRefs } from './lib/renumber.mjs';
 
@@ -285,7 +285,7 @@ if (moved.length) {
   todoList.push(...hits.slice(0, 30), hits.length > 30 ? `  …还有 ${hits.length - 30} 处` : '');
 }
 todoList.push(
-  `首页路线说明里的章数：course/.vitepress/theme/components/CourseHome.vue（“N 章正文”）；tests/site/progress.test.js 里写死的总章数（26）、tests/unit/cards.test.ts 里“每个阶段的可用题数”那张表也要同步。`,
+  `测试里锁定的章数和“每个阶段的可用题数”表：tests/expected.cjs（章数、阶段表要跟着改）；首页和测试里的其他章数都是算出来的，不用改。`,
   `阶段说明（course/stages.ts）如果提到章的范围，核对一下。`,
   `把所有“${TODO}”换成真内容，估算阅读时间（rt 块），再跑：npm run check → node tests/site/exercises.test.js ${newBase}`,
 );

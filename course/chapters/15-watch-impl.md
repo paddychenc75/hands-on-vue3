@@ -153,7 +153,8 @@ const job = (immediateFirstRun) => {
     const newValue = effect.run()                     // ② 重新运行 getter，重新收集依赖
     if (immediateFirstRun || deep || forceTrigger || hasChanged(newValue, oldValue)) {   // ③ 比较
       cleanup && cleanup()                            // ④ 先清理上一次（15.5）
-      const args = [newValue, oldValue === INITIAL ? undefined : oldValue, onCleanup]
+      const args = [newValue, oldValue === INITIAL ? undefined
+        : (isMultiSource && oldValue[0] === INITIAL ? [] : oldValue), onCleanup]
       oldValue = newValue
       cb(...args)                                     // ⑤ 调用回调
     }
@@ -168,7 +169,7 @@ const job = (immediateFirstRun) => {
 1. **`effect.dirty`。**3.5 的 effect 有版本号（第 12 章）。侦听一个 computed，它依赖变了但算出的值没变时，`dirty` 为假，`job` 直接返回，getter 都不运行。实测：`watch(() => c.value, cb)`，`c` 是 `m % 2`，`m` 从 1 改到 3，getter 没有重新运行。
 2. **比较。**`hasChanged` 用 `Object.is`。值没变（例如 `ref` 先改成 1 再改回 0，同步完成）就不调用回调，也不会先调用清理函数。
 3. **`deep` 和 `forceTrigger` 跳过比较。**深度侦听 `ref({ x: 1 })`，`list.value.push(2)` 之后 getter 返回的还是同一个对象，比较永远是“没变”，所以必须跳过比较。同样的原因，**新值和旧值是同一个对象**，实测 `n === o` 为 `true`。需要旧值时，让 getter 返回拷贝：`watch(() => [...list.value], (n, o) => …)`。拷贝每次都是新数组，比较永远是“变了”，回调在每次依赖变化时都运行。
-4. **旧值先于回调更新。**`oldValue = newValue` 在调用 `cb` 之前。第一次触发时 `oldValue` 还是哨兵，传给回调的旧值是 `undefined`（多个源时是 `[]`）。`immediate` 的第一次调用也是这样：`job(true)` 同步运行，新值是当前值，旧值是 `undefined`。
+4. **旧值先于回调更新。**`oldValue = newValue` 在调用 `cb` 之前。不带 `immediate` 的 `watch` 在创建时就运行了一次 getter，结果存进 `oldValue`（15.2 的第 ⑤ 步），所以第一次触发时的旧值是创建时的值。只有 `immediate` 的第一次调用，`oldValue` 还是哨兵：`job(true)` 同步运行，新值是当前值，旧值是 `undefined`（多个源时是 `[]`）。
 5. **`once`。**`cb` 被包了一层：调用原回调，然后调用 `watchHandle()` 停止自己。
 
 **`watchEffect` 的差别。**它没有 `cb`：getter 就是副作用本身，`job` 只做 `effect.run()`，没有比较，没有新旧值。`watchEffect` 的 getter 外面有一层包装，每次运行副作用之前先调用清理函数（15.5）。`watchPostEffect` 和 `watchSyncEffect` 就是 `watchEffect` 加 `flush: 'post'` 或 `'sync'`，源码里只有一行 `doWatch(effect, null, extend({}, options, { flush }))`。`immediate`、`deep`、`once` 对没有回调的写法不生效，开发环境会警告。

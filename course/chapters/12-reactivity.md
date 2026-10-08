@@ -296,7 +296,7 @@ function toRaw(observed) {
 <LinkGrid />
 </Figure>
 
-用链表有三个理由：
+官方给 3.5 这次重构定的目标是更快、更省内存（同一个测试用例的内存下降 56%）。链表带来这几点好处：
 
 1. 一个 Link 同时是正向记录（Dep 的订阅者）和反向记录（订阅者的依赖）。手写版本要用 Set 和 `deps` 数组各存一份。
 2. 副作用函数重新运行时，可以复用已有的 Link。依赖不变的话，不用创建新对象。
@@ -499,9 +499,10 @@ const instrumentations = {
     return this
   }
 }
+// hasOwn 只认 instrumentations 自己的方法，不认 constructor 这类继承来的属性
 const collectionHandlers = {
   get: (target, key, receiver) =>
-    Reflect.get(key in instrumentations && key in target ? instrumentations : target, key, receiver)
+    Reflect.get(hasOwn(instrumentations, key) && key in target ? instrumentations : target, key, receiver)
 }
 ```
 

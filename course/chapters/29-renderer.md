@@ -295,7 +295,7 @@ invoker 还做一件事：不让一个刚绑定的监听响应更早发生的事
 | 原生 `addEventListener` | 1 次 |
 | Vue 的 `onClick`（invoker） | 0 次（第二次点击才触发） |
 
-**设为 DOM 属性，还是 attribute？** 默认规则是 `key in el`：元素上有这个属性，就设为 DOM 属性，否则设为 attribute。例外是一张短名单，这些 key 即使 `in el` 也强制设为 attribute：`spellcheck`、`draggable`、`translate`、`autocorrect`；`form`（`<input>` 的 `form` 是只读的）；`<input>` 的 `list`（只读）；`<textarea>` 的 `type`；`<iframe>` 的 `sandbox`；`<img>`、`<video>`、`<canvas>`、`<source>` 的 `width` 和 `height`。如果 key 是 `onclick` 这样的小写原生事件名，而值是字符串，也设为 attribute。SVG 元素只有 `innerHTML` 和 `textContent` 设为属性，其他都是 attribute。
+**设为 DOM 属性，还是 attribute？** 默认规则是 `key in el`：元素上有这个属性，就设为 DOM 属性，否则设为 attribute。例外是一张短名单，这些 key 即使 `in el` 也强制设为 attribute：`spellcheck`、`draggable`、`translate`、`autocorrect`；`form`（`<input>` 的 `form` 是只读的）；`<input>` 的 `list`（只读）；`<textarea>` 的 `type`；`<iframe>` 的 `sandbox`；`<img>`、`<video>`、`<canvas>`、`<source>` 的 `width` 和 `height`。如果 key 是 `onclick` 这样的小写原生事件名，而值是字符串，也设为 attribute。SVG 元素只有 `innerHTML`、`textContent`，以及值为函数的小写原生事件名（如 `onclick`）设为属性，其他都是 attribute。
 
 为什么 `<img>` 的 `width` 要走 attribute？DOM 属性 `img.width` 是整数，`img.width = '50%'` 读回来是 `0`（实测）。attribute 才能写百分比。
 

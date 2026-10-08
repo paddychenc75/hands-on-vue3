@@ -426,7 +426,7 @@ function checkRecursiveUpdates(seen, fn) {
 - 报错信息先是一条警告 `Unhandled error during execution of app errorHandler`，然后异常抛出，`flushJobs` 返回的 Promise 被拒绝，浏览器控制台显示 `Uncaught (in promise) Maximum recursive updates exceeded in component <…>`。
 - `app.config.errorHandler` 收不到这个错误，因为内部以没有实例的方式调用 `handleError`。
 - `finally` 会清空队列并清除标记，所以页面不会卡死。
-- 生产构建没有这段检查。同样的代码会真的无限循环。
+- 生产构建没有这段检查。带回调的 `watch`、渲染函数里改数据这类写法，会在同一个微任务里一直循环，主线程被占住，页面卡死。`onUpdated` 和 `flush: 'post'` 的侦听器走后置队列，会一层层递归调用 `flushJobs`，在几千次后以 `Maximum call stack size exceeded` 结束，页面之后还能用。
 
 哪些写法会触发：
 

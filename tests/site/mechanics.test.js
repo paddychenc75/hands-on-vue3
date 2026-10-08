@@ -363,6 +363,23 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g4.end()
     }
 
+    {
+      const g = R.group('首页的复习入口：显示今日到期数和进入按钮；“N 道题在复习中”统计；没有到期时换成混合练习入口')
+      const p = await site.newPage()
+      const old = T0 - 3 * DAY
+      await seed(p, base, { __srs: { 'first#0': card(1, T0 - DAY, old), 'refs#1': card(2, T0 - HOUR, old), 'computed#0': card(1, T0 + 5 * DAY, old) } })
+      await p.clock.setFixedTime(T0)
+      await p.goto(base + '/'); await p.waitForSelector('#reviewEntry'); await p.waitForTimeout(300)
+      g.ok(/今日复习：2 道题到期/.test(await p.locator('#reviewEntry').innerText()), '今日复习：2 道题到期 ' + await p.locator('#reviewEntry').innerText())
+      g.ok(/开始复习/.test(await p.locator('#reviewLink').innerText()) && /\/review/.test(await p.locator('#reviewLink').getAttribute('href')), '有“开始复习”按钮，指向复习页')
+      g.ok((await p.locator('#statReview b').innerText()) === '3', '“3 道题在复习中”统计')
+      await seed(p, base, { __srs: { 'first#0': card(1, T0 + DAY, old) } })
+      await p.goto(base + '/'); await p.waitForSelector('#reviewEntry'); await p.waitForTimeout(300)
+      g.ok(/今天没有到期的题，已学过 1 道/.test(await p.locator('#reviewEntry').innerText()) && /混合练习/.test(await p.locator('#reviewLink').innerText()), '没有到期的：说明已学过几道，入口换成混合练习')
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      g.end()
+    }
+
     // ---------- 阶段测验 ----------
     const STAGE1 = CH.filter(c => c.stage === 1).map(c => c.id)
     const Q = loadQuestions()

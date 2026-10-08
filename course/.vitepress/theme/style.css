@@ -532,3 +532,15 @@ html.fig-open { overflow: hidden; }
 .home .stage li.aside.check[data-check="passed"] .st { color: var(--accent); font-weight: 600; }
 .home .stage li.aside.check[data-check="retest"] .st { color: var(--warn); }
 .home .stage li.aside.check[data-check="failed"] .st, .home .stage li.aside.check[data-check="cooling"] .st { color: var(--bad); }
+
+/* 首页：怎样用这套课程（学习机制的原理说明） */
+.home .section-title { font-family: var(--f-display); font-size: 22px; font-weight: 700; margin: 26px 0 6px; border: 0; padding: 0; letter-spacing: 0; }
+.home .section-sub { color: var(--muted); font-size: 14.5px; line-height: 1.8; margin: 0 0 12px; max-width: 70ch; }
+.home .section-sub b { color: var(--ink); }
+.home .methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 8px 0 16px; }
+.home .methods > div { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.home .methods b { font-family: var(--f-display); font-size: 16px; }
+.home .methods i { font-style: normal; font-size: 12px; color: var(--accent); }
+.home .methods p { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); line-height: 1.7; }
+@media (max-width: 900px) { .home .methods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .home .methods { grid-template-columns: minmax(0, 1fr); } }

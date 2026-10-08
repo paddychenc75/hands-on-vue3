@@ -9,7 +9,7 @@
     "preview": "vitepress preview course",
     "test": "npm run test:unit && npm run test:site",
     "check": "npm run test:unit",
-    "test:site": "vitepress build course && node tests/site/exercises.test.js && node tests/site/progress.test.js && node tests/site/quiz.test.js",
+    "test:site": "vitepress build course && node tests/site/exercises.test.js && node tests/site/progress.test.js && node tests/site/mechanics.test.js",
     "test:unit": "vitest run"
   },
   "devDependencies": {

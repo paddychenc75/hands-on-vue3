@@ -111,3 +111,16 @@ tsProps.wrong = [
   { js: sub(tsProps.solJs, 'size: { type: String, required: false }', 'size: { type: String, required: true }'), why: 'size 带 ?，是可选的，required 应该是 false。写成 true 后，第二个 Badge 没有传 size 会警告。' },
   { js: sub(tsProps.solJs, 'title: { type: String, required: true }', 'title: { type: String }'), why: 'title 没有 ?，是必填的。漏写 required: true，编译器生成的声明不是这样。' }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+fbTs.faded = {
+  js: sub(fbTs.solJs, 'step: { type: Number, required: false, default: 1 }',
+    'step: { type: null /* ✏️ number 对应的运行时类型 */, required: false, default: undefined /* ✏️ 解构里写的默认值 */ }')
+}
+
+tsProps.faded = {
+  js: sub(sub(sub(tsProps.solJs, 'title: { type: String, required: true }',
+    'title: { type: null /* ✏️ string 对应的运行时类型 */, required: false /* ✏️ title 没有 ?，它必填吗？ */ }'),
+    'size: { type: String, required: false }', 'size: { type: null /* ✏️ 联合类型 \'sm\' | \'md\' 的成员都是什么类型？ */, required: false }'),
+    '。字面量联合类型生成 String', '')
+}

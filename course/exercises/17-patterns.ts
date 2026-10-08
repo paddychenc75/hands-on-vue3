@@ -137,3 +137,16 @@ treeItem.wrong = [
   { js: sub(treeItem.solJs, '<ul v-if=\"isFolder && open\">', '<ul v-if=\"isFolder\" v-show=\"open\">'), why: '用 v-show 折叠。子节点只是被隐藏，仍在 DOM 中。题目要求 open 为 false 时不渲染 <ul>。' },
   { js: sub(treeItem.solJs, ' :key=\"child.name\"', ''), why: '没有写 :key。页面看起来正常，但 Vue 只能按位置复用。' }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+fbPatterns.faded = {
+  js: sub(fbPatterns.solJs, '<Reply v-for="r in node.replies" :key="r.id" :node="r" :depth="depth + 1" />',
+    '<!-- ✏️ 每个回复要有 key；下一层的 depth 要比当前层多一级 -->\n      <Reply v-for="r in node.replies" :node="r" :depth="depth" />')
+}
+
+treeItem.faded = {
+  js: sub(sub(treeItem.solJs, `<ul v-if="isFolder && open">`,
+    '<!-- ✏️ 给下面的 ul 加停止条件：什么时候才需要渲染子节点？ -->\n    <ul>'),
+    `<TreeItem v-for="child in node.children" :key="child.name" :node="child" />`,
+    '<!-- ✏️ 给递归渲染的 TreeItem 加 key -->\n      <TreeItem v-for="child in node.children" :node="child" />')
+}

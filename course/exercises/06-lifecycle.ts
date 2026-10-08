@@ -49,6 +49,30 @@ const Clock = {
 }
 
 return { ticks, resizes, show, components: { Clock } }`,
+  faded: {
+    js: `const ticks = ref(0)
+const resizes = ref(0)
+const show = ref(true)
+
+const Clock = {
+  setup() {
+    let timer = null
+    function onResize() { resizes.value++ }
+    onMounted(() => {
+      timer = setInterval(() => { ticks.value++ }, 30)
+      window.addEventListener('resize', onResize)
+    })
+    onUnmounted(() => {
+      /* ✏️ 清除定时器：用 setInterval 返回的 id */
+      window.removeEventListener('resize', /* ✏️ 传入哪个函数，才能删掉当初添加的那个监听 */)
+    })
+    return {}
+  },
+  template: '<div>Clock 正在运行</div>'
+}
+
+return { ticks, resizes, show, components: { Clock } }`
+  },
   hints: [
     '组件卸载时，Vue 不知道你创建过定时器和监听。所以在 onUnmounted 中清除它们。注册和清理要成对写。第 6 章 6.2 节的代码讲了它。',
     '两行都写在 onUnmounted 中。TODO 1：调用 clearInterval，参数是 timer。TODO 2：调用 window.removeEventListener，参数和 addEventListener 的相同。',
@@ -85,6 +109,24 @@ export const timerLeak: Exercise = {
   tpl: '<p>ticks = {{ ticks }}</p>\n<button @click="show = !show">{{ show ? \'隐藏\' : \'显示\' }} Ticker</button>\n<Ticker v-if="show" />',
   js: 'const ticks = ref(0)\nconst show = ref(true)\n\nconst Ticker = {\n  setup() {\n    onMounted(() => {\n      setInterval(() => { ticks.value++ }, 30)\n    })\n    // TODO：组件卸载时清除定时器\n    return {}\n  },\n  template: \'<div>Ticker 正在运行</div>\'\n}\n\nreturn { ticks, show, components: { Ticker } }',
   solJs: 'const ticks = ref(0)\nconst show = ref(true)\n\nconst Ticker = {\n  setup() {\n    let timer = null\n    onMounted(() => {\n      timer = setInterval(() => { ticks.value++ }, 30)\n    })\n    onUnmounted(() => {\n      clearInterval(timer)        // 卸载时清除\n    })\n    return {}\n  },\n  template: \'<div>Ticker 正在运行</div>\'\n}\n\nreturn { ticks, show, components: { Ticker } }',
+  faded: {
+    js: `const ticks = ref(0)
+const show = ref(true)
+
+const Ticker = {
+  setup() {
+    let timer = null
+    onMounted(() => {
+      /* ✏️ 保存定时器的 id */ setInterval(() => { ticks.value++ }, 30)
+    })
+    /* ✏️ 组件卸载时，清除定时器 */
+    return {}
+  },
+  template: '<div>Ticker 正在运行</div>'
+}
+
+return { ticks, show, components: { Ticker } }`
+  },
   hints: [
     '原因：Ticker 隐藏时，组件被卸载。但是它启动的定时器不属于 Vue，不会自动停止，所以 ticks 继续增加。组件离开页面时，要自己停止它启动的定时器。第 6 章的钩子表格列出了每个钩子的用途。',
     '在 Ticker 的 setup 中：1. 声明 let timer。2. 把 setInterval 的返回值赋给 timer。3. 添加 onUnmounted(() => …)，在其中清除 timer。',
@@ -146,6 +188,23 @@ async function run() {
 }
 
 return { count, out, before, after, run }`,
+  faded: {
+    js: `const count = ref(0)
+const out = ref(null)      // 模板中 ref="out" 的元素
+const before = ref('')
+const after = ref('')
+
+async function run() {
+  count.value++
+  count.value++
+  count.value++
+  before.value = out.value.textContent   // 这时 DOM 还没有更新
+  /* ✏️ 等待这次 DOM 更新完成 */
+  after.value = out.value.textContent
+}
+
+return { count, out, before, after, run }`
+  },
   hints: [
     '修改数据时，Vue 只把更新放入队列。同步代码结束后，DOM 才更新。先修改数据，再 await nextTick()，就能等到这次更新完成。第 6 章 6.4 节讲了它。',
     '只改 TODO 这一行。run 已经是 async 函数。在这一行等待 nextTick() 返回的 Promise。',

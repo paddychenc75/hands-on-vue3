@@ -7,6 +7,23 @@ export const emit: Exercise = {
   js: 'const StepButton = {\n  props: [\'step\'],\n  emits: [\'add\'],\n  // TODO 1：点击按钮时 $emit(\'add\', step)\n  template: \'<button>+{{ step }}</button>\'\n}\n\nconst total = ref(0)\nfunction onAdd(n) {\n  total.value += n\n}\n\n// TODO 2：在模板的 StepButton 上监听 add 事件\nreturn { total, onAdd, components: { StepButton } }',
   solTpl: '<p>total = {{ total }}</p>\n<StepButton :step="1" @add="onAdd" />\n<StepButton :step="5" @add="onAdd" />',
   solJs: 'const StepButton = {\n  props: [\'step\'],\n  emits: [\'add\'],\n  template: \'<button @click="$emit(\\\'add\\\', step)">+{{ step }}</button>\'\n}\n\nconst total = ref(0)\nfunction onAdd(n) {\n  total.value += n\n}\n\nreturn { total, onAdd, components: { StepButton } }',
+  faded: {
+    tpl: `<p>total = {{ total }}</p>
+<StepButton :step="1" @add="/* ✏️ 监听 add 事件，交给 onAdd 处理 */" />
+<StepButton :step="5" @add="onAdd" />`,
+    js: `const StepButton = {
+  props: ['step'],
+  emits: ['add'],
+  template: \`<button @click="/* ✏️ 点击时发出 add 事件，并把 step 作为参数带上 */">+{{ step }}</button>\`
+}
+
+const total = ref(0)
+function onAdd(n) {
+  total.value += n
+}
+
+return { total, onAdd, components: { StepButton } }`
+  },
   hints: [
 '子组件用 $emit 发出事件，父组件用 @事件名 监听。第 5 章“5.2 用 emit 通知父组件”讲了它。子组件不直接修改父组件的数据。',
 '1. 在子组件的 template 字符串中，给 <button> 加 @click="$emit(…)"，参数是 \'add\' 和 step。字符串中的单引号写为 \\\'。2. 在父组件模板的两个 StepButton 上加 @add="…"。',
@@ -64,6 +81,24 @@ const TaskTitleInput = {
 
 const task = reactive({ title: '写周报' })
 return { task, components: { TaskTitleInput } }`,
+  faded: {
+    js: `const { useModel } = Vue   // 从全局 Vue 中取出
+
+const TaskTitleInput = {
+  // .vue 文件中由 defineModel() 生成的两行
+  props: ['modelValue'],
+  emits: ['update:modelValue'],
+  setup(props) {
+    // 读取时是 prop，写入时发送 update:modelValue
+    const model = /* ✏️ 用 useModel 绑定 props 里的 modelValue */ null
+    return { model }
+  },
+  template: '<input v-model="model">'
+}
+
+const task = reactive({ title: '写周报' })
+return { task, components: { TaskTitleInput } }`
+  },
   hints: [
     'defineModel() 返回一个 ref。读取它，得到父组件传入的值。写入它，Vue 发送 update:modelValue 事件，父组件的数据跟着改变。第 5 章“5.4 为组件添加 v-model”讲了它。练习台中，用编译结果中的 useModel 代替它。',
     '只改 const model = null 这一行。调用 useModel。第一个参数是 setup 收到的 props，第二个参数是 prop 的名称 \'modelValue\'。',
@@ -122,6 +157,23 @@ export const scopedSlot: Exercise = {
   js: 'const UserList = {\n  props: [\'users\'],\n  // TODO 1：把 u 作为插槽 props 传给 slot\n  template: \'<ul><li v-for="u in users" :key="u.id"><slot>{{ u.name }}</slot></li></ul>\'\n}\n\nconst users = ref([\n  { id: 1, name: \'Alice\', age: 30 },\n  { id: 2, name: \'Bob\', age: 25 }\n])\n\n// TODO 2：在模板的第一个 UserList 中使用作用域插槽\nreturn { users, components: { UserList } }',
   solTpl: '<UserList :users="users" class="custom">\n  <template #default="{ user }">{{ user.name }}（{{ user.age }} 岁）</template>\n</UserList>\n<UserList :users="users" class="plain" />',
   solJs: 'const UserList = {\n  props: [\'users\'],\n  template: \'<ul><li v-for="u in users" :key="u.id"><slot :user="u">{{ u.name }}</slot></li></ul>\'\n}\n\nconst users = ref([\n  { id: 1, name: \'Alice\', age: 30 },\n  { id: 2, name: \'Bob\', age: 25 }\n])\n\nreturn { users, components: { UserList } }',
+  faded: {
+    tpl: `<UserList :users="users" class="custom">
+  <template #default="/* ✏️ 从插槽 props 中解构出 user */"><!-- ✏️ 显示“姓名（年龄 岁）” --></template>
+</UserList>
+<UserList :users="users" class="plain" />`,
+    js: `const UserList = {
+  props: ['users'],
+  template: '<ul><li v-for="u in users" :key="u.id"><slot :user="/* ✏️ 传给插槽的数据：当前这个用户 */">{{ u.name }}</slot></li></ul>'
+}
+
+const users = ref([
+  { id: 1, name: 'Alice', age: 30 },
+  { id: 2, name: 'Bob', age: 25 }
+])
+
+return { users, components: { UserList } }`
+  },
   hints: [
     '用作用域插槽：子组件把数据传给 <slot>，父组件用 #default 接收。第 5 章“5.5 插槽”讲了它。<slot> 中原有的内容是后备内容。',
     '1. 在 UserList 的 template 中，给 <slot> 加 :user="u"。2. 在第一个 <UserList> 中放一个 <template #default="{ user }">，在里面写姓名和年龄。第二个 UserList 不改。',

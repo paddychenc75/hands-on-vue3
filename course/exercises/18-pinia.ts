@@ -170,3 +170,14 @@ sharedStore.wrong = [
   { js: sub(sharedStore.solJs, 'const cart = reactive({ count: 0 })', 'const cart = { count: 0 }   // 普通对象'), why: '状态只创建一次了，但用的是普通对象，不是 reactive。点击后数据变了，页面不更新。' },
   { js: sub(sharedStore.solJs, 'function useCart() {\n  return cart\n}', 'function useCart() {\n  return reactive({ ...cart })   // 每次返回一份拷贝\n}'), why: '每次返回一份拷贝。AddButton 改的是自己的拷贝，CartBadge 读的是另一份，两个组件没有共享同一个对象。' }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+fbPinia.faded = {
+  js: sub(sub(fbPinia.solJs, 'let store = stores.get(id)', 'let store   /* ✏️ 先从 stores 里取这个 id 已有的 store */'),
+    'stores.set(id, store)       // 保存。下一次调用时直接返回它', '/* ✏️ 把新建的 store 存起来，下次调用时才找得到它 */')
+}
+
+sharedStore.faded = {
+  js: sub(sharedStore.solJs, '// 状态只创建一次。所有组件得到同一个对象\nconst cart = reactive({ count: 0 })\n\nfunction useCart() {\n  return cart\n}',
+    '/* ✏️ 状态放在哪里，才只创建一次？ */\n\nfunction useCart() {\n  return /* ✏️ 返回所有组件共享的那份状态 */ undefined\n}')
+}

@@ -289,3 +289,23 @@ renderFn.wrong = [
   { js: sub(renderFn.solJs, "h('li', { key: t }, t)", "h('li', t)"), why: 'li 没有 key。界面和答案一样，但 Vue 只能按位置复用 li。' },
   { js: sub(renderFn.solJs, "    // 在渲染函数内部读取 props.level，level 改变时重新渲染\n    return () => h('h' + props.level,", "    const tag = 'h' + props.level   // 在 setup 里读一次\n    return () => h(tag,"), why: '在 setup 中读取 props.level，只读了一次。点击“下一级”后标题级别不变。要在返回的渲染函数内部读取 props。' }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+hListFill.faded = {
+  js: sub(hListFill.solJs, "h('li', { key: t, onClick: () => { picked.value = t } }, t)",
+    "h('li', { /* ✏️ 给每项加 key */ /* ✏️ 点击时把 picked 设为 t */ }, /* ✏️ li 的文字 */)")
+}
+
+renderFn.faded = {
+  js: sub(sub(renderFn.solJs, "return () => h('h' + props.level, { class: 'title' }, slots.default?.())",
+    "return () => h(null /* ✏️ 标签名随 props.level 变化，要在这个函数内部读 */, { class: 'title' }, /* ✏️ 内容是默认插槽 */)"),
+    "h('ul', props.items.map(t => h('li', { key: t }, t)))",
+    "h('ul', props.items.map(t => /* ✏️ 每项返回一个带 key 的 li */ null))")
+}
+
+fnComp.faded = {
+  js: sub(sub(fnComp.solJs, "const Cell = ({ col, row }) => (col.render ? col.render(row) : row[col.key])",
+    "const Cell = ({ col, row }) => /* ✏️ 列有 render 就用它的返回值，否则显示原始字段 */ null"),
+    "render: row => h('button', { onClick: () => removeTask(row.id) }, '删除')",
+    "render: row => h('button', { /* ✏️ 点击时删除这一行 */ }, /* ✏️ 按钮文字 */)")
+}

@@ -8,6 +8,13 @@ export const list: Exercise = {
   tpl: '<ul>\n  <li>在这里用 v-for 渲染 fruits</li>\n</ul>\n<button>清空</button>',
   js: 'const fruits = ref([\n  { id: 1, name: \'苹果\' },\n  { id: 2, name: \'香蕉\' },\n  { id: 3, name: \'橙子\' }\n])\n\nreturn { fruits }',
   solTpl: '<ul v-if="fruits.length">\n  <li v-for="f in fruits" :key="f.id">{{ f.name }}</li>\n</ul>\n<p v-else>没有水果了</p>\n<button @click="fruits = []">清空</button>',
+  faded: {
+    tpl: `<ul v-if="/* ✏️ 列表不为空时才显示 */">
+  <li v-for="/* ✏️ 用 f 遍历 fruits */" :key="/* ✏️ 每一项的唯一标识 */">{{ f.name }}</li>
+</ul>
+<p v-else>没有水果了</p>
+<button @click="/* ✏️ 把 fruits 清空 */">清空</button>`
+  },
   hints: [
     '用到三个指令：v-for 显示列表，v-if / v-else 按条件显示，@click 处理点击。第 2 章开头的指令表列出了它们。v-for 要写 :key，因为 Vue 用 key 判断哪一行是同一行。',
     '1. 把 <li> 改为 <li v-for="f in fruits" :key="…">{{ … }}</li>。2. 在 <ul> 上加 v-if="fruits.length"，在后面加一个 <p v-else>（用 v-show 也可以）。3. 在按钮上写 @click，把 fruits 设为空数组。',
@@ -55,6 +62,16 @@ export const classBind: Exercise = {
   tpl: '<ul>\n  <li v-for="t in tabs" :key="t" class="item"\n      @click="current = t">\n    {{ t }}\n  </li>\n</ul>\n<p>当前：{{ current }}</p>',
   js: 'const tabs = [\'首页\', \'文章\', \'关于\']\nconst current = ref(\'首页\')\n\nreturn { tabs, current }',
   solTpl: '<ul>\n  <li v-for="t in tabs" :key="t" class="item"\n      :class="{ active: current === t }"\n      @click="current = t">\n    {{ t }}\n  </li>\n</ul>\n<p>当前：{{ current }}</p>',
+  faded: {
+    tpl: `<ul>
+  <li v-for="t in tabs" :key="t" class="item"
+      :class="/* ✏️ 对象写法：键是类名 active，值是“这一项是不是当前项” */"
+      @click="current = t">
+    {{ t }}
+  </li>
+</ul>
+<p>当前：{{ current }}</p>`
+  },
   hints: [
     '用 :class 的对象写法按条件添加类名。第 2 章“2.1 插值和 v-bind：显示数据”讲了它。静态 class 和 :class 可以同时写，Vue 把两者合并。',
     '只改 <li> 的开始标签。在 class="item" 旁边加 :class="{ active: … }"。条件是：current 等于这一项 t。',
@@ -83,6 +100,16 @@ export const modelFill: Exercise = {
   tpl: '<!-- TODO 1：连接 name -->\n<input class="name" placeholder="姓名">\n<!-- TODO 2：两个复选框连接 skills -->\n<label><input type="checkbox" value="Vue"> Vue</label>\n<label><input type="checkbox" value="TypeScript"> TypeScript</label>\n<!-- TODO 3：连接 city -->\n<select class="city">\n  <option value="bj">北京</option>\n  <option value="sh">上海</option>\n</select>\n<p class="out">姓名：{{ name }}；技能：{{ skills.join(\'、\') }}；城市：{{ city }}</p>',
   js: 'const name = ref(\'\')\nconst skills = ref([])\nconst city = ref(\'sh\')\n\nreturn { name, skills, city }',
   solTpl: '<input class="name" placeholder="姓名" v-model="name">\n<label><input type="checkbox" value="Vue" v-model="skills"> Vue</label>\n<label><input type="checkbox" value="TypeScript" v-model="skills"> TypeScript</label>\n<select class="city" v-model="city">\n  <option value="bj">北京</option>\n  <option value="sh">上海</option>\n</select>\n<p class="out">姓名：{{ name }}；技能：{{ skills.join(\'、\') }}；城市：{{ city }}</p>',
+  faded: {
+    tpl: `<input class="name" placeholder="姓名" v-model="/* ✏️ 连接到文本框对应的数据 */">
+<label><input type="checkbox" value="Vue" v-model="skills"> Vue</label>
+<label><input type="checkbox" value="TypeScript" v-model="/* ✏️ 和上一个复选框连到同一个数据，选中项会放进数组 */"> TypeScript</label>
+<select class="city" v-model="/* ✏️ 连接到城市对应的数据；初始选中项来自它的值 */">
+  <option value="bj">北京</option>
+  <option value="sh">上海</option>
+</select>
+<p class="out">姓名：{{ name }}；技能：{{ skills.join('、') }}；城市：{{ city }}</p>`
+  },
   hints: [
     'v-model 根据元素类型选择属性和事件。第 2 章“2.5 v-model：连接表单和数据”的表格列出了文本框、多个复选框和下拉框的写法。',
     '三处都只在开始标签里加 v-model。文本框写 v-model="name"。两个复选框都写 v-model="skills"，Vue 把选中项的 value 放进数组。下拉框写 v-model="city"，它的初始选中项来自 city 的值。',

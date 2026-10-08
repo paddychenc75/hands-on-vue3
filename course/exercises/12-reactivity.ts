@@ -164,6 +164,88 @@ function changePrice() {
 }
 
 return { view, readTwice, changePrice }`,
+  faded: {
+    js: `// ===== 已给出：迷你响应式系统（不用修改） =====
+let activeEffect = null
+const targetMap = new WeakMap()
+
+function track(target, key) {
+  if (!activeEffect) return
+  let depsMap = targetMap.get(target)
+  if (!depsMap) targetMap.set(target, (depsMap = new Map()))
+  let dep = depsMap.get(key)
+  if (!dep) depsMap.set(key, (dep = new Set()))
+  dep.add(activeEffect)
+}
+
+function trigger(target, key) {
+  const dep = targetMap.get(target)?.get(key)
+  if (!dep) return
+  // 有 scheduler 时调用 scheduler，否则重新运行
+  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())
+}
+
+function effect(fn, options = {}) {
+  const e = {
+    scheduler: options.scheduler,
+    run() {
+      const prev = activeEffect
+      activeEffect = e
+      try { return fn() } finally { activeEffect = prev }
+    }
+  }
+  if (!options.lazy) e.run()   // lazy: true 时不立即运行
+  return e
+}
+
+function miniReactive(obj) {
+  return new Proxy(obj, {
+    get(t, k) { track(t, k); return t[k] },
+    set(t, k, v) { t[k] = v; trigger(t, k); return true }
+  })
+}
+
+// ===== miniComputed：补全两行 TODO =====
+function miniComputed(getter) {
+  let value
+  let dirty = true                 // true：下次读取时要重新计算
+  const runner = effect(getter, {
+    lazy: true,                    // 创建时不运行 getter
+    scheduler() {
+      dirty = /* ✏️ 依赖改变了：下次读取要重新计算，该把标记设成什么 */ false
+    }
+  })
+  return {
+    get value() {
+      if (dirty) {
+        value = runner.run()       // 运行 getter，同时收集依赖
+        dirty = /* ✏️ 刚计算完：缓存已是最新，该把标记设成什么 */ true
+      }
+      return value
+    }
+  }
+}
+
+// ===== 已给出：使用 miniComputed =====
+const state = miniReactive({ price: 10, qty: 2 })
+let runs = 0
+const total = miniComputed(() => {
+  runs++
+  return state.price * state.qty
+})
+
+const view = ref({ total: '未读取', runs })
+function readTwice() {
+  total.value
+  view.value = { total: total.value, runs }
+}
+function changePrice() {
+  state.price += 10
+  view.value = { total: view.value.total, runs }
+}
+
+return { view, readTwice, changePrice }`
+  },
   hints: [
     'computed 用一个 dirty 标记实现缓存：依赖改变时设为 true，计算后设为 false。第 12 章的实验台“手写响应式”讲了 effect 和 trigger。trigger 在依赖改变时调用 scheduler。',
     'TODO 1 在 scheduler() 中，给 dirty 赋一个值。TODO 2 在 value = runner.run() 的下一行，给 dirty 赋另一个值。两行都只有一个赋值语句。',
@@ -263,6 +345,88 @@ function changePrice() {
 }
 
 return { view, readTwice, changePrice }`,
+  faded: {
+    js: `// ===== 已给出：迷你响应式系统（不用修改） =====
+let activeEffect = null
+const targetMap = new WeakMap()
+
+function track(target, key) {
+  if (!activeEffect) return
+  let depsMap = targetMap.get(target)
+  if (!depsMap) targetMap.set(target, (depsMap = new Map()))
+  let dep = depsMap.get(key)
+  if (!dep) depsMap.set(key, (dep = new Set()))
+  dep.add(activeEffect)
+}
+
+function trigger(target, key) {
+  const dep = targetMap.get(target)?.get(key)
+  if (!dep) return
+  // 有 scheduler 时调用 scheduler，否则重新运行
+  ;[...dep].forEach(e => e.scheduler ? e.scheduler() : e.run())
+}
+
+function effect(fn, options = {}) {
+  const e = {
+    scheduler: options.scheduler,
+    run() {
+      const prev = activeEffect
+      activeEffect = e
+      try { return fn() } finally { activeEffect = prev }
+    }
+  }
+  if (!options.lazy) e.run()   // lazy: true 时不立即运行
+  return e
+}
+
+function miniReactive(obj) {
+  return new Proxy(obj, {
+    get(t, k) { track(t, k); return t[k] },
+    set(t, k, v) { t[k] = v; trigger(t, k); return true }
+  })
+}
+
+// ===== TODO：完成 miniComputed =====
+function miniComputed(getter) {
+  let value
+  let dirty = true                 // true：下次读取时要重新计算
+  const runner = effect(getter, {
+    /* ✏️ 创建时不要运行 getter：给 effect 传什么选项 */
+    scheduler() {
+      /* ✏️ 依赖改变时，只做标记，不重新计算 */
+    }
+  })
+  return {
+    get value() {
+      if (/* ✏️ 什么情况下需要重新计算 */ false) {
+        value = runner.run()       // 运行 getter，同时收集依赖
+        /* ✏️ 计算完成，更新标记 */
+      }
+      return value
+    }
+  }
+}
+
+// ===== 已给出：使用 miniComputed =====
+const state = miniReactive({ price: 10, qty: 2 })
+let runs = 0
+const total = miniComputed(() => {
+  runs++
+  return state.price * state.qty
+})
+
+const view = ref({ total: '未读取', runs })
+function readTwice() {
+  total.value
+  view.value = { total: total.value, runs }
+}
+function changePrice() {
+  state.price += 10
+  view.value = { total: view.value.total, runs }
+}
+
+return { view, readTwice, changePrice }`
+  },
   hints: [
     'computed 用 lazy 的 effect 加一个 dirty 标记实现缓存。依赖改变时，scheduler 只设置 dirty，不计算。第 12 章的实验台“手写响应式”讲了 effect、track 和 trigger。本题的 effect 多了 lazy 和 scheduler 两个选项。',
     '在 miniComputed 中：1. 声明 let value 和 let dirty = true。2. 用 effect(getter, { lazy: true, scheduler() { … } }) 创建 runner。3. 在 get value() 中，dirty 为 true 时运行 runner.run()，保存结果，把 dirty 设为 false。',

@@ -92,3 +92,15 @@ fbMigrate.wrong = [
   { tpl: sub(fbMigrate.solTpl, 'v-model:title="title"', 'v-model="title"'), why: '去掉了参数。v-model 默认绑定 modelValue 和 update:modelValue，子组件用的是 title 和 update:title，两边对不上。' },
   { tpl: sub(fbMigrate.solTpl, 'v-model:title="title"', ':title="title"'), why: '只传了 prop，没有监听 update:title 事件。这是单向绑定，输入后标题不变。' }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+migrateVModel.faded = {
+  js: sub(sub(sub(migrateVModel.solJs, "props: ['modelValue']", 'props: [/* ✏️ Vue 3 中 v-model 默认使用的 prop 名 */]'),
+    "emits: ['update:modelValue']", 'emits: [/* ✏️ 声明这个组件发出的 v-model 事件 */]'),
+    "$emit(\\'update:modelValue\\'", "$emit(\\'✏️ Vue 3 的 v-model 事件名\\'")
+}
+
+fbMigrate.faded = {
+  tpl: sub(fbMigrate.solTpl, '<TitleInput v-model:title="title" />',
+    '<!-- ✏️ Vue 3 删除了 .sync：改用什么指令写法，才能同时传入 title 并监听 update:title？ -->\n<TitleInput :title="title" />')
+}

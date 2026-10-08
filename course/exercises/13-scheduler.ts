@@ -25,6 +25,19 @@ async function startEdit() {
 }
 
 return { name, editing, inputRef, startEdit }`,
+  faded: {
+    js: `const name = ref('Vue')
+const editing = ref(false)
+const inputRef = ref(null)   // 模板中 ref="inputRef" 的元素
+
+/* ✏️ 函数里要等待，函数声明前要加什么关键字 */ function startEdit() {
+  editing.value = true
+  /* ✏️ 等待这次 DOM 更新完成：输入框这时才会出现 */
+  inputRef.value.focus()
+}
+
+return { name, editing, inputRef, startEdit }`
+  },
   hints: [
     '原因：修改 editing 后，Vue 不立即更新 DOM。下一行代码运行时，输入框还没有创建，inputRef.value 是 null，所以报错。要等这次 DOM 更新完成，再调用 focus()。第 6 章 6.4 节讲了怎样等这次更新，13.1 节讲了原因。',
     '只改 startEdit。把它改为 async 函数。在 inputRef.value.focus() 之前，加一行 await …。',

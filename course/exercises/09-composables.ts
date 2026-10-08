@@ -30,6 +30,21 @@ const { count: likes, inc: like } = useCounter(0)
 const { count: stars, inc: star } = useCounter(10)
 
 return { likes, like, stars, star }`,
+  faded: {
+    js: `function useCounter(initial = 0) {
+  const count = /* ✏️ 每次调用都新建一份响应式数据，初始值是 initial */ null
+  function inc() {
+    /* ✏️ 让 count 加 1（脚本里读写 ref 要用 .value） */
+  }
+  return { count, inc }
+}
+
+// 已给出：调用两次，得到两个计数器
+const { count: likes, inc: like } = useCounter(0)
+const { count: stars, inc: star } = useCounter(10)
+
+return { likes, like, stars, star }`
+  },
   hints: [
     '组合式函数每次被调用，都用 ref 创建新的数据。所以两个计数器互不影响。第 9 章开头的图讲了这一点。',
     'TODO 1：把 null 改为 ref(…)，参数是 initial。TODO 2：在 inc 中修改 count.value。在脚本中，ref 要写 .value。',
@@ -58,6 +73,18 @@ export const toggle: Exercise = {
   tpl: '<button @click="toggleWifi">Wi-Fi：{{ wifiOn ? \'开\' : \'关\' }}</button>\n<button @click="toggleBt">蓝牙：{{ btOn ? \'开\' : \'关\' }}</button>',
   js: 'function useToggle(initial = false) {\n  // TODO：用 ref 保存状态，返回 { on, toggle }\n}\n\nconst { on: wifiOn, toggle: toggleWifi } = useToggle(false)\nconst { on: btOn, toggle: toggleBt } = useToggle(true)\n\nreturn { wifiOn, toggleWifi, btOn, toggleBt }',
   solJs: 'function useToggle(initial = false) {\n  const on = ref(initial)\n  const toggle = () => { on.value = !on.value }\n  return { on, toggle }\n}\n\nconst { on: wifiOn, toggle: toggleWifi } = useToggle(false)\nconst { on: btOn, toggle: toggleBt } = useToggle(true)\n\nreturn { wifiOn, toggleWifi, btOn, toggleBt }',
+  faded: {
+    js: `function useToggle(initial = false) {
+  const on = /* ✏️ 用 ref 保存开关状态，初始值是 initial */ null
+  const toggle = () => { /* ✏️ 把 on 取反 */ }
+  return { on, toggle }
+}
+
+const { on: wifiOn, toggle: toggleWifi } = useToggle(false)
+const { on: btOn, toggle: toggleBt } = useToggle(true)
+
+return { wifiOn, toggleWifi, btOn, toggleBt }`
+  },
   hints: [
 '组合式函数是普通函数。每次调用都用 ref 创建新数据，所以两次调用互不影响。第 9 章开头的图讲了这一点。',
 '在 useToggle 中写三行：1. 用 ref(initial) 创建 on。2. 写一个函数 toggle，把 on.value 取反。3. 返回 { on, toggle }。',

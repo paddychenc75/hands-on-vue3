@@ -274,3 +274,32 @@ fbPerf.wrong = [
   { js: sub(fbPerf.solJs, 'shallowRef(list)', 'ref(list)'), why: '只补了 TODO 2，漏了 TODO 1。仍是 ref，20000 个元素都被代理，没有达到减少开销的目的。' },
   { js: sub(fbPerf.solJs, 'items.value = next             // 替换 .value，触发更新', 'items.value.push(next[next.length - 1])   // 改的是内部'), why: '用了 shallowRef，却向原数组 push。shallowRef 只在 .value 被替换时触发更新，页面不变。' }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+shallowBig.faded = {
+  js: sub(sub(sub(shallowBig.solJs, 'shallowRef(list)   // 只跟踪 .value，不代理元素',
+    'ref(list)   /* ✏️ 数据只会整体替换：换成不代理元素的 ref */'),
+    "  next[0] = { ...next[0], name: '商品 0（第 ' + version + ' 次刷新）' }",
+    '  /* ✏️ 把第 0 项换成带新名字的新对象，不要改原来的对象 */'),
+    '  items.value = next                               // 替换 .value，触发更新',
+    '  /* ✏️ 怎样让页面知道数组换了？ */')
+}
+
+fbPerf.faded = {
+  js: sub(sub(fbPerf.solJs, 'shallowRef(list)   // 只跟踪 .value，不代理元素',
+    'ref(list)   /* ✏️ 换成只跟踪 .value、不代理元素的 ref */'),
+    'items.value = next             // 替换 .value，触发更新',
+    '/* ✏️ 把新数组交给 items，让页面更新 */')
+}
+
+phenoReuse.faded = {
+  js: sub(sub(phenoReuse.solJs, '() => props.id', 'null /* ✏️ 侦听 props.id：数据源怎么写才保持响应式？ */'),
+    '{ immediate: true }', '{ /* ✏️ 第一次也要加载 */ }')
+}
+
+phenoDebounce.faded = {
+  js: sub(sub(phenoDebounce.solJs, 'const timer = setTimeout(() => search(q), 200)   // 推迟发送',
+    'const timer = null   /* ✏️ 推迟 200 毫秒再 search(q)，并保存定时器 */'),
+    'onCleanup(() => clearTimeout(timer))              // 下一次输入时，取消上一次推迟',
+    '/* ✏️ 下一次输入时，取消上一次还没发出的请求 */')
+}

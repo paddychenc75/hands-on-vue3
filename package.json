@@ -7,10 +7,19 @@
     "dev": "vitepress dev course",
     "build": "vitepress build course",
     "preview": "vitepress preview course",
-    "test": "npm run test:unit && npm run test:site",
-    "check": "npm run test:unit",
-    "test:site": "vitepress build course && node tests/site/exercises.test.js && node tests/site/progress.test.js && node tests/site/mechanics.test.js",
-    "test:unit": "vitest run"
+    "typecheck": "tsc --noEmit",
+    "check:content": "node scripts/check-content.mjs",
+    "test:unit": "vitest run",
+    "check": "npm run typecheck && npm run check:content && npm run test:unit",
+    "test:e2e": "node scripts/e2e.mjs",
+    "test:site": "npm run build && npm run test:e2e",
+    "test": "npm run check && npm run build && npm run test:e2e",
+    "new-chapter": "node scripts/new-chapter.mjs",
+    "screenshots": "node scripts/shot.mjs",
+    "prepare": "node scripts/setup-hooks.mjs"
+  },
+  "engines": {
+    "node": ">=24"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "6.20.3",
@@ -22,10 +31,12 @@
     "@codemirror/state": "6.7.6",
     "@codemirror/view": "6.43.14",
     "@lezer/highlight": "1.2.5",
+    "@types/node": "26.6.4",
     "esbuild": "0.28.2",
     "markdown-it-container": "4.0.0",
     "markdown-it-deflist": "4.0.0",
     "playwright": "1.56.1",
+    "typescript": "7.0.2",
     "vitepress": "1.6.4",
     "vitest": "5.0.3",
     "vue": "3.5.43"

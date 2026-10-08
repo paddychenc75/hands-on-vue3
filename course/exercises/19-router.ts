@@ -382,3 +382,21 @@ authGuard.wrong = [
   { js: sub(authGuard.solJs, "return '/login'", "return false"), why: '返回 false 是取消导航，不是重定向。未登录时用户停在原来的页面，没有到达登录页。' },
   { js: sub(authGuard.solJs, "to.meta.requiresAuth && !loggedIn.value", "to.path === '/admin' && !loggedIn.value"), why: '把 /admin 写死在守卫里，没有读 to.meta。路由表里再加一个受保护的页面，守卫就不认识它了。', expectFail: /requiresAuth 的路由 \/report/ }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+routeTable.faded = {
+  js: sub(sub(routeTable.solJs, "{ path: '/task/:id', component: TaskDetail, props: true },   // :id 是动态参数",
+    "{ path: /* ✏️ 带动态参数 id 的路径 */ '', component: TaskDetail, /* ✏️ 让参数作为 props 传给组件 */ },"),
+    "{ path: '/:pathMatch(.*)*', component: NotFound }            // 404 页面",
+    "{ path: /* ✏️ 能匹配所有其他地址的路径 */ '', component: NotFound }")
+}
+
+fbRouter.faded = {
+  js: sub(sub(fbRouter.solJs, ", meta: { requiresAuth: true } }   // 需要登录", " /* ✏️ 加上 meta，标记这个路由需要登录 */ }"),
+    "return '/login'   // 返回新地址：重定向", "/* ✏️ 返回什么，路由才会重定向到登录页？ */")
+}
+
+authGuard.faded = {
+  js: sub(sub(authGuard.solJs, "  // 只保护需要登录的路由。/login 没有 requiresAuth，所以不重定向\n", ''),
+    'to.meta.requiresAuth && !loggedIn.value', 'false /* ✏️ 只在目标路由要求登录、且当前未登录时才重定向 */')
+}

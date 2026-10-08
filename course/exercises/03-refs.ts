@@ -22,6 +22,17 @@ let { count } = state
 const { count: countRef } = toRefs(state)
 
 return { state, count, countRef }`,
+  faded: {
+    js: `const state = reactive({ count: 0 })
+
+// 已给出：直接解构。count 是数字 0 的副本
+let { count } = state
+
+// 取出 count，命名为 countRef，要让它一直跟随 state.count
+const { count: countRef } = /* ✏️ 先把 state 的每个属性变成 ref */ state
+
+return { state, count, countRef }`
+  },
   hints: [
     '解构 reactive 对象，只复制当时的值。toRefs 为每个属性创建一个 ref。这个 ref 读写原对象的属性，所以保持连接。第 3 章 3.2 节和 3.3 节末尾的实验台“解构和浅层响应”讲了它。',
     '只改 TODO 下面的一行。右边写 toRefs(state)。左边从结果中解构 count，并重命名为 countRef。重命名的写法是 { count: countRef }。',
@@ -49,6 +60,16 @@ export const fixReactive: Exercise = {
   tpl: '<p>count = {{ count }}</p>\n<button @click="add">+1</button>',
   js: 'const state = reactive({ count: 0 })\nconst { count } = state\n\nfunction add() {\n  state.count++\n}\n\nreturn { count, add }',
   solJs: 'const state = reactive({ count: 0 })\nconst { count } = toRefs(state)   // 用 toRefs 保持响应\n\nfunction add() {\n  state.count++\n}\n\nreturn { count, add }',
+  faded: {
+    js: `const state = reactive({ count: 0 })
+const { count } = /* ✏️ 解构之前，先让 state 的属性保持连接 */ state
+
+function add() {
+  state.count++
+}
+
+return { count, add }`
+  },
   hints: [
 '原因：解构 reactive 对象只复制当时的值。count 成为一个普通数字，和 state 断开，所以 state.count 改变时它不变。解构时，要得到仍然连着 state 的东西。第 3 章 3.2 节讲了这个问题。',
 '只改第 2 行 const { count } = state。用一个函数包住 state，让解构得到 ref，而不是数字。add 函数不用改。',

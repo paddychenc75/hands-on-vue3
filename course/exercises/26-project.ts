@@ -583,3 +583,48 @@ kanbanItem.wrong!.push(
   { js: sub(kanbanItem.solJs, "props: { task: { type: Object, required: true } },", "props: ['task'],"), why: 'props 写成了数组，没有声明 task 的类型，也没有写 required。传错类型或漏传时，Vue 不会给出提示。' , expectFail: /TODO 1/ },
   { js: sub(kanbanItem.solJs, "emits: ['toggle', 'remove'],", "emits: [],"), why: '没有声明 TaskItem 发出的事件。页面照样能用，但组件的接口里看不出它会发出 toggle 和 remove，拼错事件名也没有人提醒。', expectFail: /TODO 2/ }
 )
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+kanbanItem.faded = {
+  js: sub(sub(sub(sub(kanbanItem.solJs!,
+    'props: { task: { type: Object, required: true } },',
+    'props: { task: { type: null /* ✏️ task 是什么类型 */, required: false /* ✏️ 它必填吗 */ } },'),
+    "emits: ['toggle', 'remove'],", 'emits: [/* ✏️ 声明 TaskItem 向父组件发出的两个事件 */],'),
+    `<input type="checkbox" :checked="task.done" @change="$emit('toggle', task.id)">`,
+    `<!-- ✏️ 复选框 change 时，向父组件发出 toggle，并告诉它是哪个任务 -->\n      <input type="checkbox" :checked="task.done">`),
+    `<button @click="$emit('remove', task.id)">删除</button>`,
+    `<!-- ✏️ 点击“删除”时，向父组件发出 remove，并告诉它是哪个任务 -->\n      <button>删除</button>`)
+}
+
+kanbanSave.faded = {
+  js: sub(sub(sub(sub(kanbanSave.solJs!,
+    'ref(saved ? JSON.parse(saved) : seed())', 'ref(seed() /* ✏️ 有存档就用存档（它是 JSON 字符串），没有才用 seed() */)'),
+    '  // deep：push 和修改 done 也触发保存\n', ''),
+    'v => localStorage.setItem(key, JSON.stringify(v)), { deep: true })',
+    'v => null /* ✏️ 把 v 以 JSON 字符串存进 localStorage */, { /* ✏️ 勾选只改某一项的 done，怎样才能也触发保存？ */ })'),
+    'tasks.value = tasks.value.filter(t => t.id !== id)', '/* ✏️ 生成一个不含这一项的新数组，赋给 tasks.value */')
+}
+
+kanbanDue.faded = {
+  tpl: sub(kanbanDue.solTpl!, `截止：<span class="due">{{ t.due || '无' }}</span>`,
+    `<!-- ✏️ 没有日期（due 为空）时，要显示“无” -->\n    截止：<span class="due">{{ t.due }}</span>`),
+  js: sub(sub(sub(kanbanDue.solJs!, `const LAST = '9999-12-31'   // 没有日期时，当作最晚的日期\n// [...] 先复制。原因：sort 会修改原数组，computed 中不要修改数据。\n`, `const LAST = '9999-12-31'\n`),
+    '[...tasks.value].sort(', '/* ✏️ computed 里不能改原数组：先复制，再 sort */ tasks.value.sort('),
+    '(a.due || LAST).localeCompare(b.due || LAST)', 'a.due.localeCompare(b.due) /* ✏️ 没有日期的任务要排在最后；LAST 怎么用？ */')
+}
+
+kanbanStore.faded = {
+  js: sub(sub(sub(kanbanStore.solJs!, 'return { tasks, left, add, toggle, remove }',
+    'return { tasks, left /* ✏️ App 还要用到哪些方法？ */ }'),
+    'const { left } = storeToRefs(store)   // left 仍是 ref，保持响应',
+    'const { left } = store   /* ✏️ 直接解构只得到当前的数字：怎样保持响应？ */'),
+    'const { tasks } = storeToRefs(store)      // state：用 storeToRefs\nconst { add, toggle, remove } = store     // action：直接解构',
+    'const { tasks, add, toggle, remove } = store   /* ✏️ state 和 action 的解构方式该一样吗？ */')
+}
+
+kanbanRoute.faded = {
+  tpl: sub(kanbanRoute.solTpl!, `@click.prevent="push('/task/' + t.id)">`,
+    `@click.prevent>`).replace('    <a href="#" class="title"', '    <!-- ✏️ 点击标题时，打开 /task/ 加这个任务的 id -->\n    <a href="#" class="title"'),
+  js: sub(sub(kanbanRoute.solJs!, '// 路由参数是字符串，t.id 是数字。先转为数字，再比较。\n', ''),
+    't.id === Number(route.params.id)', 't.id === route.params.id /* ✏️ 路由参数和 t.id 的类型一样吗？ */')
+}

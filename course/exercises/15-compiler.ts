@@ -208,3 +208,16 @@ patchFlagFix.wrong = [
   { js: sub(sub(patchFlagFix.solJs, 'flag & PatchFlags.CLASS', 'flag >= PatchFlags.CLASS'), 'flag & PatchFlags.TEXT', 'flag >= PatchFlags.TEXT'), why: '把“包含某一位”当成了“数值够大”。PatchFlag 2 也大于等于 1，所以只改 class 时文字也被更新。', expectFail: /PatchFlag 2/ },
   { js: sub(sub(patchFlagFix.solJs, 'flag & PatchFlags.CLASS', 'flag === 2 || flag === 3'), 'flag & PatchFlags.TEXT', 'flag === 1 || flag === 3'), why: '把用到的组合一个个列出来。按钮上的 1、2、3 都能过，但标记还可以是 11 等其他组合。按位与检查的是“有没有这一位”，不用列举。', expectFail: /标记 11/ }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+flagBitFill.faded = {
+  js: sub(sub(flagBitFill.solJs, 'flag & PatchFlags.STYLE', 'false /* ✏️ 用 flag 检查 STYLE 这一位 */'),
+    'flag & PatchFlags.TEXT', 'false /* ✏️ 用 flag 检查 TEXT 这一位 */')
+}
+
+patchFlagFix.faded = {
+  js: sub(sub(sub(sub(patchFlagFix.solJs, 'flag & PatchFlags.CLASS', 'false /* ✏️ flag 里是否含有 CLASS 这一位？ */'),
+    'flag & PatchFlags.TEXT', 'false /* ✏️ flag 里是否含有 TEXT 这一位？ */'),
+    '// 按位与：检查 CLASS 这一位', '// 只在标记含 CLASS 时更新'),
+    '// 按位与：检查 TEXT 这一位', '// 只在标记含 TEXT 时更新')
+}

@@ -7,6 +7,14 @@ export const keepTab: Exercise = {
   tpl: '<button @click="cur = \'Counter\'">计数页</button>\n<button @click="cur = \'About\'">关于页</button>\n\n<component :is="tabs[cur]" />',
   js: 'const Counter = {\n  setup() { return { n: ref(0) } },\n  template: \'<p>计数：{{ n }} <button @click="n++">+1</button></p>\'\n}\nconst About = { template: \'<p>这是关于页</p>\' }\n\nconst tabs = { Counter, About }\nconst cur = ref(\'Counter\')\n\nreturn { tabs, cur }',
   solTpl: '<button @click="cur = \'Counter\'">计数页</button>\n<button @click="cur = \'About\'">关于页</button>\n\n<KeepAlive>\n  <component :is="tabs[cur]" />\n</KeepAlive>',
+  faded: {
+    tpl: `<button @click="cur = 'Counter'">计数页</button>
+<button @click="cur = 'About'">关于页</button>
+
+<!-- ✏️ 开始标签：用内置组件包住下面的动态组件，缓存切走的实例 -->
+<component :is="tabs[cur]" />
+<!-- ✏️ 与上面成对的结束标签 -->`
+  },
   hints: [
     '切换动态组件时，旧组件被卸载，所以状态丢失。KeepAlive 缓存组件实例。第 7 章“7.4 动态组件和 KeepAlive”讲了它。',
     '只改模板的最后一行。用 <KeepAlive> … </KeepAlive> 包住 <component :is="…" />。KeepAlive 是内置组件，不需要注册。',
@@ -50,6 +58,14 @@ const cur = ref('TabA')
 
 return { tabs, cur, getCreated: () => created }`,
   solTpl: '<button @click="cur = \'TabA\'">TabA</button>\n<button @click="cur = \'TabB\'">TabB</button>\n\n<KeepAlive>\n  <component :is="tabs[cur]" />\n</KeepAlive>',
+  faded: {
+    tpl: `<button @click="cur = 'TabA'">TabA</button>
+<button @click="cur = 'TabB'">TabB</button>
+
+<!-- ✏️ 开始标签：缓存切走的组件实例 -->
+<component :is="tabs[cur]" />
+<!-- ✏️ 与上面成对的结束标签 -->`
+  },
   hints: [
     '切换动态组件时，Vue 卸载旧组件，它的状态丢失。<KeepAlive> 把旧组件的实例放入缓存，切回时直接使用。第 7 章 7.4 节讲了它。',
     '只改模板。删除 TODO 注释。在 <component :is="tabs[cur]" /> 的上一行写开始标签，下一行写结束标签。KeepAlive 是内置组件，不需要注册。',
@@ -81,6 +97,17 @@ export const teleportFill: Exercise = {
   tpl: '<div class="card" style="overflow: hidden; height: 60px">\n  <button @click="open = true">打开弹窗</button>\n  <!-- TODO：用 <Teleport to="body"> 和 </Teleport> 包住弹窗 -->\n  <div v-if="open" class="modal">\n    <p>弹窗内容：{{ msg }}</p>\n    <button @click="open = false">关闭</button>\n  </div>\n</div>',
   js: 'const open = ref(false)\nconst msg = ref(\'任务已保存\')\n\nreturn { open, msg }',
   solTpl: '<div class="card" style="overflow: hidden; height: 60px">\n  <button @click="open = true">打开弹窗</button>\n  <Teleport to="body">\n    <div v-if="open" class="modal">\n      <p>弹窗内容：{{ msg }}</p>\n      <button @click="open = false">关闭</button>\n    </div>\n  </Teleport>\n</div>',
+  faded: {
+    tpl: `<div class="card" style="overflow: hidden; height: 60px">
+  <button @click="open = true">打开弹窗</button>
+  <!-- ✏️ 开始标签：把下面的弹窗传送到 body -->
+  <div v-if="open" class="modal">
+    <p>弹窗内容：{{ msg }}</p>
+    <button @click="open = false">关闭</button>
+  </div>
+  <!-- ✏️ 与上面成对的结束标签 -->
+</div>`
+  },
   hints: [
     '<Teleport> 把内容渲染到其他 DOM 位置，数据和事件仍然属于原来的组件。第 7 章“7.3 用 Teleport 把弹窗渲染到 body 中”讲了它。',
     '只改模板。在 <div v-if="open" class="modal"> 的上一行写 <Teleport to="body">，在这个 div 的结束标签后写 </Teleport>。按钮留在 Teleport 外面。',

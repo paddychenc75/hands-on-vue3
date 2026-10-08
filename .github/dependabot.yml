@@ -1,0 +1,24 @@
+# 依赖更新：Dependabot（GitHub 自带，不用装 App，npm 和 GitHub Actions 都支持）。每周一次，同类更新合并成一个 PR。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      vitepress:
+        patterns: ["vitepress", "vue", "markdown-it-*"]
+      codemirror:
+        patterns: ["@codemirror/*", "@lezer/*"]
+      tooling:
+        patterns: ["typescript", "vitest", "esbuild", "playwright", "@types/node"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]

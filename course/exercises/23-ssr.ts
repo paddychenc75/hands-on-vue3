@@ -171,3 +171,16 @@ ssrMismatch.wrong = [
   { js: sub(ssrMismatch.solJs, "const theme = ref('light')            // 和服务器相同的初始值\n    onMounted(() => {\n      theme.value = browserSettings.theme // 水合完成后，在浏览器中读取\n    })", "const theme = ref(typeof window !== 'undefined' ? browserSettings.theme : 'light')"), why: '用 typeof window 判断环境。这只让服务器不报错，但浏览器的第一次渲染读到 dark，和服务器的 light 不一致，水合后 class 仍是 light。' },
   { js: sub(ssrMismatch.solJs, "onMounted(() => {\n      theme.value = browserSettings.theme", "Vue.onBeforeMount(() => {\n      theme.value = browserSettings.theme"), why: 'onBeforeMount 在水合之前运行。第一次渲染已经是 dark，和服务器的 light 不一致，class 不会被修正。要在 onMounted 中读取。' }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+fbSsr.faded = {
+  js: sub(fbSsr.solJs, 'mobile.value = browser.width < 768   // 水合完成后，在浏览器中读取',
+    '/* ✏️ 水合完成后，根据 browser.width 设置 mobile（小于 768 是手机） */')
+}
+
+ssrMismatch.faded = {
+  js: sub(sub(ssrMismatch.solJs, "ref('light')            // 和服务器相同的初始值",
+    'ref(browserSettings.theme)   /* ✏️ 第一次渲染要和服务器发来的 HTML 一致：初始值取什么？ */'),
+    'theme.value = browserSettings.theme // 水合完成后，在浏览器中读取',
+    '/* ✏️ 水合完成后，再读取浏览器里的设置 */')
+}

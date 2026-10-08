@@ -191,3 +191,24 @@ diffKey.wrong = [
   { tpl: sub(diffKey.solTpl, ':key="it.id"', ':key="Math.random()"'), why: '每次渲染都生成新的 key。Vue 认为每一行都是新节点，全部卸载再挂载，B 行的输入框也被清空。key 要稳定，并且跟着数据走。' },
   { tpl: sub(diffKey.solTpl, '<li v-for="it in items" :key="it.id">', '<li v-for="(it, index) in items" :key="it.id + \'-\' + index">'), why: 'key 里混入了下标。删除 A 后，B 的下标变了，key 也变了，Vue 认为 B 是新节点，输入框被清空。' }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+fbDiff.faded = {
+  tpl: sub(fbDiff.solTpl, '  <li v-for="it in items" :key="it.id">',
+    '  <!-- ✏️ 在下面的 li 上加 key：取每一项自己不会变的标识 -->\n  <li v-for="it in items">')
+}
+
+diffKey.faded = {
+  tpl: sub(diffKey.solTpl, '  <li v-for="it in items" :key="it.id">',
+    '  <!-- ✏️ 这个 li 的 key 要跟着数据走，而不是跟着位置 -->\n  <li v-for="it in items">')
+}
+
+phenoHeight.faded = {
+  js: sub(phenoHeight.solJs, 'await nextTick()                              // 等待这次 DOM 更新完成',
+    '/* ✏️ 读高度之前，先等 Vue 把这次数据变化更新到 DOM */')
+}
+
+phenoSort.faded = {
+  tpl: sub(phenoSort.solTpl, '  <li v-for="(it, i) in items" :key="it.id">',
+    '  <!-- ✏️ 备注要跟着任务走：给下面的 li 一个跟着数据走的 key -->\n  <li v-for="(it, i) in items">')
+}

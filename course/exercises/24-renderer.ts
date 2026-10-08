@@ -287,3 +287,17 @@ fbRenderer.wrong = [
   { js: sub(fbRenderer.solJs, "remove(node) {\n    detach(node)\n  }", "remove(node) {\n    node.parent.children.pop()\n  }"), why: '总是删掉最后一个子节点，没有删 node 本身。删的恰好是最后一项时看不出来，删中间的 B 就错了：对象树变成 A B2。', expectFail: /删除 B 后/  },
   { js: sub(fbRenderer.solJs, "el.props[key] = next", "el[key] = next"), why: '把属性写到了 el 本身，不是 el.props。显示用的是 node.props.name，读不到，对象树里每个 item 都是空的。' }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+rendererInsert.faded = {
+  js: sub(sub(rendererInsert.solJs, 'const i = anchor ? list.indexOf(anchor) : -1',
+    'const i = -1   /* ✏️ 有 anchor 时，在 list 里找到它的下标；没有时是 -1 */'),
+    'else list.splice(i, 0, child)       // 有 anchor：插到它前面',
+    'else list.push(child)   /* ✏️ 有 anchor：在下标 i 处插入 child，不删除任何节点 */')
+}
+
+fbRenderer.faded = {
+  js: sub(sub(fbRenderer.solJs, 'remove(node) {\n    detach(node)',
+    'remove(node) {\n    /* ✏️ 用已给出的 detach，把 node 从父节点摘下来 */'),
+    'el.props[key] = next', 'el.props[key] = prev   /* ✏️ 该写入哪个值：旧的还是新的？ */')
+}

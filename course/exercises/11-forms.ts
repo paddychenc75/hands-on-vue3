@@ -30,6 +30,20 @@ const errors = computed(() => {
 const valid = computed(() => Object.keys(errors.value).length === 0)
 
 return { form, errors, valid }`,
+  faded: {
+    js: `const form = reactive({ name: '', email: '' })
+
+const errors = computed(() => {
+  const e = {}
+  if (!form.name) e.name = '请输入姓名'
+  if (/* ✏️ 邮箱不包含 @ */ false) e.email = '邮箱格式不正确'
+  return e
+})
+
+const valid = /* ✏️ 用 computed：errors 里没有任何键时为 true */ false
+
+return { form, errors, valid }`
+  },
   hints: [
     '错误信息从表单数据计算得到，所以用计算属性实现校验。valid 也从 errors 计算得到。第 11 章 11.4 节讲了它。',
     'TODO 1：仿照姓名那一行，写一个 if。条件是 form.email 不包含 \'@\'。TODO 2：把 false 改为 computed(…)。getter 中检查 Object.keys(errors.value) 的长度。在脚本中，computed 要写 .value。',
@@ -67,6 +81,28 @@ export const formValid: Exercise = {
   tpl: '<form @submit.prevent="submit" novalidate>\n  <label>姓名 <input class="name" v-model.trim="form.name"></label>\n  <p class="err-name">{{ submitted ? errors.name : \'\' }}</p>\n  <label>邮箱 <input class="email" v-model.trim="form.email"></label>\n  <p class="err-email">{{ submitted ? errors.email : \'\' }}</p>\n  <button>提交</button>\n</form>\n<p class="msg">{{ msg }}</p>',
   js: "const form = reactive({ name: '', email: '' })\nconst submitted = ref(false)\nconst msg = ref('')\n\n// TODO 1：用 computed 计算 errors\nconst errors = {}\n\n// TODO 2：计算 valid\n\nfunction submit() {\n  submitted.value = true\n  // TODO 3：valid 为 false 时，显示“请修改错误”并返回\n  msg.value = '已提交：' + form.name\n}\n\nreturn { form, submitted, msg, errors, submit }",
   solJs: "const form = reactive({ name: '', email: '' })\nconst submitted = ref(false)\nconst msg = ref('')\n\nconst errors = computed(() => {\n  const e = {}\n  if (!form.name) e.name = '请输入姓名'\n  if (!form.email.includes('@')) e.email = '邮箱格式不正确'\n  return e\n})\n\nconst valid = computed(() => Object.keys(errors.value).length === 0)\n\nfunction submit() {\n  submitted.value = true\n  if (!valid.value) {\n    msg.value = '请修改错误'\n    return\n  }\n  msg.value = '已提交：' + form.name\n}\n\nreturn { form, submitted, msg, errors, submit }",
+  faded: {
+    js: `const form = reactive({ name: '', email: '' })
+const submitted = ref(false)
+const msg = ref('')
+
+const errors = /* ✏️ errors 由表单数据算出来：用什么 API 包住下面的 getter？ */(() => {
+  const e = {}
+  if (!form.name) e.name = '请输入姓名'
+  /* ✏️ email 不包含 @ 时，设置 e.email */
+  return e
+})
+
+const valid = /* ✏️ 计算属性：errors 没有任何键时为 true */ null
+
+function submit() {
+  submitted.value = true
+  /* ✏️ valid 为 false 时，msg 设为“请修改错误”并结束函数 */
+  msg.value = '已提交：' + form.name
+}
+
+return { form, submitted, msg, errors, submit }`
+  },
   hints: [
     '错误信息由表单数据计算得到，所以用 computed。第 11 章“11.4 用计算属性校验”讲了它。用 computed 时，输入改变后错误立即更新。',
     '1. 把 const errors = {} 改为 computed，在函数中创建空对象 e，按条件添加 e.name 和 e.email，返回 e。2. 添加 valid = computed(…)，判断 errors.value 有没有键。3. 在 submit 中，valid.value 为 false 时设置 msg 并 return。',
@@ -111,6 +147,18 @@ export const phenoClip: Exercise = {
   tpl: '<div class="card" style="overflow: hidden; height: 64px; transform: translateZ(0); border: 1px solid #999; padding: 8px">\n  <span>任务：修复登录</span>\n  <button @click="open = true">删除任务</button>\n  <div v-if="open" class="pheno-modal" style="position: fixed; top: 40px; left: 20px; z-index: 10; background: #fff; color: #222; border: 1px solid #333; padding: 12px">\n    <p>确认删除“修复登录”吗？</p>\n    <button @click="open = false">取消</button>\n  </div>\n</div>',
   solTpl: '<div class="card" style="overflow: hidden; height: 64px; transform: translateZ(0); border: 1px solid #999; padding: 8px">\n  <span>任务：修复登录</span>\n  <button @click="open = true">删除任务</button>\n  <Teleport to="body">\n    <div v-if="open" class="pheno-modal" style="position: fixed; top: 40px; left: 20px; z-index: 10; background: #fff; color: #222; border: 1px solid #333; padding: 12px">\n      <p>确认删除“修复登录”吗？</p>\n      <button @click="open = false">取消</button>\n    </div>\n  </Teleport>\n</div>',
   js: 'const open = ref(false)\n\nreturn { open }',
+  faded: {
+    tpl: `<div class="card" style="overflow: hidden; height: 64px; transform: translateZ(0); border: 1px solid #999; padding: 8px">
+  <span>任务：修复登录</span>
+  <button @click="open = true">删除任务</button>
+  <!-- ✏️ 开始标签：让弹窗的 DOM 脱离卡片，渲染到 body -->
+  <div v-if="open" class="pheno-modal" style="position: fixed; top: 40px; left: 20px; z-index: 10; background: #fff; color: #222; border: 1px solid #333; padding: 12px">
+    <p>确认删除“修复登录”吗？</p>
+    <button @click="open = false">取消</button>
+  </div>
+  <!-- ✏️ 与上面成对的结束标签 -->
+</div>`
+  },
   hints: [
     '原因：弹窗的 DOM 在卡片里面。祖先元素的 overflow: hidden 裁切所有后代。卡片的 transform 还让 position: fixed 相对卡片定位，所以提高 z-index 也没有用。弹窗的 DOM 要放到卡片外面，同时它仍然属于这个组件，可以读写 open。第 7 章 7.3 节讲了它。',
     '只改模板。用一个内置组件包住整个 .pheno-modal，把它渲染到 body 中。卡片的样式不改。',
@@ -175,6 +223,24 @@ const theme = ref('light')
 provide('theme', theme)   // 提供 ref 本身，后代拿到同一个 ref
 
 return { theme, components: { Layout } }`,
+  faded: {
+    js: `const ThemeBadge = {
+  setup() {
+    const theme = inject('theme')
+    return { theme }
+  },
+  template: '<span class="badge" :class="theme">徽章的主题：{{ theme }}</span>'
+}
+const Layout = {
+  components: { ThemeBadge },
+  template: '<div class="layout"><ThemeBadge /></div>'
+}
+
+const theme = ref('light')
+provide('theme', /* ✏️ 提供什么，后代才能跟着 theme 变化？ */ theme.value)
+
+return { theme, components: { Layout } }`
+  },
   hints: [
     '原因：App 提供给后代的是 theme 当时的值，也就是字符串 \'light\'。字符串不是响应式数据。之后 theme 改变，后代拿到的仍是旧字符串。要把“能被跟踪的数据”本身交给后代。第 5 章 5.6 节最后的注意讲了它。',
     '只改 App 中向后代提供数据的那一行。去掉 .value，提供 ref 本身。ThemeBadge 不用改：模板自动解包 ref。',

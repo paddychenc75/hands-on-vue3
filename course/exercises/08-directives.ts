@@ -72,6 +72,31 @@ const TagDemo = {
 }
 
 return { components: { TagDemo } }`,
+  faded: {
+    js: `function apply(el, binding) {
+  el.textContent = binding.value
+  el.style.textAlign = /* ✏️ 冒号后面的参数；没有参数时用 'left' */ ''
+  el.style.fontWeight = /* ✏️ 有修饰符 bold 时是 '700'，否则是 '400' */ ''
+}
+
+const vTag = {
+  mounted: apply,
+  updated: apply
+}
+
+const TagDemo = {
+  directives: { tag: vTag },   // 注册为 v-tag
+  setup() {
+    return { text: ref('你好') }
+  },
+  template: '<p class="a" v-tag:center.bold="text"></p>' +
+    '<p class="b" v-tag:right="text"></p>' +
+    '<p class="c" v-tag="text"></p>' +
+    '<input v-model="text">'
+}
+
+return { components: { TagDemo } }`
+  },
   hints: [
     '钩子的第二个参数 binding 有三个常用属性：value 是等号后面表达式的结果，arg 是冒号后面的参数，modifiers 是点后面的修饰符。第 8 章“8.3 读取 binding 的 value、arg 和 modifiers”的表格讲了它。',
     'TODO 1：给 el.style.textAlign 赋值 binding.arg。arg 是 undefined 时，用 \'left\'。TODO 2：modifiers 是一个对象，不是数组。读取它的 bold 属性，用条件运算符得到 \'700\' 或 \'400\'。',
@@ -200,6 +225,35 @@ const Dropdown = {
 }
 
 return { show, components: { Dropdown } }`,
+  faded: {
+    js: `const show = ref(true)
+
+const Dropdown = {
+  directives: {
+    clickOutside: {
+      mounted(el, binding) {
+        el._handler = e => {
+          if (/* ✏️ 事件路径 e.composedPath() 里没有 el，就是点击在外部 */ false) binding.value()
+        }
+        document.addEventListener('click', el._handler)
+      },
+      unmounted(el) {
+        document.removeEventListener('click', /* ✏️ 传入哪个函数，才能删掉监听 */)
+      }
+    }
+  },
+  setup() {
+    const open = ref(false)
+    const close = () => { open.value = false }
+    return { open, close }
+  },
+  template: '<div class="dropdown" v-click-outside="close">' +
+    '<button @click="open = !open">菜单</button>' +
+    '<ul v-if="open"><li>编辑</li><li>删除</li></ul></div>'
+}
+
+return { show, components: { Dropdown } }`
+  },
   hints: [
     '指令在 mounted 中添加监听，在 unmounted 中删除监听。e.composedPath() 是事件经过的元素列表。列表中没有 el 时，点击在外部。第 8 章 8.5 节讲了它。',
     'TODO 1：写一个 if。条件是 e.composedPath() 不包含 el。条件成立时，调用 binding.value()。TODO 2：调用 document.removeEventListener，参数是 \'click\' 和 el._handler。',
@@ -231,6 +285,39 @@ export const clickOutside: Exercise = {
   tpl: '<Dropdown v-if="show" />\n<p class="outside">页面的其他区域</p>\n<button @click="show = !show">卸载 Dropdown</button>',
   js: "const show = ref(true)\n\nconst Dropdown = {\n  directives: {\n    clickOutside: {\n      mounted(el, binding) {\n        // TODO 1：创建监听函数，保存到 el._handler\n        //   点击在 el 外部时，调用 binding.value()\n        // TODO 2：在 document 上添加 click 监听\n      },\n      unmounted(el) {\n        // TODO 3：删除监听\n      }\n    }\n  },\n  setup() {\n    const open = ref(false)\n    return { open }\n  },\n  template: `<div class=\"dropdown\" v-click-outside=\"() => { open = false }\">\n    <button @click=\"open = !open\">菜单</button>\n    <ul v-if=\"open\"><li>编辑</li><li>删除</li></ul>\n  </div>`\n}\n\nreturn { show, components: { Dropdown } }",
   solJs: "const show = ref(true)\n\nconst Dropdown = {\n  directives: {\n    clickOutside: {\n      mounted(el, binding) {\n        el._fn = binding.value\n        el._handler = e => {\n          if (!e.composedPath().includes(el)) el._fn(e)   // 点击在外部\n        }\n        document.addEventListener('click', el._handler)\n      },\n      updated(el, binding) {\n        el._fn = binding.value      // 保存最新的回调\n      },\n      unmounted(el) {\n        document.removeEventListener('click', el._handler)\n      }\n    }\n  },\n  setup() {\n    const open = ref(false)\n    return { open }\n  },\n  template: `<div class=\"dropdown\" v-click-outside=\"() => { open = false }\">\n    <button @click=\"open = !open\">菜单</button>\n    <ul v-if=\"open\"><li>编辑</li><li>删除</li></ul>\n  </div>`\n}\n\nreturn { show, components: { Dropdown } }",
+  faded: {
+    js: `const show = ref(true)
+
+const Dropdown = {
+  directives: {
+    clickOutside: {
+      mounted(el, binding) {
+        el._fn = binding.value
+        el._handler = e => {
+          /* ✏️ 点击在 el 外部时，调用 el._fn(e) */
+        }
+        /* ✏️ 在 document 上添加 click 监听 */
+      },
+      updated(el, binding) {
+        /* ✏️ 保存最新的回调：模板里的函数每次渲染都是新的 */
+      },
+      unmounted(el) {
+        /* ✏️ 删除监听：要用添加时的同一个函数 */
+      }
+    }
+  },
+  setup() {
+    const open = ref(false)
+    return { open }
+  },
+  template: \`<div class="dropdown" v-click-outside="() => { open = false }">
+    <button @click="open = !open">菜单</button>
+    <ul v-if="open"><li>编辑</li><li>删除</li></ul>
+  </div>\`
+}
+
+return { show, components: { Dropdown } }`
+  },
   hints: [
     '自定义指令在 mounted 中添加监听，在 unmounted 中删除同一个监听。第 8 章“8.5 实用指令：v-click-outside”讲了这个指令。不删除监听，组件卸载后监听仍在。',
     '1. mounted：把监听函数保存到 el._handler。函数中判断事件路径是否包含 el，不包含时调用 binding.value()。然后在 document 上添加 click 监听。2. unmounted：用同一个 el._handler 删除监听。',

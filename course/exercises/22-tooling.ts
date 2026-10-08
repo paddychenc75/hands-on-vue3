@@ -268,3 +268,17 @@ fbTooling.wrong = [
   { js: sub(fbTooling.solJs, "  expect(wrapper.text()).toContain('开')          // 没有这一行，测试总是通过", "  expect(wrapper.text()).toContain('关')"), why: '照抄上一行，没有把期望改成“开”。点击后文字应该是“开”，这个断言让 Toggle 反而失败，并且发现不了 BrokenToggle。' },
   { js: sub(fbTooling.solJs, "  expect(wrapper.text()).toContain('关')\n  await wrapper.find('button').trigger('click')   // await：等待 DOM 更新\n  expect(wrapper.text()).toContain('开')          // 没有这一行，测试总是通过", "  expect(wrapper.text()).toContain('关')\n  expect(wrapper.text()).toContain('开')          // 断言放在点击之前\n  await wrapper.find('button').trigger('click')"), why: '断言放在了点击之前。这时文字还是“关”，两个组件的测试都失败，测试检查的不是点击的效果。' }
 ]
+
+// ===== 半成品示例（参考答案挖掉关键处，占位说明做什么）=====
+testAwait.faded = {
+  js: sub(sub(testAwait.solJs, "await wrapper.find('button').trigger('click')   // 等待 DOM 更新",
+    "/* ✏️ 点击后 DOM 不会立即更新：断言之前要先等什么？ */ wrapper.find('button').trigger('click')"),
+    "toContain('点了 1 次')", "toContain('' /* ✏️ 点击一次后，按钮上应该显示的文字 */)")
+}
+
+fbTooling.faded = {
+  js: sub(sub(fbTooling.solJs, "await wrapper.find('button').trigger('click')   // await：等待 DOM 更新",
+    "/* ✏️ 点击后要先等 DOM 更新，才能断言 */ wrapper.find('button').trigger('click')"),
+    "expect(wrapper.text()).toContain('开')          // 没有这一行，测试总是通过",
+    "/* ✏️ 断言点击后文字包含“开”（没有断言的测试总是通过） */")
+}

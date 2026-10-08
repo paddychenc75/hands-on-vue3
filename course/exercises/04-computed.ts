@@ -33,6 +33,22 @@ function getFull() {
 const full = computed(getFull)   // 传入函数本身，不调用它
 
 return { first, last, tick, full, getRuns: () => runs }`,
+  faded: {
+    js: `const first = ref('Evan')
+const last = ref('You')
+const tick = ref(0)      // 和全名无关的数据
+let runs = 0             // getter 的运行次数
+
+// 已给出：getter。从 first 和 last 计算全名
+function getFull() {
+  runs++
+  return first.value + ' ' + last.value
+}
+
+const full = /* ✏️ 把 getFull 变成带缓存的计算属性（传函数本身，不调用） */ null
+
+return { first, last, tick, full, getRuns: () => runs }`
+  },
   hints: [
     'computed(getter) 返回一个带缓存的 ref。依赖改变时，它重新计算。其他数据改变时，它返回缓存。第 4 章 4.1 节讲了它。现在的代码只调用 getFull() 一次，full 是一个普通字符串。',
     '只改 TODO 这一行。把 getFull 传给 computed。传入函数本身，不要写括号。',
@@ -67,6 +83,18 @@ export const cart: Exercise = {
   tpl: '<div v-for="it in items" :key="it.name">\n  {{ it.name }} ¥{{ it.price }} × {{ it.qty }}\n  <button @click="it.qty++">+</button>\n  <button @click="it.qty > 0 && it.qty--">-</button>\n</div>\n<p>总价：{{ total }}</p>',
   js: 'const items = ref([\n  { name: \'键盘\', price: 10, qty: 1 },\n  { name: \'鼠标\', price: 20, qty: 1 }\n])\n\n// TODO：用 computed 计算 total\nconst total = 0\n\nreturn { items, total }',
   solJs: 'const items = ref([\n  { name: \'键盘\', price: 10, qty: 1 },\n  { name: \'鼠标\', price: 20, qty: 1 }\n])\n\nconst total = computed(() =>\n  items.value.reduce((sum, it) => sum + it.price * it.qty, 0)\n)\n\nreturn { items, total }',
+  faded: {
+    js: `const items = ref([
+  { name: '键盘', price: 10, qty: 1 },
+  { name: '鼠标', price: 20, qty: 1 }
+])
+
+const total = /* ✏️ 总价由 items 算出来：用哪个 API 包住下面的 getter？ */(() =>
+  items.value.reduce((sum, it) => sum + /* ✏️ 这一项的小计 */ 0, 0)
+)
+
+return { items, total }`
+  },
   hints: [
 '总价由 items 计算得到，所以用 computed。第 4 章“4.1 computed：从数据算出值”讲了它。依赖改变时，computed 自动重新计算。',
 '只改 const total = 0 这一行。写 const total = computed(() => …)。在函数中用 items.value.reduce(…) 求和，每项是 it.price * it.qty。',
@@ -133,6 +161,23 @@ const shown = computed(() =>
 )
 
 return { filter, shown, add }`,
+  faded: {
+    js: `const tasks = ref([
+  { id: 1, text: '写周报', done: true },
+  { id: 2, text: '修复登录', done: false }
+])
+const filter = ref('all')
+let nextId = 3
+function add() {
+  tasks.value.push({ id: nextId, text: '新任务 ' + nextId, done: false })
+  nextId++
+}
+
+// 不再另存一份：显示的列表直接从 tasks 和 filter 算出来
+const shown = /* ✏️ 读取 tasks 和 filter，得到筛选后的数组；依赖变了它要自动更新 */ []
+
+return { filter, shown, add }`
+  },
   hints: [
     '原因：shown 是一份复制出来的数据。只有筛选条件改变时，代码才重新复制。tasks 改变时，没有代码更新这份复制。显示的列表可以从 tasks 和 filter 直接算出来，不需要保存第二份数据。本章最后“注意”的第 3 条讲了这个问题。',
     '删除 const shown = ref([]) 和整个侦听器。把 shown 改为一个“从其他数据算出来”的值：它读取 tasks 和 filter，返回筛选后的数组。在脚本中读取 ref 要写 .value。',
@@ -224,6 +269,26 @@ watch(id, async (newId, _old, onCleanup) => {
 })
 
 return { id, detail }`,
+  faded: {
+    js: `// ===== 已给出：模拟请求。任务 1 慢，任务 2 快 =====
+function fetchTask(id) {
+  const ms = id === 1 ? 200 : 30
+  return new Promise(resolve => setTimeout(() => resolve('任务 ' + id + ' 的内容'), ms))
+}
+
+const id = ref(0)
+const detail = ref('请选择一个任务')
+
+watch(id, async (newId, _old, /* ✏️ 第三个参数：用来注册清理函数的函数 */) => {
+  let cancelled = false
+  /* ✏️ 注册清理函数：下一次运行前，把这一次标记为过期 */
+  const text = await fetchTask(newId)
+  /* ✏️ 这一次已过期的话，结果不要写进 detail */
+  detail.value = text
+})
+
+return { id, detail }`
+  },
   hints: [
     '原因：两个请求同时进行。任务 1 的请求后返回，它的结果覆盖了任务 2 的结果。新的一次运行开始时，要让上一次运行知道“我已经过期”。过期的结果直接丢弃。第 4 章 4.4 节按时间顺序画出了这个过程。',
     '侦听器回调的第三个参数是一个注册函数。它注册的函数在下一次运行回调之前运行。在回调开头声明 let cancelled = false，并注册“把 cancelled 设为 true”。请求返回后，cancelled 为 true 时不赋值。',

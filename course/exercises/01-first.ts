@@ -7,6 +7,9 @@ export const counter: Exercise = {
   tpl: '<button>点我</button>',
   js: 'const count = ref(0)\n\nreturn { count }',
   solTpl: '<button @click="count++">点了 {{ count }} 次</button>',
+  faded: {
+    tpl: '<button @click="/* ✏️ 点击时让 count 加 1 */">点了 {{ /* ✏️ 在这里显示当前次数 */ }} 次</button>'
+  },
   hints: [
     '用到两个模板语法：{{ }} 插值显示数据，@click 监听点击。第 1 章 1.2 节讲了插值，1.3 节讲了 @click。count 是 ref，模板中直接写 count，不写 .value。',
     '只改 <button> 这一行。在开始标签上加 @click="…"，让 count 加 1。把按钮文字改为“点了 {{ … }} 次”。',
@@ -36,6 +39,13 @@ export const firstFill: Exercise = {
   js: 'const count = null   // TODO 1：用 ref 创建响应式数据，初始值是 0\n\nreturn { count }',
   solTpl: '<p>点了 {{ count }} 次</p>\n<button @click="count++">+1</button>',
   solJs: 'const count = ref(0)   // 响应式数据，初始值是 0\n\nreturn { count }',
+  faded: {
+    tpl: `<p>点了 {{ count }} 次</p>
+<button @click="/* ✏️ 点击时让 count 加 1 */">+1</button>`,
+    js: `const count = /* ✏️ 用 ref 创建响应式数据，初始值是 0 */ null
+
+return { count }`
+  },
   hints: [
     'ref 创建响应式数据。模板读取它，所以它改变时 Vue 更新页面。第 1 章 1.3 节讲了它。@click 给按钮绑定点击事件。',
     'TODO 1：把 null 改为 ref(…)，参数是 0。TODO 2：在 <button> 上加 @click，表达式让 count 加 1。在模板中不写 .value。',

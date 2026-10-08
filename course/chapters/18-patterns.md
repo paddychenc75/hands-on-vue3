@@ -740,7 +740,7 @@ function onUpdate(v) { if (v !== 'cherry') parent.value = v }
 **最低要求有五条：**
 
 1. **能用键盘到达。**整个控件在 Tab 键顺序里只占**一个**停靠点。一组 10 个选项，按一次 Tab 进入，再按一次 Tab 离开，选项之间用方向键移动。
-2. **方向键移动，Home 和 End 跳到两端。**到头时停住，不循环（循环是另一种设计，应该做成选项）。disabled 的选项要跳过。
+2. **方向键移动，Home 和 End 跳到两端。**到头之后怎么办由控件的模式决定：W3C 的 ARIA 实践指南（APG）对列表框（listbox）没有要求循环，本章的 useListbox 到头停住；标签页（tabs）的左右键则要求循环，下面的 Tabs 示例就是这样。disabled 的选项要跳过。
 3. **Enter 和空格确认。**处理过的按键调用 `preventDefault()`，否则方向键和空格会让页面滚动。
 4. **角色和状态写在 DOM 上。**容器 `role="listbox"`，选项 `role="option"`，选中项 `aria-selected="true"`，不可用项 `aria-disabled="true"`。屏幕阅读器靠这些属性读出“列表，第 2 项，已选中”。
 5. **焦点看得见。**不要去掉 `:focus-visible` 的轮廓，换成同样显眼的样式。

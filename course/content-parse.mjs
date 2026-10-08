@@ -119,12 +119,24 @@ export function maskFences(src) {
 }
 
 /**
+ * 把行内代码（`…`、``…``）的内容换成空格，长度和行数不变。fenced[i] 为真的行（围栏代码块）原样保留。
+ * 校验统计 <Sc>、<Lab>、<Exercise> 这类组件标签时先用它，免得正文里讲“`<Lab>` 标签”被误数成真的组件。
+ */
+export function maskInlineCode(text, fenced = []) {
+  return text
+    .split('\n')
+    .map((line, i) => (fenced[i] ? line : line.replace(/(`+)(?!`)[^\n]+?(?<!`)\1(?!`)/g, m => ' '.repeat(m.length))))
+    .join('\n');
+}
+
+/**
  * 找出所有 <Sc ...>...</Sc>（含带 predict 的先猜题），逐个拆成题干、选项、解析。
  * 返回项多带 index、line、predict、aRaw（没写 :a 时是 null）几个字段，给校验用。
  */
 export function scanSc(md) {
   const out = [];
-  const re = /<Sc\b([^>]*)>([\s\S]*?)<\/Sc>/g;
+  // 开头和结尾标签都必须在行首（写法规则：块级组件标签独占一行）。正文里行内代码写的字面 `<Sc>`、`</Sc>` 因此不会被当成题
+  const re = /^<Sc\b([^>]*)>([\s\S]*?)^<\/Sc>/gm;
   for (const m of md.matchAll(re)) {
     const a = /:a="(\d+)"/.exec(m[1]);
     let body = m[2];

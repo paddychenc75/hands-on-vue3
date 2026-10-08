@@ -3,7 +3,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { collectGlossary, parseReadingTime, parseSelfChecks, parseSummary, parseTerms, parseTermsBlock, readFrontmatter } from '../../course/content-parse.mjs'
+import { collectGlossary, maskInlineCode, scanSc, parseReadingTime, parseSelfChecks, parseSummary, parseTerms, parseTermsBlock, readFrontmatter } from '../../course/content-parse.mjs'
 import { readChapters } from '../../course/.vitepress/course-data.mts'
 import { readFrontmatterFile } from '../../course/.vitepress/sidebar.mts'
 
@@ -143,5 +143,30 @@ describe('不再有第二份副本', () => {
       const src = fs.readFileSync(path.join(root, rel), 'utf8')
       for (const n of names) expect(new RegExp(`(function\\s+${n}\\b|const\\s+${n}\\s*=)`).test(src), `${rel} 里又定义了 ${n}`).toBe(false)
     }
+  })
+})
+
+describe('maskInlineCode：行内代码里的内容换成空格，长度和行数不变', () => {
+  it('单个、双个反引号的行内代码', () => {
+    expect(maskInlineCode('用 `<Lab>` 和 ``<Sc a="`x`">`` 标签')).toBe('用 ' + ' '.repeat(7) + ' 和 ' + ' '.repeat(16) + ' 标签')
+    expect(maskInlineCode('a `<Sc>` b')).toHaveLength('a `<Sc>` b'.length)
+  })
+  it('不在行内代码里的标签原样保留', () => {
+    expect(maskInlineCode('<Lab id="x">`<Lab>`')).toBe('<Lab id="x">' + ' '.repeat(7))
+  })
+  it('围栏代码块里的行（fenced）不动', () => {
+    expect(maskInlineCode('`a`\n`<Lab>`', [false, true])).toBe('   \n`<Lab>`')
+  })
+  it('不跨行配对，没有闭合的反引号保持原样', () => {
+    expect(maskInlineCode('一个 ` 孤立的\n另一个 `')).toBe('一个 ` 孤立的\n另一个 `')
+  })
+})
+
+describe('scanSc 只认行首的 <Sc>…</Sc>', () => {
+  it('正文里行内代码写的字面 `<Sc>`、`</Sc>` 不会被当成一道题', () => {
+    const md = '正文提到 `<Sc :a="0">` 和 `</Sc>` 两个标签。\n\n<Sc :a="1">\n\n题干\n\n<Opt>甲</Opt>\n<Opt>乙</Opt>\n\n<template #explain>\n\n解析：因为\n\n</template>\n</Sc>\n'
+    const all = scanSc(md)
+    expect(all).toHaveLength(1)
+    expect(all[0]).toMatchObject({ aRaw: 1, stemSrc: '题干', opts: ['甲', '乙'] })
   })
 })

@@ -6,7 +6,7 @@ import { collect } from '../../scripts/lib/collect.mjs'
 import { applyExemptions, validate } from '../../scripts/lib/validate.mjs'
 import { KNOWN_ISSUES } from '../../scripts/lib/known-issues.mjs'
 import { compareSnapshot, computeCards, fingerprint, nextSnapshot } from '../../scripts/lib/cards.mjs'
-import { checkContainers, maskFences, scanSc } from '../../course/content-parse.mjs'
+import { checkContainers, maskFences, maskInlineCode, scanSc } from '../../course/content-parse.mjs'
 
 type Inp = any
 let base: Inp
@@ -106,6 +106,15 @@ describe('目标、练习、实验台', () => {
   it('删掉一个 wrong -> 报至少要有 1 个 wrong', () => {
     const id = firstExercise('03-refs')
     expectError(run(editExercise('03-refs', id, { wrong: [] })), /至少要有 1 个 wrong/)
+  })
+  it('正文行内代码或围栏代码块里的字面标签（`<Lab>`、`<Sc>`、`<Exercise>`）不会被误数成组件', () => {
+    const withInline = editChapter('01-first', s => s.replace('::: summary', '行内代码里的标签：`<Lab>`、`<Sc>`、`<Exercise>`、`</Sc>`、`</Lab>`。\n\n::: summary'))
+    expect(run(withInline)).toEqual([])
+    const withFence = editChapter('01-first', s => s.replace('::: summary', '```md\n<Lab id="x">\n<Exercise id="y" />\n```\n\n::: summary'))
+    expect(run(withFence)).toEqual([])
+  })
+  it('真的多了一个没闭合的 <Lab> 仍然报错', () => {
+    expectError(run(editChapter('01-first', s => s.replace('::: summary', '<Lab id="stray" title="x">\n\n::: summary'))), /<Lab/)
   })
   it('wrong 构造失败(WRONG_SUB_FAILED)', () => {
     const id = firstExercise('03-refs')

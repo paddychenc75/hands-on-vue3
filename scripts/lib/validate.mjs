@@ -2,7 +2,7 @@
 // 不读文件、不碰网络，所以单元测试可以构造坏输入断言它报错。
 //
 // 每条错误是 { key, text }：text 是给人看的“位置  问题 → 怎么修”，key 是稳定的标识（规则:对象），临时豁免（known-issues.mjs）按 key 匹配。
-import { checkContainers, collectGlossary, exercisesOf, frontmatterLines, goalsOf, h1Of, importsOf, labsOf, maskFences, normTitle, readFrontmatter, scanSc, sectionsOf } from '../../course/content-parse.mjs';
+import { checkContainers, collectGlossary, exercisesOf, frontmatterLines, goalsOf, h1Of, importsOf, labsOf, maskFences, maskInlineCode, normTitle, readFrontmatter, scanSc, sectionsOf } from '../../course/content-parse.mjs';
 import { compareSnapshot, computeCards } from './cards.mjs';
 import { RANGE_SEP, scanSectionRefs } from './section-refs.mjs';
 
@@ -136,8 +136,9 @@ export function validate(inp, opts = {}) {
   const predictOf = {};
   for (const c of pages) {
     const all = scanSc(c.src);
-    const raw = (c.src.match(/<Sc\b/g) || []).length;
-    const closes = (c.src.match(/<\/Sc>/g) || []).length;
+    const tagSrc = maskInlineCode(c.src, c.fenced); // 行内代码里的字面标签不算
+    const raw = (tagSrc.match(/<Sc\b/g) || []).length;
+    const closes = (tagSrc.match(/<\/Sc>/g) || []).length;
     if (raw !== all.length || closes !== all.length)
       fail(`sc-count:${c.file}`, c.where, `页面里有 ${raw} 个 <Sc、${closes} 个 </Sc>，但只有 ${all.length} 个能被抽取`, '检查 <Sc …> 是否成对，属性里不要写 >');
     c.sc = all.filter(s => !s.predict);
@@ -160,7 +161,8 @@ export function validate(inp, opts = {}) {
   const usedEx = new Map();
   const labSeen = new Map();
   for (const c of chapters) {
-    const ex = exercisesOf(c.masked);
+    const tagText = maskInlineCode(c.masked); // 行内代码里的字面标签（如 `<Lab>`）不算组件
+    const ex = exercisesOf(tagText);
     c.exIds = ex.ids.map(e => e.id);
     if (ex.tags !== ex.ids.length) fail(`ex-tag:${c.file}`, c.where, `有 <Exercise> 没写 id="…"`);
     for (const e of ex.ids) {
@@ -168,7 +170,7 @@ export function validate(inp, opts = {}) {
       if (usedEx.has(e.id)) fail(`ex-twice:${e.id}`, `${c.where}:${e.line}`, `练习 "${e.id}" 被两处使用（${usedEx.get(e.id)}）`);
       else usedEx.set(e.id, c.where);
     }
-    for (const g of goalsOf(c.masked)) {
+    for (const g of goalsOf(tagText)) {
       const where = `${c.where}:${g.line}`;
       for (const t of g.tokens) {
         const sc = /^sc:(\d+)$/.exec(t);
@@ -181,7 +183,7 @@ export function validate(inp, opts = {}) {
       }
     }
     // 实验台
-    const { labs, opens, closes } = labsOf(c.masked);
+    const { labs, opens, closes } = labsOf(tagText);
     c.labs = labs;
     if (opens !== labs.length || closes !== labs.length) fail(`lab-tag:${c.file}`, c.where, `有 ${opens} 个 <Lab、${closes} 个 </Lab>，但只有 ${labs.length} 个成对`, '检查 <Lab> 是否成对');
     c.scPredictCount = c.scPredict.length;

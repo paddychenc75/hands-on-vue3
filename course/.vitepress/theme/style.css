@@ -441,3 +441,49 @@ html.fig-open { overflow: hidden; }
   .vp-doc .lab input.t, .vp-doc .lab select.t, .vp-doc .ex-out input { min-height: 32px; }
   .vp-doc .lab button, .vp-doc .ex-out button { min-height: 32px; min-width: 32px; }
 }
+
+/* ---- 题目（课前热身、复习页、阶段测验共用的 Question 组件） ---- */
+.vp-doc .q-text { display: flex; gap: 8px; font-weight: 600; font-size: 15px; line-height: 1.7; }
+.vp-doc .q-text .qn { flex: none; font-family: var(--f-mono); color: var(--accent); font-weight: 600; font-size: 13px; padding-top: 1px; }
+.vp-doc .q-stem { min-width: 0; flex: 1; }
+.vp-doc .q-stem p { margin: 0 0 6px; }
+.vp-doc .q-stem div[class*='language-'] { margin: 8px 0; font-weight: 400; }
+.vp-doc .q pre.code { margin: 8px 0; }
+.vp-doc .q .opts { margin-top: 8px; }
+.vp-doc .opt { display: flex; gap: 10px; align-items: baseline; }
+.vp-doc .opt .ol { flex: none; font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.vp-doc .opt .ot { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.vp-doc .opt .ot code { font-size: 12.5px; }
+.vp-doc .opt.picked { border-color: var(--accent); background: var(--accent-soft); }
+.vp-doc .opt.gone { visibility: hidden; }
+.vp-doc .q .explain { margin-top: 10px; padding: 8px 12px; border-left: 3px solid var(--line); border-radius: 2px; font-size: 14px; color: var(--muted); }
+.vp-doc .q .explain.ok { border-left-color: var(--accent); }
+.vp-doc .q .explain.no { border-left-color: var(--bad); }
+.vp-doc .q .explain .ex-text p { display: inline; margin: 0; }
+.vp-doc .q .explain .src { margin-top: 6px; font-size: 12.5px; }
+.vp-doc .q .explain button.retry { margin-left: 8px; }
+
+/* ---- 课前热身 ---- */
+.vp-doc .warmup { margin: 18px 0; padding: 12px 16px 4px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; background: var(--surface); }
+.vp-doc .warmup .wu-head { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.vp-doc .warmup .wu-head span { color: var(--muted); font-size: 13.5px; line-height: 1.7; }
+.vp-doc .warmup .q { border: 0; background: transparent; padding: 10px 0; margin: 0; border-top: 1px dashed var(--line); }
+.vp-doc .warmup .wu-head + .q { margin-top: 8px; }
+
+/* ---- 自我解释 ---- */
+.vp-doc .summary.sx-hidden { display: none; }
+.selfx { margin: 28px 0 8px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+.selfx .sx-title { font-family: var(--f-display); font-weight: 700; font-size: 17px; }
+.selfx .sx-title span { margin-left: 8px; font-family: var(--f-body); font-weight: 400; font-size: 12px; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 8px; }
+.selfx p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.8; }
+.selfx textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 14.5px; line-height: 1.7; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); resize: vertical; }
+.selfx .sx-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.selfx .sx-count { color: var(--muted); font-size: 12.5px; }
+.selfx button.b { font: inherit; font-size: 13.5px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.selfx button.b:hover:not([disabled]) { border-color: var(--accent); }
+.selfx button.b[disabled] { opacity: .5; cursor: not-allowed; }
+.selfx .sx-keys { padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); font-size: 14px; }
+.selfx .sx-summary ul, .selfx .sx-summary ol { margin: 6px 0; padding-left: 1.4em; }
+.selfx .sx-summary li { margin: 2px 0; line-height: 1.7; }
+.selfx .sx-summary p { color: var(--ink); }
+.selfx .sx-ask { margin-top: 6px; font-size: 13px; }

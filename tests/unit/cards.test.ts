@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { Q } from '../../course/labs/27-quiz/questions.ts'
+import { Q } from '../../course/checks/questions.ts'
 import {
   answerSelfCheck,
   buildCatalog,

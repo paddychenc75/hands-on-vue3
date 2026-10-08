@@ -23,6 +23,19 @@ async function check(box) {
   await box.locator('[data-a="check"]').click()
   await box.page().waitForTimeout(700)
 }
+/** 一张卡片键对应的题，正确选项在题目数据里的原始下标（页面上 .opt 的 data-oi） */
+function correctOi(key) {
+  const [ch, n] = key.split('#')
+  return n[0] === 'c' ? 0 : CH.find(c => c.id === ch).scAnswers[Number(n)]
+}
+/** 在一道题（locator）上选一个选项：right 为真选对的，否则选一个错的（取原始下标最小的错项） */
+async function answer(q, key, right) {
+  const ok = correctOi(key)
+  const oi = right ? ok : (ok === 0 ? 1 : 0)
+  await q.locator('.opt[data-oi="' + oi + '"]').click()
+  return oi
+}
+const card = (box, due, last, n = 1) => ({ box, n, due, last })
 const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
 
 ;(async () => {
@@ -169,6 +182,95 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g2.ok(/看过参考答案后自己重写通过/.test(await p.locator('.chapter-foot').innerText()) && !/借助了参考答案/.test(await p.locator('.chapter-foot').innerText()), '掌握标准条：写明是重写通过，不写成借助答案 ' + (await p.locator('.chapter-foot').innerText()).replace(/\n/g, ' ').slice(0, 120))
       g2.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
       g2.end()
+    }
+
+    // ---------- 课前热身 ----------
+    {
+      const g = R.group('课前热身：第 1 章没有；有旧题时在标题和目标之间，出 2 道（先到期的，再上一章的）；12 小时内答过的不出')
+      const p = await site.newPage()
+      await seed(p, base, {})
+      await p.clock.setFixedTime(T0)
+      await p.goto(base + '/chapters/01-first.html'); await p.waitForSelector('.chapter-foot'); await p.waitForTimeout(500)
+      g.ok(await p.locator('.warmup').count() === 0, '第 1 章没有热身')
+      // 第 4 章 computed 的上一章是 refs；first#0 到期，template#0 和 refs 的两道没到期；全都是 1 天前答的
+      const old = T0 - 2 * DAY
+      await seed(p, base, { __srs: {
+        'first#0': card(1, T0 - DAY, old), 'template#0': card(1, T0 + DAY, old), 'refs#0': card(1, T0 + DAY, old), 'refs#1': card(1, T0 + DAY, old)
+      } })
+      await p.goto(base + '/chapters/04-computed.html'); await p.waitForSelector('.warmup .q'); await p.waitForTimeout(300)
+      const keys = await p.$$eval('.warmup .q', es => es.map(e => e.dataset.key))
+      g.ok(keys.length === 2, '出 2 道题 ' + keys)
+      g.ok(keys.includes('first#0'), '先出到期的 first#0')
+      g.ok(keys.some(k => k.startsWith('refs#')), '再出上一章（refs）的题')
+      const order = await p.evaluate(() => {
+        const w = document.querySelector('.warmup'), h1 = document.querySelector('.vp-doc h1'), goal = document.querySelector('.vp-doc .goal')
+        return { afterH1: !!(h1.compareDocumentPosition(w) & Node.DOCUMENT_POSITION_FOLLOWING), beforeGoal: !!(w.compareDocumentPosition(goal) & Node.DOCUMENT_POSITION_FOLLOWING) }
+      })
+      g.ok(order.afterH1 && order.beforeGoal, '位置：一级标题 → 热身 → 目标')
+      g.ok(/课前热身/.test(await p.locator('.warmup .wu-head').innerText()), '有热身标题和说明')
+      g.ok(await p.locator('.warmup a[href*="/chapters/"]').count() === 0, '作答前不显示出处（解析和出处答对后才出现）')
+      g.end()
+
+      const g2 = R.group('热身作答：答错不亮答案、隐藏上次选项，只记第一次；答错回盒子 0 明天再出；到期的答对升级；没到期的答对不改记录')
+      const dueQ = p.locator('.warmup .q[data-key="first#0"]')
+      const wrong = await answer(dueQ, 'first#0', false)
+      g2.ok(await dueQ.locator('.opt.right').count() === 0 && await dueQ.locator('.explain.ok').count() === 0, '答错：不亮正确答案，不显示解析')
+      g2.ok(/不对/.test(await dueQ.locator('.explain.no').innerText()) && await dueQ.locator('button.retry').count() === 1, '答错：提示再试')
+      let srs = (await read(p)).__srs
+      g2.ok(srs['first#0'].box === 0 && srs['first#0'].n === 2 && Math.abs(srs['first#0'].due - (T0 + DAY)) < 5000, '答错：回盒子 0，明天再出（' + JSON.stringify(srs['first#0']) + '）')
+      await dueQ.locator('button.retry').click()
+      g2.ok(await dueQ.locator('.opt.gone').count() === 1 && (await dueQ.locator('.opt.gone').getAttribute('data-oi')) === String(wrong), '重试：隐藏了上次选错的那一项')
+      await answer(dueQ, 'first#0', true)
+      g2.ok(await dueQ.locator('.opt.right').count() === 1 && await dueQ.locator('.explain.ok').count() === 1, '答对：显示正确项和解析')
+      g2.ok(await dueQ.locator('.src a').count() === 1, '解析后给出出处，链回那一章')
+      srs = (await read(p)).__srs
+      g2.ok(srs['first#0'].n === 2 && srs['first#0'].box === 0, '重试答对不再记录（只记第一次）')
+      const prevKey = keys.find(k => k.startsWith('refs#'))
+      const prevQ = p.locator('.warmup .q[data-key="' + prevKey + '"]')
+      const before = JSON.stringify((await read(p)).__srs[prevKey])
+      await answer(prevQ, prevKey, true)
+      g2.ok(JSON.stringify((await read(p)).__srs[prevKey]) === before, '没到期的卡答对：盒子、到期时间、次数都不变')
+      g2.end()
+
+      const g3 = R.group('热身：到期的卡答对升级；12 小时内答过的卡不出')
+      await seed(p, base, { __srs: { 'first#1': card(1, T0 - DAY, T0 - 2 * DAY) } })
+      await p.goto(base + '/chapters/04-computed.html'); await p.waitForSelector('.warmup .q'); await p.waitForTimeout(300)
+      await answer(p.locator('.warmup .q[data-key="first#1"]'), 'first#1', true)
+      const c = (await read(p)).__srs['first#1']
+      g3.ok(c.box === 2 && c.n === 2 && Math.abs(c.due - (T0 + 3 * DAY)) < 5000, '到期的卡答对：升到盒子 2，3 天后到期（' + JSON.stringify(c) + '）')
+      await seed(p, base, { __srs: { 'first#0': card(1, T0 - DAY, T0 - 2 * HOUR), 'refs#0': card(1, T0 + DAY, T0 - 11 * HOUR) } })
+      await p.goto(base + '/chapters/04-computed.html'); await p.waitForSelector('.chapter-foot'); await p.waitForTimeout(500)
+      g3.ok(await p.locator('.warmup').count() === 0, '题都是 12 小时内答过的：不出，整块不显示')
+      g3.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      g3.end()
+    }
+
+    // ---------- 自我解释 ----------
+    {
+      const g = R.group('自我解释：小结块默认隐藏；不足 30 个有效字不能对照（凑字不算）；写够后展示小结要点；内容存进 note，标记 sx；刷新后保持；不影响章完成')
+      const p = await site.newPage()
+      await seed(p, base, {})
+      await p.goto(base + '/chapters/03-refs.html'); await p.waitForSelector('.selfx'); await p.waitForTimeout(500)
+      const hiddenSummary = await p.evaluate(() => { const s = document.querySelector('.vp-doc .summary'); return !!s && getComputedStyle(s).display === 'none' })
+      g.ok(hiddenSummary, '章里的小结块默认隐藏')
+      g.ok(await p.evaluate(() => { const a = document.querySelector('.selfx'), b = document.querySelector('.chapter-foot'); return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) }), '自我解释在掌握标准条之前')
+      const ta = p.locator('.selfx textarea'), btn = p.locator('.selfx [data-a="sx-reveal"]')
+      g.ok(await btn.isDisabled() && /再写 30 个字/.test(await p.locator('.selfx .sx-count').innerText()), '什么也没写：按钮禁用，写明还差 30 个字')
+      await ta.fill('啊'.repeat(40))
+      g.ok(await btn.isDisabled(), '凑字（重复同一个字）不能展开')
+      await ta.fill('ref 是一个带 value 属性的响应式容器，脚本里要读写 .value，模板里会自动解包，所以不用写 .value；reactive 返回的代理不能整个替换，也不能解构。')
+      g.ok(await btn.isEnabled() && await p.locator('.selfx .sx-keys').count() === 0, '写够 30 个有效字：按钮可用，点之前还没有要点')
+      await btn.click()
+      const keysTxt = await p.locator('.selfx .sx-keys').innerText()
+      const nLi = await p.locator('.selfx .sx-summary li').count()
+      g.ok(nLi >= 2 && /参考要点/.test(keysTxt), '点了对照：显示参考要点（本章小结，' + nLi + ' 条）')
+      const rec = (await read(p)).refs
+      g.ok(rec.sx === true && /ref 是一个带 value/.test(rec.note) && !rec.done, '进度：note 已存、sx 为真，章没有因此完成 ' + JSON.stringify({ sx: rec.sx, done: rec.done }))
+      g.ok(!/已完成/.test(await p.locator('.chapter-foot .cf-state').innerText()), '自我解释不是章完成的条件：章末条仍未完成')
+      await p.reload(); await p.waitForSelector('.selfx'); await p.waitForTimeout(600)
+      g.ok((await p.locator('.selfx textarea').inputValue()).startsWith('ref 是一个带 value') && await p.locator('.selfx .sx-summary li').count() === nLi, '刷新后：文字还在，要点保持展开')
+      g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
+      g.end()
     }
   } finally {
     await site.stop()

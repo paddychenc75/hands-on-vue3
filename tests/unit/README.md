@@ -41,5 +41,5 @@
 
 其余工具：`random`（洗牌和种子随机）、`text`（`esc`、`fmtOpt`）照搬 React 的同名测试。
 
-`cards.test.ts` 会读 `course/chapters/*.md` 的 frontmatter 和 `<Sc>` 数量，以及 `course/labs/27-quiz/questions.ts`，
+`cards.test.ts` 会读 `course/chapters/*.md` 的 frontmatter 和 `<Sc>` 数量，以及 `course/checks/questions.ts`，
 所以增删章或自测题时它会提醒你确认卡片键没有错位。

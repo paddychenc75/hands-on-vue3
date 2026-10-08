@@ -9,7 +9,9 @@ import { chapters } from 'virtual:course-meta'
 import type { ChapterMeta } from '../../course-data.mts'
 import { STAGES, STAGE_COUNT } from '../../../stages'
 import { commit, cp, initProgress, progress, save, subscribeProgress } from '../../../engine/store'
+import { parseKey } from '../../../engine/cards'
 import { shouldAutoComplete } from '../../../engine/logic/completion'
+import { dueKeys } from '../../../engine/logic/srs'
 import type { ChapterProgress, ChapterSpec, LastPos, PredictRecord, Progress } from '../../../engine/types'
 
 export { STAGES, STAGE_COUNT }
@@ -125,6 +127,25 @@ export function stageCount(stage: number): { done: number; total: number } {
 /** 全部完成数和总章数（不含速查表、综合测验） */
 export function totalCount(): { done: number; total: number } {
   return { done: progressChapters.filter(c => isDone(c.id)).length, total: progressChapters.length }
+}
+
+// ---------------- 复习卡片的数量 ----------------
+
+/** 卡片键对应的题目还存在吗：章存在，且序号没超出这一章的自测题数或专用题数。不用载入题库就能判断 */
+export function isKnownKey(key: string): boolean {
+  const k = parseKey(key)
+  const c = k && chapterById(k.chapterId)
+  return !!(k && c && k.index < (k.kind === 'sc' ? c.scCount : c.checkCount))
+}
+
+/** 今天到期的复习题数（侧边栏、顶栏、首页的徽标）。和复习页出的题一致：题目已经不存在的键不算 */
+export function dueCount(now = Date.now()): number {
+  return dueKeys(allProgress().__srs ?? {}, now).filter(isKnownKey).length
+}
+
+/** 已经学过（进了复习队列）的题数 */
+export function learnedCount(): number {
+  return Object.keys(allProgress().__srs ?? {}).filter(isKnownKey).length
 }
 
 // ---------------- 阅读位置、先猜 ----------------

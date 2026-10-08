@@ -2,8 +2,9 @@
 //
 //   virtual:course-meta         每章的元数据：id、文件名、标题、阶段、章号、自测题数、练习 id 列表。很小，章页面都会载入。
 //                               用途：自动标记完成、首页进度、间隔复习、侧边栏的完成标记。
-//   virtual:course-selfchecks   每章自测题的题干、选项、解析（已渲染成 HTML）。只有综合测验页载入。
-//                               用途：综合测验的“待复习”和“随机 10 题”从各章自测题里出题。
+//   virtual:course-selfchecks   每章自测题的题干、选项、解析（已渲染成 HTML）。很大，只有复习页、阶段测验页和课前热身用动态 import 载入。
+//                               用途：今日复习、混合练习、阶段测验、课前热身从各章自测题里出题。
+//   virtual:course-summaries    每章“小结”块（::: summary）的内容，渲染成 HTML。自我解释写够字后在页面里展示它（章里的小结块本身默认隐藏）。
 //
 // 为什么在构建时抽取：自测题的题干、选项、解析都是 Markdown 文字，只存在于各章的 .md 里。
 // 构建时一次性读完最简单，也不用在浏览器里去取别的页面。数据和章节正文来自同一份源文件，不会不同步。
@@ -16,6 +17,7 @@ import { createMarkdownRenderer } from 'vitepress'
 import { readFrontmatter } from './sidebar.mts'
 import { STAGE_COUNT } from '../stages.ts'
 import { cjkFriendlyEmphasis } from './markdown-cjk.mts'
+import { Q } from '../checks/questions.ts'
 
 export interface ChapterMeta {
   id: string // 旧的 section id，进度存储用它做键
@@ -28,6 +30,7 @@ export interface ChapterMeta {
   scCount: number // 本章自测题数（不含先猜）
   scAnswers: number[] // 本章自测的正确选项序号，按题号排列（长度 = scCount）
   ex: string[] // 本章练习 id
+  checkCount: number // 本章的阶段测验专用题数（题库 checks/questions.ts 里属于这一章的题）。卡片键 `章id#cN` 的 N 小于它才有效
 }
 
 export interface SelfCheckItem {
@@ -41,6 +44,13 @@ export interface SelfCheckItem {
 
 const META_ID = 'virtual:course-meta'
 const SC_ID = 'virtual:course-selfchecks'
+const SUM_ID = 'virtual:course-summaries'
+
+/** 一章的小结块（::: summary 到下一个 :::）里的 Markdown 原文。没有小结块返回空串 */
+export function parseSummary(md: string): string {
+  const m = /^::: summary[^\n]*\n([\s\S]*?)\n:::[ \t]*$/m.exec(md)
+  return m ? m[1].trim() : ''
+}
 
 /** 把一个 .md 拆成自测题。只认 <Sc ...> ... </Sc>，带 predict 属性的先猜题不算。 */
 export function parseSelfChecks(md: string): { a: number; stemSrc: string; opts: string[]; explainSrc: string }[] {
@@ -73,7 +83,7 @@ export function readChapters(chaptersDir: string): { meta: ChapterMeta; src: str
     if (stage != null && !(Number.isInteger(stage) && stage >= 1 && stage <= STAGE_COUNT)) {
       throw new Error(`${f}：stage 必须是 1 到 ${STAGE_COUNT} 的整数（实际是 ${fm.stage}）`)
     }
-    // 有章号的正文章必须指定阶段，否则它不会计入进度。只有综合测验页（id: quiz）可以有章号而没有阶段
+    // 有章号的正文章必须指定阶段，否则它不会计入进度
     if (stage == null && fm.chapter && fm.id !== 'quiz') throw new Error(`${f}：有 chapter 的章必须写 stage（1 到 ${STAGE_COUNT}）`)
     const selfChecks = parseSelfChecks(src)
     out.push({
@@ -88,7 +98,8 @@ export function readChapters(chaptersDir: string): { meta: ChapterMeta; src: str
         chapter: fm.chapter ? Number(fm.chapter) : null,
         scCount: selfChecks.length,
         scAnswers: selfChecks.map(x => x.a),
-        ex: [...src.matchAll(/<Exercise\s+id="([^"]+)"/g)].map(m => m[1])
+        ex: [...src.matchAll(/<Exercise\s+id="([^"]+)"/g)].map(m => m[1]),
+        checkCount: Q.filter(row => row[3] === fm.id).length
       }
     })
   }
@@ -101,16 +112,24 @@ export function courseDataPlugin(courseDir: string): Plugin {
   return {
     name: 'course-data',
     resolveId(id) {
-      if (id === META_ID || id === SC_ID) return '\0' + id
+      if (id === META_ID || id === SC_ID || id === SUM_ID) return '\0' + id
     },
     async load(id) {
-      if (id !== '\0' + META_ID && id !== '\0' + SC_ID) return
+      if (id !== '\0' + META_ID && id !== '\0' + SC_ID && id !== '\0' + SUM_ID) return
       const chapters = readChapters(chaptersDir)
       for (const c of chapters) this.addWatchFile(path.join(chaptersDir, c.meta.file + '.md'))
       if (id === '\0' + META_ID) {
         return `export const chapters = ${JSON.stringify(chapters.map(c => c.meta))}`
       }
       const md = await createMarkdownRenderer(courseDir, { config: m => cjkFriendlyEmphasis(m) }, '/')
+      if (id === '\0' + SUM_ID) {
+        const sums: Record<string, string> = {}
+        for (const c of chapters) {
+          const src = parseSummary(c.src)
+          if (src) sums[c.meta.id] = md.render(src)
+        }
+        return `export const summaries = ${JSON.stringify(sums)}`
+      }
       const items: SelfCheckItem[] = []
       for (const c of chapters) {
         parseSelfChecks(c.src).forEach((s, i) => {

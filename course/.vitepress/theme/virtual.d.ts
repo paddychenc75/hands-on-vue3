@@ -7,3 +7,7 @@ declare module 'virtual:course-selfchecks' {
   import type { SelfCheckItem } from '../course-data.mts'
   export const selfchecks: SelfCheckItem[]
 }
+declare module 'virtual:course-summaries' {
+  /** 章 id → 小结块渲染成的 HTML */
+  export const summaries: Record<string, string>
+}

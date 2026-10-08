@@ -6,7 +6,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { withBase } from 'vitepress'
 import { chapters } from 'virtual:course-meta'
-import { Q } from './questions'
+import { Q } from '../../checks/questions'
 import { STAGES } from '../../stages'
 
 // 回看链接：章 id → 页面和章名

@@ -81,7 +81,7 @@ function loadExercises() {
   return all
 }
 function loadQuestions() {
-  return loadTs(path.join(ROOT, 'course/labs/27-quiz/questions.ts')).Q
+  return loadTs(path.join(ROOT, 'course/checks/questions.ts')).Q
 }
 
 /** 进度存储的键（单键，结构见 course/engine/types.ts 的 Progress） */

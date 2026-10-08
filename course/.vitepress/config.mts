@@ -62,11 +62,13 @@ export default defineConfig({
 
       for (const [name, [cls, title]] of Object.entries(SIMPLE)) {
         md.use(container, name, {
-          render(tokens: any[], idx: number) {
+          render(tokens: any[], idx: number, _opts: unknown, env: any) {
             if (tokens[idx].nesting !== 1) return '</div>\n'
             // 容器名后面写了文字，就用它当标题（例如 ::: pitfalls 注意：不要用 index 作为 key）
             const custom = tokens[idx].info.trim().slice(name.length).trim()
-            return `<div class="${cls}"><div class="t">${custom ? md.renderInline(custom) : title}</div>\n`
+            // 章里的“小结”块默认隐藏：自我解释（SelfExplain 组件）写够字之后才在它的区域里展示（内容在构建时抽出，见 course-data.mts）
+            const gated = name === 'summary' && env?.frontmatter?.stage != null
+            return `<div class="${cls}${gated ? ' sx-hidden' : ''}"><div class="t">${custom ? md.renderInline(custom) : title}</div>\n`
           }
         })
       }
@@ -146,6 +148,17 @@ export default defineConfig({
             if (m) first.meta = { ...(first.meta || {}), step: m[1], rest: first.content.slice(m[0].length) }
           }
         }
+      })
+      // 章的开头自动放“课前热身”：插在一级标题后面（位置：标题 → 热身 → 目标）。只有写了 stage 的章页面有，章的 Markdown 里不用写。
+      // 自我解释和掌握标准条在主题布局的 doc-footer-before 插槽里（theme/index.ts）。
+      md.core.ruler.push('course_inject_warmup', state => {
+        if (state.env?.frontmatter?.stage == null) return
+        const i = state.tokens.findIndex(t => t.type === 'heading_close' && t.tag === 'h1')
+        if (i < 0) return
+        const t = new state.Token('html_block', '', 0)
+        t.content = '<Warmup />\n'
+        t.block = true
+        state.tokens.splice(i + 1, 0, t)
       })
       // 文字里的 {{ 一律转成实体，Vue 不会把它当插值。行内代码加 v-pre。
       // 所以正文里可以直接写 {{ count }}，不用特殊处理。

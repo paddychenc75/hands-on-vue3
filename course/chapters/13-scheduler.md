@@ -17,7 +17,7 @@ import QueueDemo from '../labs/13-scheduler/QueueDemo.vue'
 
 ::: goals
 <Goal checks="sc:1">说明同步修改三次数据只渲染一次的原因。</Goal>
-<Goal checks="sc:0,ex:focusTick">说明 nextTick 怎样等到 DOM 更新，并用 `flush: 'post'` 读取更新后的 DOM。</Goal>
+<Goal checks="sc:0,ex:focusTick,ex:phenoHeight">说明 nextTick 怎样等到 DOM 更新，并用 `flush: 'post'` 读取更新后的 DOM。</Goal>
 <Goal checks="sc:2">说出一次刷新中各种回调的运行顺序。</Goal>
 
 :::
@@ -163,6 +163,10 @@ count.value++                          // 现在才安排刷新
 下面的练习修复一个常见错误：显示输入框后立即调用 focus()。
 
 <Exercise id="focusTick" />
+
+再看一个读取尺寸的例子：添加一项后，立即读取列表的高度，得到的仍是添加之前的值。
+
+<Exercise id="phenoHeight" />
 
 ### 13.3 在侦听器中读取新 DOM：flush: 'post'
 

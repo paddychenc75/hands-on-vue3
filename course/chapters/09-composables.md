@@ -53,7 +53,7 @@ toValue
 
 ### 9.1 把逻辑提取为 useMouse
 
-`setup()` 在组件创建时运行一次。在 setup 中创建的 ref、computed 和 watch 属于当前组件。组件卸载时，Vue 停止它们。
+`setup()` 在组件创建时运行一次。在 setup 中创建的 watch 和 watchEffect 属于当前组件。组件卸载时，Vue 停止它们。`ref` 和 `computed` 不需要停止：没有渲染或侦听器再订阅它们时，它们随组件一起被回收。
 
 组合式函数是一个普通函数。它使用响应式 API，并返回响应式数据。按下面的步骤提取：
 
@@ -326,7 +326,7 @@ export function useWindowWidth(): { width: Readonly<Ref<number>> } {
 
 ### 9.5 用 effectScope 停止一组副作用
 
-在 setup 之外创建的 computed 和 watch 不属于任何组件。它们不会自动停止。`effectScope()` 收集在 `scope.run()` 中创建的副作用。`scope.stop()` 一次停止它们。
+在 setup 之外创建的 watch 和 watchEffect 不属于任何组件。它们不会自动停止。`effectScope()` 收集在 `scope.run()` 中创建的这类副作用。`scope.stop()` 一次停止它们。`computed` 不在其中：3.5 的 computed 不登记在作用域里，`scope.stop()` 之后它仍可读取、仍会更新，但没有订阅者时它不挂在任何依赖上，所以不会泄漏（第 15 章讲这个实现）。
 
 ```js
 const scope = effectScope()
@@ -335,7 +335,7 @@ scope.run(() => {
   watch(double, v => console.log(v))
   onScopeDispose(() => console.log('已停止'))   // scope.stop() 时运行
 })
-scope.stop()                                     // computed 和 watch 一起停止
+scope.stop()                                     // watch 停止，onScopeDispose 的回调运行
 ```
 
 **场景：看板的“实时同步”开关。**syncOn 绑定到开关。打开时，侦听任务修改并定时拉取。关闭时，停止全部。这个 scope 在侦听器回调中创建，不属于组件。所以组件卸载时也要停止它。

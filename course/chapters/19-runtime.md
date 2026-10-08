@@ -179,7 +179,7 @@ const mountComponent = (initialVNode, container, anchor, parentComponent) => {
 | `provides` | 19.6 节 |
 | `isMounted`、`isUnmounted` | 状态标记 |
 | `bm`、`m`、`bu`、`u`、`bum`、`um` | 六种钩子的函数数组（19.7 节） |
-| `scope` | 一个 effectScope。`setup()` 里创建的 computed 和 watch 都收集在这里，卸载时一起停止 |
+| `scope` | 一个 effectScope。`setup()` 里创建的 watch 和 watchEffect 都收集在这里，卸载时一起停止（computed 不登记在作用域里） |
 
 第 ② 步 `setupComponent` 做三件事：
 
@@ -467,7 +467,7 @@ function inject(key, defaultValue) {
 
 **卸载的顺序**是 `bum` 先于子树，`um` 后于子树：
 
-1. 父组件的 `bum` 同步调用，然后 `scope.stop()` 停止 `setup` 里创建的 watch 和 computed。
+1. 父组件的 `bum` 同步调用，然后 `scope.stop()` 停止 `setup` 里创建的 watch 和 watchEffect。
 2. 卸载子树。子组件重复同样的步骤：子的 `bum`，子的 `um` 入队。
 3. 父组件的 `um` 入队。
 

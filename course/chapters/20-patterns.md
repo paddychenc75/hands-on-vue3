@@ -566,7 +566,7 @@ useEventListener(box, 'click', onClick)
 **副作用：清理放进 `onScopeDispose`。**
 
 - `onScopeDispose` 在组件卸载时运行，也在 `effectScope().stop()` 时运行。`onUnmounted` 只在组件里有效。
-- `watch`、`watchEffect` 和 `computed` 随所在的作用域一起停止，不用手写清理。上面的函数只靠 `watch` 的 `onCleanup`，没有写 `onScopeDispose`。
+- `watch` 和 `watchEffect` 随所在的作用域一起停止，不用手写清理。`computed` 不登记在作用域里，也不需要停止：没有订阅者时它不挂在依赖上。上面的函数只靠 `watch` 的 `onCleanup`，没有写 `onScopeDispose`。
 - 子作用域跟着父作用域停止。组件里创建的 `effectScope()`，在组件卸载时一起停止。
 
 **环境：把能在哪里调用写进文档。**

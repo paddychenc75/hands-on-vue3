@@ -231,6 +231,7 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
         await p.goto(base + u); await p.waitForSelector('.vp-doc h1, .home h1'); await p.waitForTimeout(700)
         g.ok(await p.locator('.VPSidebar').count() >= 0, u + ' 打开了')
       }
+      await p.evaluate(([k, t]) => { const d = JSON.parse(localStorage.getItem(k)); d.__last = { path: '/chapters/20-gone', anchor: '', h: '', t }; localStorage.setItem(k, JSON.stringify(d)) }, [STORE_KEY, now]) // 逛过的页面会更新阅读位置，这里放回已经不存在的那一条
       await p.goto(base + '/'); await p.waitForSelector('.nav-progress'); await p.waitForTimeout(400)
       g.ok(new RegExp(`已完成 0/${N}(?!\\d)`).test(await p.locator('.nav-progress').innerText()), '不存在的章 id 不计入进度：' + (await p.locator('.nav-progress').innerText()))
       g.ok(!(await p.locator('#reviewEntry').count()) || /已学过 0 道|0 道题到期/.test(await p.locator('#reviewEntry').innerText()), '题已经不存在的卡片不计入复习数')

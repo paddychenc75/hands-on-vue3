@@ -340,7 +340,9 @@ body { background: var(--c-page); color: var(--text-1); font-family: var(--f-bod
 .site-credit, .home-credit { margin: 40px 0 0; font-size: 12.5px; line-height: 1.7; color: var(--text-3); }
 .home-credit { margin-top: 28px; }
 .VPNavBarSearch { flex-grow: 0 !important; margin-left: auto; padding-left: 0 !important; }
-.VPNavBarSearch .DocSearch-Button .DocSearch-Button-Key { background: var(--c-subtle); border-radius: 5px; border: 1px solid var(--border); color: var(--text-3); }
+/* ⌘ 和 K 是两个 kbd：外框画在它们的容器上，合成一个键帽，不要各画一个框 */
+.VPNavBarSearch .DocSearch-Button .DocSearch-Button-Keys { background: var(--c-subtle); border-radius: 5px; border: 1px solid var(--border); padding: 0 6px; gap: 2px; align-items: center; }
+.VPNavBarSearch .DocSearch-Button .DocSearch-Button-Key { background: transparent; border: 0; padding: 0; margin: 0; width: auto; min-width: 0; color: var(--text-3); }
 @media (min-width: 768px) {
   .VPNavBarSearch .DocSearch-Button { width: 150px; height: 38px; padding: 0 12px; border-radius: var(--r-pill) !important; background: var(--c-surface) !important; box-shadow: var(--sh-1); border: 1px solid var(--border) !important; transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
   .VPNavBarSearch .DocSearch-Button:hover { border-color: var(--brand) !important; box-shadow: 0 0 0 3px var(--brand-glow); }

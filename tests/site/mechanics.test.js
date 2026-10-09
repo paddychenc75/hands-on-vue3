@@ -458,7 +458,7 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g.ok(await p.locator('.VPSidebar a[href*="/check/1"]').getAttribute('data-check') === 'passed', '侧边栏的阶段测验显示通过 ✓')
       await p.locator('.quiz [data-a="again"]').click(); await p.waitForTimeout(500)
       g.ok(await p.locator('.quiz .q').count() === 12 && await p.locator('.quiz .opt.right').count() === 0, '“换一组题再测”：重新出 12 题，不显示答案')
-      await p.goto(base + '/'); await p.waitForSelector('.stage'); await p.waitForTimeout(400)
+      await p.goto(base + '/'); await p.waitForSelector('.stage', { state: 'attached' }); await p.waitForTimeout(400)
       g.ok(/已通过/.test(await p.locator('.stage[data-stage="1"] li.aside.check').innerText()), '首页第 1 个阶段卡片上显示已通过')
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
       g.end()

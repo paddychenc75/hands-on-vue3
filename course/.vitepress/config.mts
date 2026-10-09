@@ -50,7 +50,11 @@ export default defineConfig({
   // 只构建部分章节时，指向其他章的链接必然找不到，不算死链。全站构建仍然检查
   ignoreDeadLinks: only.length > 0,
   description: 'Vue3 互动课程：每章有讲解、练习和自测',
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: `${BASE_PATH}favicon.svg` }]],
+  head: [
+    // 首页的新访客版 / 回访版：在首次绘制前按本地进度设 data-learner，避免回访者先闪一下新访客首屏（key 见 course/engine/store.ts）
+    ['script', {}, "try{var d=JSON.parse(localStorage.getItem('hands-on-vue3-v1')||'null');if(d&&typeof d==='object'&&Object.keys(d).length)document.documentElement.dataset.learner='returning'}catch(e){}"],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${BASE_PATH}favicon.svg` }]
+  ],
   lang: 'zh-CN',
   srcExclude: ['AUTHORING.md', ...excluded],
   outDir: process.env.COURSE_OUT_DIR || undefined,

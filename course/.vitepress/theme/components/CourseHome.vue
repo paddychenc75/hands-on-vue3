@@ -2,7 +2,7 @@
 // 首页：学习路线说明、继续学习、总进度、6 个阶段的章节和状态。阶段的名称和说明来自 course/stages.ts。
 // 进度只在浏览器里读（ready 之后），服务端渲染出来的是“全部未开始”的样子，所以不会水合不一致。
 // 复习入口：显示今天到期的题数和进入复习页的按钮；“N 道题在复习中”统计是进了复习队列的题数。
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { withBase } from 'vitepress'
 import { chapters } from 'virtual:course-meta'
 import { tallyProgress } from '../../../engine/logic/completion'
@@ -14,7 +14,13 @@ import { stageTitle } from '../../../stages'
 
 const cheat = chapters.find(c => c.id === 'cheat')
 
-onMounted(ensureReady)
+// 回访者的首屏由 <head> 里的内联脚本在首次绘制前设好 data-learner（见 config.mts）；这里只做“升级”：本次访问里才开始学的人，回到首页时也看到回访版。
+onMounted(() => {
+  ensureReady()
+  watch([ready, () => resume.value.has, () => doneN.value, () => learnedCount()], () => {
+    if (ready.value && (resume.value.has || doneN.value > 0 || learnedCount() > 0)) document.documentElement.dataset.learner = 'returning'
+  }, { immediate: true })
+})
 
 const cards = computed(() =>
   STAGES.map((info, i) => {
@@ -72,81 +78,117 @@ const resume = computed(() => {
   const first = progressChapters[0]
   const last = ready.value ? getLast() : null
   const c = last && chapterByPath(last.path)
-  if (!last || !c) return { href: withBase(first.link), text: '还没有学习记录，从第 1 章开始。', has: false }
-  const label = `第 ${c.chapter} 章 ${c.title}` + (last.h ? ' · ' + last.h : '') + `（${agoText(last.t)}）`
-  return { href: withBase(c.link) + (last.anchor ? '#' + encodeURIComponent(last.anchor) : ''), text: '上次停在：' + label, has: true }
+  if (!last || !c) return { href: withBase(first.link), text: '还没有学习记录，从第 1 章开始。', has: false, chap: `第 ${first.chapter} 章 ${first.title}`, sub: '', stage: 1 }
+  const sub = (last.h || '') + `（${agoText(last.t)}）`
+  return { href: withBase(c.link) + (last.anchor ? '#' + encodeURIComponent(last.anchor) : ''), text: '上次停在：' + `第 ${c.chapter} 章 ${c.title}` + (last.h ? ' · ' : '') + sub, has: true, chap: `第 ${c.chapter} 章 ${c.title}`, sub, stage: c.stage ?? 1 }
 })
-</script>
 
+// 阶段地图：默认只展开一个阶段的章列表（新访客是阶段 01，回访者是上次读到的阶段）
+const openStage = computed(() => (ready.value && resume.value.has ? resume.value.stage : 1))
+// 路线卡片的范围摘要：共几步、几章
+const rangeOf = (r: (typeof routes)[number]) => `${r.parts.length} 步 · 共 ${new Set(r.parts.flatMap(p => p.list.map(c => c.id))).size} 章`
+</script>
 <template>
   <div class="home">
     <header class="hero">
       <div class="hero-grid">
-      <div class="hero-main">
-      <div class="eyebrow">VUE 3.5 · 中文互动课程</div>
-      <h1>动手学 <em>Vue 3</em></h1>
-      <p class="lead">本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章（其中 {{ optionalTotal }} 章选读），每个阶段末尾有一次阶段测验。{{ STAGES[0].name }}和{{ STAGES[1].name }}教你使用 Vue。{{ STAGES[2].name }}把常用工具接进项目。{{ STAGES[3].name }}和{{ STAGES[4].name }}说明 Vue 的内部原理。{{ STAGES[5].name }}讲组件设计、服务端渲染和工程实践。标题以“项目：”开头的章是动手做项目的章。带“选读”标签的章不计入总进度，学了照常记录。</p>
+        <div class="hero-main">
+          <div class="eyebrow"><span class="only-new">VUE 3.5 · 中文互动课程 · 免费</span><span class="only-ret">欢迎回来 · 已完成 {{ doneN }} / {{ total }} 章</span></div>
+          <h1>动手学 <em>Vue 3</em></h1>
+          <p class="lead only-new">从第一个组件学到读懂响应式和渲染器的实现。每个知识点都能在页面里运行、修改，练习自动判题。</p>
 
+          <div class="resume-card only-ret" id="resume">
+            <span id="resumeTxt"><template v-if="resume.has"><span class="rs-k">上次停在：</span><span class="rs-big">{{ resume.chap }}</span><span class="rs-sub">{{ resume.sub }}</span></template><template v-else><span class="rs-big">{{ resume.chap }}</span><span class="rs-sub">还没有阅读记录</span></template></span>
+          </div>
 
-      <div class="home-actions">
-      <div class="resume show" id="resume">
-        <span id="resumeTxt">{{ resume.text }}</span>
-        <a class="b pri" id="resumeLink" :href="resume.href">继续学习</a>
-      </div>
+          <div class="hero-actions">
+            <a class="b pri" id="resumeLink" :href="resume.href"><span class="only-new">从第 1 章开始</span><span class="only-ret">继续学习</span></a>
+            <a class="b only-new" :href="'#routes-title'">选一条学习路线</a>
+            <div v-if="learned > 0" class="review-entry" id="reviewEntry">
+              <span id="reviewTxt"><template v-if="due > 0">今日复习：<b>{{ due }}</b> 道题到期。</template><template v-else>今天没有到期的题，已学过 {{ learned }} 道。</template></span>
+              <a class="b" :class="{ pri: due > 0 }" id="reviewLink" :href="withBase('/review')">{{ due > 0 ? '开始复习' : '去做混合练习' }}</a>
+            </div>
+          </div>
+          <p class="hero-link only-new"><a :href="withBase(checkLink(1))">已经会 Vue？先做阶段测验</a></p>
 
-      <div v-if="learned > 0" class="resume show review-entry" id="reviewEntry">
-        <span id="reviewTxt"><template v-if="due > 0">今日复习：<b>{{ due }}</b> 道题到期。</template><template v-else>今天没有到期的题，已学过 {{ learned }} 道。</template></span>
-        <a class="b pri" id="reviewLink" :href="withBase('/review')">{{ due > 0 ? '开始复习' : '去做混合练习' }}</a>
-      </div>
-      </div>
+          <div class="progress-sum only-ret" id="progress">
+            <div class="progress-txt" id="progTxt">已完成 {{ doneN }} / {{ total }} 章<template v-if="optionalTotal">（必读）· 选读 {{ optionalDone }} / {{ optionalTotal }} 章</template><template v-if="doingN"> · 进行中 {{ doingN }} 章</template></div>
+            <div class="meter"><i id="progBar" :style="{ width: (total ? (doneN / total) * 100 : 0) + '%' }"></i></div>
+          </div>
 
-      <div class="progress-sum" id="progress">
-        <div class="progress-txt" id="progTxt">已完成 {{ doneN }} / {{ total }} 章<template v-if="optionalTotal">（必读）· 选读 {{ optionalDone }} / {{ optionalTotal }} 章</template><template v-if="doingN"> · 进行中 {{ doingN }} 章</template></div>
-        <div class="meter"><i id="progBar" :style="{ width: (total ? (doneN / total) * 100 : 0) + '%' }"></i></div>
+          <div class="stats" id="stats">
+            <div><b>{{ progressChapters.length }}</b><span>章 · {{ STAGES.length }} 个阶段</span></div>
+            <div><b>{{ exTotal }}</b><span>道自动判题练习</span></div>
+            <div class="only-new"><b>{{ scTotal }}</b><span>道自测题，按间隔复习</span></div>
+            <div id="statReview" class="only-ret"><b>{{ learned }}</b><span>道题在复习中</span></div>
+          </div>
+          <p class="hero-prereq only-new">需要会 HTML、CSS 和 JavaScript 基础 · <a href="#prereq">看详细要求</a></p>
+        </div>
+        <div class="hero-visual"><EvolutionHero /></div>
       </div>
-
-      <div class="stats" id="stats">
-        <div><b>{{ progressChapters.length }}</b><span>章正文</span></div>
-        <div><b>{{ scTotal }}</b><span>道章内自测</span></div>
-        <div><b>{{ exTotal }}</b><span>道可判题练习</span></div>
-        <div><b>{{ doneN }}/{{ total }}</b><span>必读章已完成</span></div>
-        <div id="statReview"><b>{{ learned }}</b><span>道题在复习中</span></div>
-      </div>
-      </div>
-      <div class="hero-visual"><ClientOnly><EvolutionHero /></ClientOnly></div>
-      </div>
-
-      <p class="prereq"><b>开始前你需要会：</b>HTML 和 CSS 基础（标签、属性、选择器），JavaScript 基础（变量、函数、箭头函数、数组的 map 和 filter、对象和数组的解构与展开、import 和 export 模块、Promise 与 async/await）。讲工程化的章节还会用到命令行和 npm。还不熟的话，先花一两周补 JavaScript，再回来学会轻松很多。</p>
     </header>
 
-    <section class="home-sec" aria-labelledby="methods-title">
-      <h2 class="section-title" id="methods-title">怎样用这套课程真正学会</h2>
-      <p class="section-sub">下面每个环节都对应一条被大量研究验证过的学习规律。看懂了不等于学会了，这些环节的作用是让知识留在你脑子里。</p>
+    <section class="home-sec" aria-labelledby="learn-title">
+      <div class="sec-tag">HOW IT WORKS</div>
+      <h2 class="section-title" id="learn-title">一章是怎样学的</h2>
+      <p class="path-sub">每个知识点按同一个顺序走：先猜，再运行，最后自己写并由程序判题。</p>
+      <ol class="learn-steps">
+        <li>
+          <div class="ls-head"><span class="ls-n">1</span><span class="ls-t">先预测</span><span class="ls-tag">生成效应</span></div>
+          <div class="mock mock-predict" aria-hidden="true">
+            <div class="m-badge">先猜</div>
+            <div class="m-q">点击按钮三次后，count 显示几？</div>
+            <div class="m-opt"><i>A</i>0</div>
+            <div class="m-opt on"><i>B</i>3</div>
+            <div class="m-opt"><i>C</i>undefined</div>
+          </div>
+          <p>实验台开头有一道“先猜”题。先选，再运行核对。猜错也比直接看答案记得牢。</p>
+        </li>
+        <li>
+          <div class="ls-head"><span class="ls-n">2</span><span class="ls-t">运行并修改</span><span class="ls-tag">真实的 Vue</span></div>
+          <div class="mock mock-lab" aria-hidden="true">
+            <div class="m-live"><span class="m-dot"></span>LIVE<span class="m-title">响应式计数器</span></div>
+            <div class="m-code"><span class="k">const</span> count = <span class="f">ref</span>(<span class="n">0</span>)</div>
+            <div class="m-run"><span class="m-btn">count++</span><span class="m-val">count = 3</span></div>
+          </div>
+          <p>实验台里跑的是真实的 Vue。改一个开关、点一下，立刻看到结果。</p>
+        </li>
+        <li>
+          <div class="ls-head"><span class="ls-n">3</span><span class="ls-t">自己写，自动判题</span><span class="ls-tag">有益困难</span></div>
+          <div class="mock mock-ex" aria-hidden="true">
+            <div class="m-live m-ex"><span class="m-dot"></span>EXERCISE<span class="m-title">补全：用 toRefs</span><span class="m-pass">✓ 已通过</span></div>
+            <div class="m-res">✓ 初始 state.count 和 countRef 都是 0</div>
+            <div class="m-res">✓ 点击 3 次后，countRef = 3</div>
+            <div class="m-lock">提示：改代码检查 1 次解锁</div>
+          </div>
+          <p>在编辑器里写代码，点一下就判题。卡住了，提示和参考答案按检查次数逐级解锁。</p>
+        </li>
+      </ol>
       <div class="methods" id="methods">
         <div>
           <b>先预测，再运行</b>
           <i>生成效应</i>
-          <p>实验台开头有一道“先猜”题：先选你认为的结果，再运行核对。主动猜一次，哪怕猜错，比直接看答案记得牢得多。</p>
+          <p>实验台开头的“先猜”题：主动猜一次，哪怕猜错，比直接看答案记得牢得多。</p>
         </div>
         <div>
           <b>课前热身</b>
           <i>提取练习</i>
-          <p>每章开头先凭记忆回答两道旧题。从记忆里“往外拿”知识，比反复阅读更能巩固它。</p>
+          <p>每章开头凭记忆回答两道旧题。从记忆里“往外拿”，比反复阅读更能巩固。</p>
         </div>
         <div>
           <b>间隔复习</b>
           <i>间隔效应</i>
-          <p>章内自测的题按 1、3、7、16、35 天的间隔回来找你，赶在快忘记时复习一次，效率最高。答错的题明天再出。</p>
+          <p>章内自测的题按 1、3、7、16、35 天的间隔回来找你。答错的题明天再出。</p>
         </div>
         <div>
           <b>混合出题</b>
           <i>交错练习</i>
-          <p>今日复习、混合练习和阶段测验把不同章的题混在一起，你得先判断该用哪个知识点，这正是写真实代码时的情况。</p>
+          <p>今日复习、混合练习和阶段测验把不同章的题混在一起，你得先判断该用哪个知识点。</p>
         </div>
         <div>
           <b>先尝试，再求助</b>
           <i>有益困难 · 渐隐示例</i>
-          <p>练习的提示、参考答案要检查失败后逐级解锁（有半成品示例的练习，中间还有一级半成品）。只有改过代码才算一次失败。先挣扎一下再看答案，学到的东西更多。</p>
+          <p>提示和参考答案要检查失败后逐级解锁。先挣扎一下再看答案，学到的更多。</p>
         </div>
         <div>
           <b>讲给别人听</b>
@@ -157,59 +199,82 @@ const resume = computed(() => {
       <p class="section-sub"><b>掌握学习：</b>一章的自测全部答对、练习全部通过才算完成；一个阶段测验达到 80% 才算掌握。建议每天先清空“今日复习”，再学新章。</p>
     </section>
 
-    <section class="home-sec" aria-labelledby="path-title">
-      <h2 class="section-title" id="path-title">学习路线</h2>
-      <p class="path-sub">{{ STAGES.length }} 个阶段循序渐进。下面先给三条路线，选一条适合你的。不确定时从头按顺序学，也可以先做阶段测验，看看哪些地方已经掌握。</p>
+    <section class="home-sec" aria-labelledby="routes-title">
+      <div class="sec-tag">ROUTES</div>
+      <h2 class="section-title" id="routes-title">选一条学习路线</h2>
+      <p class="path-sub">不确定时从头按顺序学，也可以先做阶段测验，看看哪些地方已经掌握。</p>
       <div class="routes" id="routes">
         <article v-for="r in routes" :key="r.id" class="route" :data-route="r.id">
           <h3>{{ r.title }}</h3>
           <p class="who">{{ r.who }}</p>
+          <p class="route-range">{{ rangeOf(r) }}</p>
           <a v-if="r.start" class="route-start" :href="withBase(r.start.href)">从这里开始：{{ r.start.text }} →</a>
-          <ol class="steps">
-            <li v-for="(part, i) in r.parts" :key="i">
-              <div class="step-head">
-                <!-- 整个阶段的步骤：阶段名链接到该阶段第一个必读章，章数多时章列表默认折叠 -->
-                <a v-if="part.all && part.list.length" class="stage-go" :href="withBase(part.list[0].link)"><b>{{ part.label }}</b>：从第 {{ part.list[0].chapter }} 章开始</a>
-                <b v-else-if="part.label">{{ part.label }}</b>
-                <span v-if="part.range" class="rng">{{ part.all ? '全部必读章：' : '' }}{{ part.range }}</span>
-                <span v-if="part.checks.length" class="chk">先做&nbsp;<template v-for="(c, k) in part.checks" :key="c.stage"><template v-if="k">、</template><a :href="withBase(c.href)">{{ c.title }}阶段测验</a></template></span>
-              </div>
-              <p>{{ part.text }}</p>
-              <details v-if="part.all && part.list.length" class="all-chapters">
-                <summary>列出这 {{ part.list.length }} 章</summary>
-                <div class="chips"><a v-for="c in part.list" :key="c.id" :href="withBase(c.link)"><span class="num">{{ c.chapter }}.</span> {{ c.title }}</a></div>
-              </details>
-              <div v-else-if="part.list.length" class="chips"><a v-for="c in part.list" :key="c.id" :href="withBase(c.link)"><span class="num">{{ c.chapter }}.</span> {{ c.title }}<span v-if="c.optional" class="opt-tag">选读</span></a></div>
-            </li>
-          </ol>
-          <p v-if="r.skip" class="skip"><b>可以跳过：</b><template v-if="r.skip.stages">{{ r.skip.stages }}。</template><template v-if="r.skip.optional">选读章（{{ r.skip.optional }}）。</template>{{ r.skip.text }}</p>
-          <p v-if="r.test" class="test">{{ r.test }}</p>
+          <details class="route-more">
+            <summary>查看这条路线的步骤</summary>
+            <ol class="steps">
+              <li v-for="(part, i) in r.parts" :key="i">
+                <div class="step-head">
+                  <!-- 整个阶段的步骤：阶段名链接到该阶段第一个必读章，章数多时章列表默认折叠 -->
+                  <a v-if="part.all && part.list.length" class="stage-go" :href="withBase(part.list[0].link)"><b>{{ part.label }}</b>：从第 {{ part.list[0].chapter }} 章开始</a>
+                  <b v-else-if="part.label">{{ part.label }}</b>
+                  <span v-if="part.range" class="rng">{{ part.all ? '全部必读章：' : '' }}{{ part.range }}</span>
+                  <span v-if="part.checks.length" class="chk">先做&nbsp;<template v-for="(c, k) in part.checks" :key="c.stage"><template v-if="k">、</template><a :href="withBase(c.href)">{{ c.title }}阶段测验</a></template></span>
+                </div>
+                <p>{{ part.text }}</p>
+                <details v-if="part.all && part.list.length" class="all-chapters">
+                  <summary>列出这 {{ part.list.length }} 章</summary>
+                  <div class="chips"><a v-for="c in part.list" :key="c.id" :href="withBase(c.link)"><span class="num">{{ c.chapter }}.</span> {{ c.title }}</a></div>
+                </details>
+                <div v-else-if="part.list.length" class="chips"><a v-for="c in part.list" :key="c.id" :href="withBase(c.link)"><span class="num">{{ c.chapter }}.</span> {{ c.title }}<span v-if="c.optional" class="opt-tag">选读</span></a></div>
+              </li>
+            </ol>
+            <p v-if="r.skip" class="skip"><b>可以跳过：</b><template v-if="r.skip.stages">{{ r.skip.stages }}。</template><template v-if="r.skip.optional">选读章（{{ r.skip.optional }}）。</template>{{ r.skip.text }}</p>
+            <p v-if="r.test" class="test">{{ r.test }}</p>
+          </details>
         </article>
-      </div>    </section>
+      </div>
+    </section>
 
     <section class="home-sec" aria-labelledby="stages-title">
-      <h2 class="section-title" id="stages-title">各阶段的章</h2>
+      <div class="sec-tag">MAP</div>
+      <h2 class="section-title" id="stages-title">阶段地图</h2>
+      <p class="path-sub">本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章（其中 {{ optionalTotal }} 章选读），每个阶段末尾有一次阶段测验。{{ STAGES[0].name }}和{{ STAGES[1].name }}教你使用 Vue。{{ STAGES[2].name }}把常用工具接进项目。{{ STAGES[3].name }}和{{ STAGES[4].name }}说明 Vue 的内部原理。{{ STAGES[5].name }}讲组件设计、服务端渲染和工程实践。标题以“项目：”开头的章是动手做项目的章。带“选读”标签的章不计入总进度，学了照常记录。</p>
       <div class="path" id="path">
         <div v-for="c in cards" :key="c.stage" class="stage" :data-stage="c.stage">
           <div class="lv">{{ c.no }} · {{ c.en }}</div>
           <h3>{{ c.name }}</h3>
           <div class="aim">{{ c.desc }}</div>
-          <ul>
-            <li v-for="x in c.list" :key="x.id" :data-id="x.id" :data-state="x.state">
-              <a :href="withBase(x.link)"><span class="num">{{ x.chapter }}.</span> {{ x.title }}<span v-if="x.optional" class="opt-tag">选读</span></a>
-              <span class="st">{{ STATE_LABEL[x.state] }}</span>
-            </li>
-            <li v-if="c.stage === STAGES.length && cheat" class="aside"><a :href="withBase(cheat.link)">附：{{ cheat.title }}</a></li>
-            <li class="aside check" :data-check="c.check"><a :href="withBase(checkLink(c.stage))">阶段测验</a><span class="st">{{ CHECK_LABEL[c.check] }}</span></li>
-          </ul>
           <div class="cap stage-sum">已完成 {{ c.done }} / {{ c.total }} 章<template v-if="c.optionalTotal">（必读）· 选读 {{ c.optionalDone }} / {{ c.optionalTotal }} 章</template></div>
           <div class="meter"><i :style="{ width: c.pct + '%' }"></i></div>
+          <details class="stage-chapters" :open="c.stage === openStage">
+            <summary>{{ c.list.length }} 章 · 阶段测验</summary>
+            <ul>
+              <li v-for="x in c.list" :key="x.id" :data-id="x.id" :data-state="x.state">
+                <a :href="withBase(x.link)"><span class="num">{{ x.chapter }}.</span> {{ x.title }}<span v-if="x.optional" class="opt-tag">选读</span></a>
+                <span class="st">{{ STATE_LABEL[x.state] }}</span>
+              </li>
+              <li v-if="c.stage === STAGES.length && cheat" class="aside"><a :href="withBase(cheat.link)">附：{{ cheat.title }}</a></li>
+              <li class="aside check" :data-check="c.check"><a :href="withBase(checkLink(c.stage))">阶段测验</a><span class="st">{{ CHECK_LABEL[c.check] }}</span></li>
+            </ul>
+          </details>
         </div>
       </div>
     </section>
 
-    <section class="home-sec home-sec-last">
-      <details class="ste">
+    <section class="home-sec" id="prereq" aria-labelledby="prereq-title">
+      <div class="sec-tag">BEFORE YOU START</div>
+      <h2 class="section-title" id="prereq-title">开始前你需要会</h2>
+      <ul class="prereq-list">
+        <li><b>HTML 和 CSS 基础：</b>标签、属性、选择器。</li>
+        <li><b>JavaScript 基础：</b>变量、函数、箭头函数、数组的 map 和 filter、对象和数组的解构与展开、import 和 export 模块、Promise 与 async/await。</li>
+        <li><b>命令行和 npm：</b>讲工程化的章节会用到。</li>
+      </ul>
+      <p class="path-sub">还不熟的话，先花一两周补 JavaScript，再回来学会轻松很多。</p>
+    </section>
+
+    <footer class="home-foot">
+      <div class="foot-links"><a :href="withBase('/glossary')">术语表</a><a v-if="cheat" :href="withBase(cheat.link)">{{ cheat.title }}</a><a href="#writing-rules">写作规则</a></div>
+      <details class="ste" id="writing-rules">
         <summary>本课程的写作规则</summary>
         <div>
           <p>本课程的正文按下面的规则编写：</p>
@@ -231,18 +296,7 @@ const resume = computed(() => {
           </table></div>
         </div>
       </details>
-      <div class="howto">每一章：<b>目标</b><span>→</span><b>类比</b><span>→</span><b>术语</b><span>→</span><b>为什么需要它</b><span>→</span><b>各小节</b><span>→</span><b>常见错误</b><span>→</span><b>自测</b><span>→</span><b>小结</b></div>
-      <div class="howto">每个小节：<b>问题</b><span>→</span><b>最小代码</b><span>→</span><b>场景</b><span>→</span><b>注意</b><span>→</span><b>实验台 / 练习</b><span>→</span><b>深入（可选）</b></div>
-      <details class="think"><summary>怎样学效果最好（按学习研究的结论）</summary><div>
-        <ol>
-          <li><b>先看图，再读文字。</b>图解给出整体结构。文字补充细节。</li>
-          <li><b>第一遍跳过“深入”。</b>“深入”默认折叠。学完主线后，再打开它。</li>
-          <li><b>先预测，再运行。</b>操作实验台前，先猜结果。然后运行，比较结果和你的猜测。</li>
-          <li><b>不看书做自测。</b>回忆比重读更能记住内容。答错时，回到对应的图和文字。</li>
-          <li><b>间隔复习。</b>每天先做“今日复习”，再学新章。学完一个阶段后，隔一两天做这个阶段的阶段测验。</li>
-        </ol>
-      </div></details>
       <p class="home-credit">本课程不是 Vue 官方项目。</p>
-    </section>
+    </footer>
   </div>
 </template>

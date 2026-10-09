@@ -62,6 +62,7 @@ Pull request 只跑 CI，不会部署。
 
 - **代码**用 [MIT](LICENSE)：`course/engine/`、`course/.vitepress/`、`course/labs/`、`course/figures/`、`course/exercises/` 里的判题代码、`editor/`、`scripts/`、`tests/`、`.github/` 和各配置文件。
 - **课程内容**用 [CC BY-NC-SA 4.0](LICENSE-CONTENT)：`course/chapters/`、`course/index.md`、`course/review.md`、`course/check/`、`course/AUTHORING.md`、`course/checks/questions.ts`、`course/stages.ts`、术语表和 `docs/`。你可以转载和改编，但要署名、不能商用，改编后的作品要用同样的许可证。
+- **站点标志**（顶栏和站点图标，`design/logo/` 里有候选）是本课程原创的图形，随课程内容以 CC BY-NC-SA 4.0 发布。本课程不是 Vue 官方项目。
 
 课文里的示例代码片段可以按 MIT 使用。
 

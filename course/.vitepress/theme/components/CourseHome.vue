@@ -81,6 +81,8 @@ const resume = computed(() => {
 <template>
   <div class="home">
     <header class="hero">
+      <div class="hero-grid">
+      <div class="hero-main">
       <div class="eyebrow">VUE 3.5 · 中文互动课程</div>
       <h1>动手学 <em>Vue 3</em></h1>
       <p class="lead">本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章（其中 {{ optionalTotal }} 章选读），每个阶段末尾有一次阶段测验。{{ STAGES[0].name }}和{{ STAGES[1].name }}教你使用 Vue。{{ STAGES[2].name }}把常用工具接进项目。{{ STAGES[3].name }}和{{ STAGES[4].name }}说明 Vue 的内部原理。{{ STAGES[5].name }}讲组件设计、服务端渲染和工程实践。标题以“项目：”开头的章是动手做项目的章。带“选读”标签的章不计入总进度，学了照常记录。</p>
@@ -109,6 +111,9 @@ const resume = computed(() => {
         <div><b>{{ exTotal }}</b><span>道可判题练习</span></div>
         <div><b>{{ doneN }}/{{ total }}</b><span>必读章已完成</span></div>
         <div id="statReview"><b>{{ learned }}</b><span>道题在复习中</span></div>
+      </div>
+      </div>
+      <div class="hero-visual"><ClientOnly><EvolutionHero /></ClientOnly></div>
       </div>
 
       <p class="prereq"><b>开始前你需要会：</b>HTML 和 CSS 基础（标签、属性、选择器），JavaScript 基础（变量、函数、箭头函数、数组的 map 和 filter、对象和数组的解构与展开、import 和 export 模块、Promise 与 async/await）。讲工程化的章节还会用到命令行和 npm。还不熟的话，先花一两周补 JavaScript，再回来学会轻松很多。</p>
@@ -237,6 +242,7 @@ const resume = computed(() => {
           <li><b>间隔复习。</b>每天先做“今日复习”，再学新章。学完一个阶段后，隔一两天做这个阶段的阶段测验。</li>
         </ol>
       </div></details>
+      <p class="home-credit">本课程不是 Vue 官方项目。</p>
     </section>
   </div>
 </template>

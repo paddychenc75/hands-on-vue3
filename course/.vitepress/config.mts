@@ -50,6 +50,7 @@ export default defineConfig({
   // 只构建部分章节时，指向其他章的链接必然找不到，不算死链。全站构建仍然检查
   ignoreDeadLinks: only.length > 0,
   description: 'Vue3 互动课程：每章有讲解、练习和自测',
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: `${BASE_PATH}favicon.svg` }]],
   lang: 'zh-CN',
   srcExclude: ['AUTHORING.md', ...excluded],
   outDir: process.env.COURSE_OUT_DIR || undefined,

@@ -46,7 +46,9 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       for (const c of CH) {
         await p.goto(base + c.link + '.html')
         await p.waitForSelector('.vp-doc h1', { timeout: 10000 })
-        await p.waitForTimeout(250)
+        // 等这一章的练习和自测都渲染出来再读（慢机器上固定等 250ms 不够），到时间还没齐就照常读，让下面的断言报出差别
+        await p.waitForFunction(([nEx, nSc]) => document.querySelectorAll('.vp-doc .ex[data-ex]').length >= nEx && document.querySelectorAll('.vp-doc .sc:not(.predict)').length >= nSc, [c.ex.length, c.scCount], { timeout: 10000 }).catch(() => {})
+        await p.waitForTimeout(100)
         const n = await p.$$eval('.vp-doc .sc:not(.predict)', es => es.length)
         const ex = await p.$$eval('.vp-doc .ex[data-ex]', es => es.map(e => e.dataset.ex))
         g.ok(n === c.scCount && c.scAnswers.length === n, `${c.file} 自测 ${n} ≠ ${c.scCount}`)

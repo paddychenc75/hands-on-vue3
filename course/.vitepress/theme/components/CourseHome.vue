@@ -83,10 +83,10 @@ const resume = computed(() => {
     <header class="hero">
       <div class="eyebrow">VUE 3.5 · 中文互动课程</div>
       <h1>动手学 <em>Vue 3</em></h1>
-      <p>本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章（其中 {{ optionalTotal }} 章选读），每个阶段末尾有一次阶段测验。{{ STAGES[0].name }}和{{ STAGES[1].name }}教你使用 Vue。{{ STAGES[2].name }}把常用工具接进项目。{{ STAGES[3].name }}和{{ STAGES[4].name }}说明 Vue 的内部原理。{{ STAGES[5].name }}讲组件设计、服务端渲染和工程实践。标题以“项目：”开头的章是动手做项目的章。带“选读”标签的章不计入总进度，学了照常记录。</p>
+      <p class="lead">本课程有 {{ STAGES.length }} 个阶段，共 {{ progressChapters.length }} 章（其中 {{ optionalTotal }} 章选读），每个阶段末尾有一次阶段测验。{{ STAGES[0].name }}和{{ STAGES[1].name }}教你使用 Vue。{{ STAGES[2].name }}把常用工具接进项目。{{ STAGES[3].name }}和{{ STAGES[4].name }}说明 Vue 的内部原理。{{ STAGES[5].name }}讲组件设计、服务端渲染和工程实践。标题以“项目：”开头的章是动手做项目的章。带“选读”标签的章不计入总进度，学了照常记录。</p>
 
-      <p class="prereq"><b>开始前你需要会：</b>HTML 和 CSS 基础（标签、属性、选择器），JavaScript 基础（变量、函数、箭头函数、数组的 map 和 filter、对象和数组的解构与展开、import 和 export 模块、Promise 与 async/await）。讲工程化的章节还会用到命令行和 npm。还不熟的话，先花一两周补 JavaScript，再回来学会轻松很多。</p>
 
+      <div class="home-actions">
       <div class="resume show" id="resume">
         <span id="resumeTxt">{{ resume.text }}</span>
         <a class="b pri" id="resumeLink" :href="resume.href">继续学习</a>
@@ -95,6 +95,7 @@ const resume = computed(() => {
       <div v-if="learned > 0" class="resume show review-entry" id="reviewEntry">
         <span id="reviewTxt"><template v-if="due > 0">今日复习：<b>{{ due }}</b> 道题到期。</template><template v-else>今天没有到期的题，已学过 {{ learned }} 道。</template></span>
         <a class="b pri" id="reviewLink" :href="withBase('/review')">{{ due > 0 ? '开始复习' : '去做混合练习' }}</a>
+      </div>
       </div>
 
       <div class="progress-sum" id="progress">
@@ -110,6 +111,10 @@ const resume = computed(() => {
         <div id="statReview"><b>{{ learned }}</b><span>道题在复习中</span></div>
       </div>
 
+      <p class="prereq"><b>开始前你需要会：</b>HTML 和 CSS 基础（标签、属性、选择器），JavaScript 基础（变量、函数、箭头函数、数组的 map 和 filter、对象和数组的解构与展开、import 和 export 模块、Promise 与 async/await）。讲工程化的章节还会用到命令行和 npm。还不熟的话，先花一两周补 JavaScript，再回来学会轻松很多。</p>
+    </header>
+
+    <section class="home-sec" aria-labelledby="methods-title">
       <h2 class="section-title" id="methods-title">怎样用这套课程真正学会</h2>
       <p class="section-sub">下面每个环节都对应一条被大量研究验证过的学习规律。看懂了不等于学会了，这些环节的作用是让知识留在你脑子里。</p>
       <div class="methods" id="methods">
@@ -145,7 +150,9 @@ const resume = computed(() => {
         </div>
       </div>
       <p class="section-sub"><b>掌握学习：</b>一章的自测全部答对、练习全部通过才算完成；一个阶段测验达到 80% 才算掌握。建议每天先清空“今日复习”，再学新章。</p>
+    </section>
 
+    <section class="home-sec" aria-labelledby="path-title">
       <h2 class="section-title" id="path-title">学习路线</h2>
       <p class="path-sub">{{ STAGES.length }} 个阶段循序渐进。下面先给三条路线，选一条适合你的。不确定时从头按顺序学，也可以先做阶段测验，看看哪些地方已经掌握。</p>
       <div class="routes" id="routes">
@@ -173,8 +180,10 @@ const resume = computed(() => {
           <p v-if="r.skip" class="skip"><b>可以跳过：</b><template v-if="r.skip.stages">{{ r.skip.stages }}。</template><template v-if="r.skip.optional">选读章（{{ r.skip.optional }}）。</template>{{ r.skip.text }}</p>
           <p v-if="r.test" class="test">{{ r.test }}</p>
         </article>
-      </div>
-      <h3 class="stages-title" id="stages-title">各阶段的章</h3>
+      </div>    </section>
+
+    <section class="home-sec" aria-labelledby="stages-title">
+      <h2 class="section-title" id="stages-title">各阶段的章</h2>
       <div class="path" id="path">
         <div v-for="c in cards" :key="c.stage" class="stage" :data-stage="c.stage">
           <div class="lv">{{ c.no }} · {{ c.en }}</div>
@@ -192,7 +201,9 @@ const resume = computed(() => {
           <div class="meter"><i :style="{ width: c.pct + '%' }"></i></div>
         </div>
       </div>
+    </section>
 
+    <section class="home-sec home-sec-last">
       <details class="ste">
         <summary>本课程的写作规则</summary>
         <div>
@@ -226,6 +237,6 @@ const resume = computed(() => {
           <li><b>间隔复习。</b>每天先做“今日复习”，再学新章。学完一个阶段后，隔一两天做这个阶段的阶段测验。</li>
         </ol>
       </div></details>
-    </header>
+    </section>
   </div>
 </template>

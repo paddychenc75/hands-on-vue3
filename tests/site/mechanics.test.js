@@ -285,8 +285,8 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       await p.goto(base + '/review.html'); await p.waitForSelector('.review .done-card'); await p.waitForTimeout(300)
       g.ok(/还没有需要复习的题目/.test(await p.locator('.review').innerText()), '空状态：还没有需要复习的题目')
       g.ok(await p.locator('.VPSidebar a[href$="/review.html"]').count() === 1, '侧边栏有今日复习入口')
-      const sideTop = await p.$$eval('.VPSidebar .VPSidebarItem.level-0:first-child a .text, .VPSidebar .group:first-child a .text', es => es.slice(0, 2).map(e => e.textContent.trim()))
-      g.ok(sideTop[0] === '今日复习', '入口在侧边栏最上面 ' + sideTop)
+      const sideTop = await p.$$eval('.VPSidebar .VPSidebarItem.level-0:first-child a .text, .VPSidebar .group:first-child a .text', es => es.slice(0, 4).map(e => e.textContent.trim()))
+      g.ok(sideTop[2] === '今日复习', '入口在侧边栏最上面 ' + sideTop)
       g.ok(await p.locator('.VPSidebar .text[data-badge]').count() === 0, '没有到期的题时没有徽标')
       g.end()
 
@@ -372,12 +372,12 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       const old = T0 - 3 * DAY
       await seed(p, base, { __srs: { 'first#0': card(1, T0 - DAY, old), 'refs#1': card(2, T0 - HOUR, old), 'computed#0': card(1, T0 + 5 * DAY, old) } })
       await p.clock.setFixedTime(T0)
-      await p.goto(base + '/'); await p.waitForSelector('#reviewEntry'); await p.waitForTimeout(300)
+      await p.goto(base + '/roadmap.html'); await p.waitForSelector('#reviewEntry'); await p.waitForTimeout(300)
       g.ok(/今日复习：2 道题到期/.test(await p.locator('#reviewEntry').innerText()), '今日复习：2 道题到期 ' + await p.locator('#reviewEntry').innerText())
       g.ok(/开始复习/.test(await p.locator('#reviewLink').innerText()) && /\/review/.test(await p.locator('#reviewLink').getAttribute('href')), '有“开始复习”按钮，指向复习页')
       g.ok((await p.locator('#statReview b').innerText()) === '3', '“3 道题在复习中”统计')
       await seed(p, base, { __srs: { 'first#0': card(1, T0 + DAY, old) } })
-      await p.goto(base + '/'); await p.waitForSelector('#reviewEntry'); await p.waitForTimeout(300)
+      await p.goto(base + '/roadmap.html'); await p.waitForSelector('#reviewEntry'); await p.waitForTimeout(300)
       g.ok(/今天没有到期的题，已学过 1 道/.test(await p.locator('#reviewEntry').innerText()) && /混合练习/.test(await p.locator('#reviewLink').innerText()), '没有到期的：说明已学过几道，入口换成混合练习')
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
       g.end()
@@ -458,7 +458,7 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       g.ok(await p.locator('.VPSidebar a[href*="/check/1"]').getAttribute('data-check') === 'passed', '侧边栏的阶段测验显示通过 ✓')
       await p.locator('.quiz [data-a="again"]').click(); await p.waitForTimeout(500)
       g.ok(await p.locator('.quiz .q').count() === 12 && await p.locator('.quiz .opt.right').count() === 0, '“换一组题再测”：重新出 12 题，不显示答案')
-      await p.goto(base + '/'); await p.waitForSelector('.stage', { state: 'attached' }); await p.waitForTimeout(400)
+      await p.goto(base + '/roadmap.html'); await p.waitForSelector('.stage', { state: 'attached' }); await p.waitForTimeout(400)
       g.ok(/已通过/.test(await p.locator('.stage[data-stage="1"] li.aside.check').innerText()), '首页第 1 个阶段卡片上显示已通过')
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.slice(0, 2).join('|'))
       g.end()
@@ -527,7 +527,7 @@ const exRec = async (p, ch, id) => (await read(p))?.[ch]?.ex?.[id]
       const srs = { 'first#0': card(1, T0 - DAY, old), 'refs#1': card(1, T0 - DAY, old), 'template#0': card(1, T0 + DAY, old), 'refs#0': card(1, T0 + DAY, old) }
       await seed(p, base, { __srs: srs })
       await p.clock.setFixedTime(T0)
-      const pages = [['/', '.home'], ['/review.html', '.review .q'], ...Array.from({ length: STAGE_COUNT }, (_, k) => k + 1).map(i => ['/check/' + i + '.html', '.quiz .q']), ['/chapters/04-computed.html', '.warmup .q'], ['/chapters/03-refs.html', '.selfx']]
+      const pages = [['/roadmap.html', '.roadmap'], ['/review.html', '.review .q'], ...Array.from({ length: STAGE_COUNT }, (_, k) => k + 1).map(i => ['/check/' + i + '.html', '.quiz .q']), ['/chapters/04-computed.html', '.warmup .q'], ['/chapters/03-refs.html', '.selfx']]
       for (const [u, sel] of pages) {
         await p.goto(base + u); await p.waitForSelector(sel, { timeout: 15000 }); await p.waitForTimeout(300)
         if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth)) wide.push(u)

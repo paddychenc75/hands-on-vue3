@@ -138,7 +138,7 @@ function readTerms() {
       const g = R.group('侧边栏顶部：今日复习、术语表、速查表；术语表页高亮；其他页也有入口')
       await p.goto(base + '/glossary.html'); await p.waitForSelector('.VPSidebar')
       const top = await p.locator('.VPSidebar .VPSidebarItem.level-0').first().locator('a').allInnerTexts()
-      g.ok(top.join('|') === '今日复习|术语表|速查表', '顶部入口：' + top)
+      g.ok(top.join('|') === '首页|课程地图|今日复习|术语表|速查表', '顶部入口：' + top)
       g.ok(await p.locator('.VPSidebar .is-active > .item .text').first().innerText() === '术语表', '术语表页：当前项是术语表')
       await p.goto(base + '/chapters/03-refs.html'); await p.waitForSelector('.VPSidebar')
       g.ok(await p.locator('.VPSidebar a[href$="/glossary.html"], .VPSidebar a[href$="/glossary"]').count() === 1, '章页的侧边栏也有术语表入口')
@@ -152,8 +152,8 @@ function readTerms() {
     {
       const g = R.group('390px 宽：术语表页、标了术语的章页没有横向滚动')
       const m = await newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true })
-      for (const u of ['/glossary.html', '/chapters/03-refs.html', '/chapters/06-comm.html', '/']) {
-        await m.goto(base + u); await m.waitForSelector('.vp-doc h1, .home h1'); await m.waitForTimeout(500)
+      for (const u of ['/glossary.html', '/chapters/03-refs.html', '/chapters/06-comm.html', '/roadmap.html']) {
+        await m.goto(base + u); await m.waitForSelector('.vp-doc h1, .roadmap h1'); await m.waitForTimeout(500)
         const over = await m.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
         g.ok(over <= 0, `${u} 横向溢出 ${over}px`)
       }
@@ -254,7 +254,7 @@ function readTerms() {
       const others = Object.entries(avoids).filter(([t]) => !(t in expected)).filter(([, a]) => a !== '')
       g.ok(others.length === 0, '没有写作规则的术语，这一栏是空的：' + others.slice(0, 3).map(x => x[0]))
       // 首页的表和数据文件一致
-      await p3.goto(base + '/'); await p3.waitForSelector('.home')
+      await p3.goto(base + '/roadmap.html'); await p3.waitForSelector('.roadmap')
       await p3.evaluate(() => { document.querySelector('details.ste').open = true })
       const homeRows = await p3.$$eval('details.ste table tr', es => es.slice(1).map(e => [...e.children].map(c => c.textContent.trim())))
       g.ok(JSON.stringify(homeRows) === JSON.stringify(WRITING_TERMS.map(w => [w.label, w.meaning, w.avoid])), `首页写作规则表 ${homeRows.length} 行与数据文件一致`)

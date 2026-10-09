@@ -108,12 +108,12 @@ const STORE_KEY = 'hands-on-vue3-v1'
 
 /** 在浏览器里写进度：清空 localStorage，再把 progress（引擎的 Progress 结构）写进单键。要在 goto 之前对同源页面调用，所以先打开一个空白的站内页 */
 async function seed(p, base, progress = {}) {
-  await p.goto(base + '/')
+  await p.goto(base + '/roadmap.html')
   await p.evaluate(([k, d]) => { localStorage.clear(); if (Object.keys(d).length) localStorage.setItem(k, JSON.stringify(d)) }, [STORE_KEY, progress])
 }
 /** 写旧版的零散进度键（前缀见引擎的迁移代码），用来测一次性迁移。data 的键是去掉前缀的键名 */
 async function seedLegacy(p, base, data) {
-  await p.goto(base + '/')
+  await p.goto(base + '/roadmap.html')
   await p.evaluate(d => { localStorage.clear(); for (const [k, v] of Object.entries(d)) localStorage.setItem('vue3deep:' + k, JSON.stringify(v)) }, data)
 }
 /** 读整个进度（没有返回 null） */

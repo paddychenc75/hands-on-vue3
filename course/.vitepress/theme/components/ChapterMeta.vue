@@ -5,7 +5,7 @@
 //   阅读时间（章里 ::: rt 块的原文；正文里那个块不再单独渲染，config.mts 把它从正文去掉）
 // 由 config.mts 在一级标题后面自动插入，章的 Markdown 里不用写。速查表没有阶段和章号，显示“参考”标签。
 import { computed } from 'vue'
-import { useData } from 'vitepress'
+import { useData, withBase } from 'vitepress'
 import { chapterById, progressChapters, STAGES } from '../composables/learn'
 
 const { frontmatter } = useData()
@@ -16,7 +16,8 @@ const stage = computed(() => (meta.value?.stage != null ? STAGES[meta.value.stag
 <template>
   <div v-if="meta" class="ch-meta" :data-stage="meta.stage ?? undefined">
     <div class="crumb">
-      <span class="tag">{{ stage ? `${stage.no} · ${stage.name}` : '参考' }}</span>
+      <a v-if="stage" class="tag" :href="withBase('/roadmap#stage-' + meta.stage)" title="在课程地图里看这个阶段">{{ stage.no }} · {{ stage.name }}</a>
+      <span v-else class="tag">参考</span>
       <span v-if="meta.chapter">第 {{ meta.chapter }} / {{ progressChapters.length }} 章</span>
       <span v-if="meta.optional" class="opt-tag" title="选读章不计入总进度和阶段完成数，学了照常记录">选读</span>
     </div>

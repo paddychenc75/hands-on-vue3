@@ -8,7 +8,8 @@
 
 ```
 course/
-  index.md                首页（只有一行：<CourseHome />）
+  index.md                首页（全屏短片，由另一份说明维护，见下面“首页短片”）
+  roadmap.md              课程地图页（只有一行：<RoadmapPage />）。原首页的内容：继续学习、一章是怎样学的、学习路线、阶段地图、前置要求
   glossary.md             术语表页（内容是组件 GlossaryPage，数据自动汇总，见第 7 节）
   review.md               今日复习页（内容是组件 ReviewPage）
   check/N.md              阶段测验页，N 从 1 到阶段数（内容是组件 StageCheck）
@@ -460,10 +461,22 @@ let count = 0
 
 **代码块跟随主题**（浅色下是浅底）：浅色页面里的深色大块像一块黑板，会压住周围的容器和图。
 
+### 首页短片
+
+（占位：首页 `course/index.md` 的短片由另一位实现者维护，写法在这里补。）
+
+### 课程地图页（`/roadmap`）
+
+`course/roadmap.md` 只放 `<RoadmapPage />`，组件在 `theme/components/RoadmapPage.vue`，样式在 `style.css` 第 11 节（根类名 `.roadmap`，容器查询名 `rm`）。要点：
+
+- **两种首屏**：新访客（“从第 1 章开始”）和回访者（“继续学习：第 N 章”）都输出到 HTML，`config.mts` 的 `head` 里有一段内联脚本在首次绘制前按本地进度给 `<html>` 设 `data-learner="returning"`，CSS 的 `.only-new` / `.only-ret` 据此切换；组件挂载后只“升级”（本次访问里才开始学的人也看到回访版），不降级。不要用 `v-if` 按进度切换首屏（会先闪新访客版，还会水合不一致）。
+- 页面里的 id（`#resumeLink`、`#resumeTxt`、`#progTxt`、`#progBar`、`#stats`、`#statReview`、`#reviewEntry`、`#reviewLink`、`#routes`、`#path`、`#methods`、`#glossary`）和 `.stage`、`.route` 等结构被浏览器测试依赖，改版时保留。阶段卡片有 `id="stage-N"`，章头的阶段标签链接到 `/roadmap#stage-N`。
+- 阶段卡片的章列表和路线的步骤默认折叠（`details`），测试里等待 `.stage li` 用 `state: 'attached'`。
+
 ### 4.13 其他组件
 
 - `<Flow :steps="['setup', 'onMounted']" />`：一行步骤箭头。
-- `<ChapterMeta>`（章头）、`<ChapterFoot>`、`<AppEffects>`、`<CourseHome>`、`<GlossaryPage>`：由主题插槽或页面自动放置，章里不要手写。
+- `<ChapterMeta>`（章头）、`<ChapterFoot>`、`<AppEffects>`、`<RoadmapPage>`、`<GlossaryPage>`：由主题插槽或页面自动放置，章里不要手写。
 - **`<Warmup>`（课前热身）和 `<SelfExplain>`（自我解释）也是自动放置的，章的 Markdown 里不要写，也不要改任何章文件**：热身由 `config.mts` 的 markdown 规则（`course_inject_warmup`）插在每个带 `stage` 的章的一级标题后面（标题 → 章头 `ChapterMeta` → 热身 → 目标）。章头（阶段标签、第 N / 总章数 章、`desc` 一句话、阅读时间）也是自动放的，阅读时间就是章里 `::: rt` 块的文字（见 4.3）；自我解释由主题布局的 `doc-footer-before` 插槽放在掌握标准条之前。章里的 `::: summary` 小结块因此默认隐藏（`sx-hidden`），内容在构建时抽出（`virtual:course-summaries`），学习者写够 30 个有效字、点“对照本章要点”后，在自我解释区域里显示。**每章必须有且只有一个 `::: summary`**，它是自我解释的参考要点。
 - `<Question>`：题目组件（热身、复习页、阶段测验共用），不在章里用。章内自测用 `<Sc>`。
 - `<ReviewPage>`、`<StageCheck :stage="N">`：只在 `review.md` 和 `check/N.md` 里用。

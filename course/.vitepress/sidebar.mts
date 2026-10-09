@@ -55,8 +55,8 @@ export function buildSidebar(chaptersDir: string, opts: SidebarOptions = {}) {
     return a.order - b.order || a.file.localeCompare(b.file)
   }
   const strip = ({ text, link }: Item) => ({ text, link })
-  // 固定入口：最上面是“今日复习”（页面 review.md，带到期题数的徽标，由 AppEffects 写）和“术语表”（glossary.md，从各章术语块汇总），然后是没写 stage 的章页面（速查表），按 order 排
-  const top = [{ text: '今日复习', link: '/review' }, { text: '术语表', link: '/glossary' }, ...pinned.sort((a, b) => a.order - b.order || a.file.localeCompare(b.file)).map(strip)]
+  // 固定入口：最上面是“首页”和“课程地图”（原首页的内容），然后是“今日复习”（页面 review.md，带到期题数的徽标，由 AppEffects 写）和“术语表”（glossary.md，从各章术语块汇总），然后是没写 stage 的章页面（速查表），按 order 排
+  const top = [{ text: '首页', link: '/' }, { text: '课程地图', link: '/roadmap' }, { text: '今日复习', link: '/review' }, { text: '术语表', link: '/glossary' }, ...pinned.sort((a, b) => a.order - b.order || a.file.localeCompare(b.file)).map(strip)]
   // 每个阶段的章列表末尾加一条“阶段测验”（/check/N，页面是 course/check/N.md），AppEffects 在它右边显示通过状态
   const groups = byStage
     .map((items, i) => ({ text: stageTitle(i + 1).replace(/^(\d+)\s/, '<span class="stage-no">$1</span> '), items: [...items.sort(sort).map(strip), { text: '阶段测验', link: `/check/${i + 1}` }], count: items.length }))

@@ -217,7 +217,7 @@ export default defineConfig({
   },
   themeConfig: {
     // 顶栏没有导航链接（和 hands-on-react 一致）：站名链接回首页，今日复习、术语表、速查表和各章都在侧边栏
-    nav: [],
+    nav: [{ text: '课程地图', link: '/roadmap' }],
     // 侧边栏自动生成：读 chapters/*.md 的 frontmatter（chapter stage title order），见 sidebar.mts
     sidebar: buildSidebar(CHAPTERS_DIR, { only: only.length ? only : undefined }),
     outline: { level: [2, 3], label: '本页目录' },

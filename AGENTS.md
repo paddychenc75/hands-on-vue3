@@ -68,6 +68,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `course/labs/NN-id/*.vue` | 实验台组件；`_shared/` 是各章共用的辅助函数 | — |
 | `course/figures/NN-id/*.vue` | 示意图（按内容命名，只含 `<template>`） | — |
 | `course/checks/questions.ts` | 阶段测验专用题库（卡片键 `章id#cN` 靠它的出现顺序编号，只能在末尾追加） | — |
+| `course/roadmap.md` | 课程地图页（`/roadmap`，原首页的内容；组件 `RoadmapPage.vue`）。首页 `course/index.md` 是全屏短片，见 AUTHORING 的“首页短片” | — |
 | `course/review.md`、`course/glossary.md`、`course/check/N.md` | 今日复习页、术语表页（自动汇总各章术语块）、各阶段测验页（内容是组件 `ReviewPage`、`GlossaryPage`、`StageCheck`） | — |
 | `course/card-keys.snapshot.json` | 复习卡片键快照，**提交进仓库**，由脚本更新（见「卡片键快照」） | 手改 |
 | `course/.vitepress/theme/composables/exerciseLibs.ts` | 练习声明 `libs: ['pinia' | 'vue-router']` 时，运行器载入真实的 Pinia 和 Vue Router 并装进练习应用（写法见 `AUTHORING.md` 4.10） | 其他练习的运行逻辑 |

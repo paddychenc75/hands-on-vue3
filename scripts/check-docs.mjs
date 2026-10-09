@@ -10,7 +10,7 @@ import path from 'node:path';
 import { collect, ROOT } from './lib/collect.mjs';
 import { validate } from './lib/validate.mjs';
 
-const FILES = ['AGENTS.md', 'README.md', 'course/AUTHORING.md', 'course/.vitepress/theme/components/CourseHome.vue', 'course/index.md'];
+const FILES = ['AGENTS.md', 'README.md', 'course/AUTHORING.md', 'course/.vitepress/theme/components/RoadmapPage.vue', 'course/roadmap.md', 'course/index.md'];
 
 const inp = await collect();
 const { stats } = validate(inp);

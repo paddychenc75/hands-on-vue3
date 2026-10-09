@@ -3,6 +3,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
 import container from 'markdown-it-container'
+// 代码高亮配色：Shiki 的 css-variables 主题，输出 var(--shiki-token-*)，具体颜色在 style.css（浅色、深色各一组，和练习编辑器共用 --code-*）。
+// shiki 是 vitepress 的依赖（已装在根 node_modules），这里直接引用它的导出
+import { createCssVariablesTheme } from 'shiki'
 import deflist from 'markdown-it-deflist'
 import { buildSidebar } from './sidebar.mts'
 import { cjkFriendlyEmphasis } from './markdown-cjk.mts'
@@ -59,6 +62,7 @@ export default defineConfig({
     server: { fs: { allow: ['..'] } }
   },
   markdown: {
+    theme: createCssVariablesTheme({ name: 'course-css-variables', variablePrefix: '--shiki-', variableDefaults: {}, fontStyle: true }),
     config(md) {
       md.use(deflist)
       cjkFriendlyEmphasis(md)
@@ -109,12 +113,13 @@ export default defineConfig({
         }
       })
 
-      // ::: note  说明框（左边一条蓝灰线）。::: note warn 是橙色警示版
+      // ::: note  说明框（蓝色）。::: note warn 是琥珀色的注意版。标签（说明 / 注意）是行首的 span.t，样式在 style.css 的教学容器一节
       md.use(container, 'note', {
-        render: (tokens: any[], idx: number) =>
-          tokens[idx].nesting === 1
-            ? `<div class="note${/\bwarn\b/.test(tokens[idx].info) ? ' warn' : ''}">\n`
-            : '</div>\n'
+        render(tokens: any[], idx: number) {
+          if (tokens[idx].nesting !== 1) return '</div>\n'
+          const warn = /\bwarn\b/.test(tokens[idx].info)
+          return `<div class="note${warn ? ' warn' : ''}"><span class="t">${warn ? '注意' : '说明'}</span>\n`
+        }
       })
 
       // ::: cheat 标题  速查表外层的折叠块（旧版 details.cheatwrap）

@@ -160,19 +160,19 @@ const hintListener = EditorView.updateListener.of(u => {
 });
 
 const foldTheme = EditorView.theme({
-  '.cm-foldBtn': { display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box', width: '0', minWidth: '100%', minHeight: '28px', margin: '0', padding: '2px 10px', font: 'inherit', fontSize: '0.92em', color: 'var(--code-ink)', background: 'rgba(127,146,152,.16)', border: 'none', borderLeft: '3px solid var(--accent)', borderRadius: '0 4px 4px 0', textAlign: 'left', cursor: 'pointer' },
-  '.cm-foldBtn:hover': { background: 'rgba(127,146,152,.28)' },
-  '.cm-foldBtn:focus-visible': { outline: '2px solid var(--accent)', outlineOffset: '-2px' },
+  '.cm-foldBtn': { display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box', width: '0', minWidth: '100%', minHeight: '28px', margin: '0', padding: '2px 10px', font: 'inherit', fontSize: '0.92em', color: 'var(--code-ink)', background: 'var(--code-fold)', border: 'none', borderLeft: '3px solid var(--brand)', borderRadius: '0 6px 6px 0', textAlign: 'left', cursor: 'pointer' },
+  '.cm-foldBtn:hover': { background: 'var(--code-sel)' },
+  '.cm-foldBtn:focus-visible': { outline: '2px solid var(--ring)', outlineOffset: '-2px' },
   '.cm-foldBtn-head, .cm-foldBtn-end': { display: 'inline-flex', width: 'auto', minWidth: '0', maxWidth: '100%', minHeight: '0', padding: '0 8px', fontSize: '0.85em', color: 'var(--code-c)', background: 'transparent' },
   // 折叠行的宽度由别的行决定（width:0 + min-width:100% 让它不参与内容宽度的计算），标题太长就截断，不把页面撑宽
   '.cm-foldCaret': { flex: 'none' },
   '.cm-foldTitle': { flex: '0 1 auto', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   '.cm-foldCount': { flex: 'none', color: 'var(--code-c)' },
-  '.cm-foldMark': { backgroundColor: 'rgba(127,146,152,.12)' },
-  '.cm-foldBody': { backgroundColor: 'rgba(127,146,152,.07)' },
-  '.cm-foldToast': { position: 'absolute', left: '50%', bottom: '10px', transform: 'translateX(-50%)', maxWidth: 'calc(100% - 24px)', boxSizing: 'border-box', padding: '5px 12px', borderRadius: '6px', fontSize: '0.88em', lineHeight: '1.5', color: '#1f2a30', background: '#e8c48a', boxShadow: '0 2px 8px rgba(0,0,0,.35)', pointerEvents: 'none', opacity: '0', transition: 'opacity .15s', zIndex: '20' },
+  '.cm-foldMark': { backgroundColor: 'var(--code-fold)' },
+  '.cm-foldBody': { backgroundColor: 'var(--code-line)' },
+  '.cm-foldToast': { position: 'absolute', left: '50%', bottom: '10px', transform: 'translateX(-50%)', maxWidth: 'calc(100% - 24px)', boxSizing: 'border-box', padding: '5px 12px', borderRadius: '6px', fontSize: '0.88em', lineHeight: '1.5', color: 'var(--text-1)', background: 'var(--warn-soft)', border: '1px solid var(--warn-line)', boxShadow: 'var(--sh-3)', pointerEvents: 'none', opacity: '0', transition: 'opacity .15s', zIndex: '20' },
   '.cm-foldToast.show': { opacity: '1' }
-}, { dark: true });
+});
 
 export function foldExtension() {
   return [foldField, readonlyFilter, hintListener, foldTheme];

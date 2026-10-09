@@ -9,40 +9,43 @@ import { vue } from '@codemirror/lang-vue';
 import { tags as t } from '@lezer/highlight';
 import { foldExtension, foldBlocks, foldTitleAt, replaceAll, revealLine } from './folds.js';
 
+// 配色全部引用 style.css 里的 --code-* 变量（和文章里的代码块是同一组），浅色和深色自动切换
 const style = HighlightStyle.define([
   { tag: [t.keyword, t.controlKeyword, t.definitionKeyword, t.moduleKeyword, t.operatorKeyword, t.self], color: 'var(--code-k)' },
   { tag: [t.string, t.special(t.string), t.attributeValue, t.regexp], color: 'var(--code-s)' },
   { tag: [t.comment, t.lineComment, t.blockComment], color: 'var(--code-c)', fontStyle: 'italic' },
   { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--code-n)' },
   { tag: [t.tagName, t.angleBracket], color: 'var(--code-k)' },
-  { tag: [t.attributeName], color: 'var(--code-n)' },
-  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: '#c9b6f2' },
-  { tag: [t.brace, t.punctuation, t.separator], color: 'var(--code-c)' },
-  { tag: t.invalid, color: '#ff8f9c' }
+  { tag: [t.attributeName], color: 'var(--code-p)' },
+  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--code-f)' },
+  { tag: [t.brace, t.punctuation, t.separator], color: 'var(--code-punct)' },
+  { tag: t.invalid, color: 'var(--code-bad-bar)' }
 ]);
 
 const theme = EditorView.theme({
-  '&': { backgroundColor: 'var(--code-bg)', color: 'var(--code-ink)', fontSize: 'var(--ed-fs, 13px)', borderRadius: '8px' },
-  '&.cm-focused': { outline: '2px solid var(--accent)', outlineOffset: '1px' },
+  '&': { backgroundColor: 'var(--code-bg)', color: 'var(--code-ink)', fontSize: 'var(--ed-fs, 13px)', borderRadius: 'var(--r-md, 12px)' },
+  '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { fontFamily: 'var(--f-mono)', lineHeight: '1.55' },
-  '.cm-content': { padding: '6px 0', caretColor: 'var(--code-ink)' },
-  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--code-ink)', borderLeftWidth: '2px' },
-  '.cm-gutters': { backgroundColor: 'var(--code-bg)', color: 'var(--code-c)', border: 'none', borderRight: '1px solid rgba(127,146,152,.28)', borderRadius: '8px 0 0 8px' },
-  '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,.04)' },
-  '.cm-activeLineGutter': { backgroundColor: 'rgba(255,255,255,.06)', color: 'var(--code-ink)' },
-  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { backgroundColor: 'rgba(158,195,240,.32) !important' },
-  '.cm-matchingBracket': { backgroundColor: 'rgba(127,209,167,.22)', outline: '1px solid rgba(127,209,167,.5)', color: 'inherit !important' },
-  '.cm-nonmatchingBracket': { color: '#ff8f9c !important' },
-  '.cm-selectionMatch': { backgroundColor: 'rgba(232,196,138,.16)' },
-  '.cm-todoLine': { backgroundColor: 'rgba(232,196,138,.16)', boxShadow: 'inset 3px 0 #e8c48a', color: '#f3dcb0' },
+  '.cm-content': { padding: '6px 0', caretColor: 'var(--brand)' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--brand)', borderLeftWidth: '2px' },
+  '.cm-gutters': { backgroundColor: 'var(--code-bar)', color: 'var(--code-c)', border: 'none', borderRight: '1px solid var(--code-border)', borderRadius: 'var(--r-md, 12px) 0 0 var(--r-md, 12px)' },
+  '.cm-activeLine': { backgroundColor: 'var(--code-line)' },
+  '.cm-activeLineGutter': { backgroundColor: 'var(--code-line)', color: 'var(--code-ink)' },
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { backgroundColor: 'var(--code-sel) !important' },
+  '.cm-matchingBracket': { backgroundColor: 'var(--code-match)', outline: '1px solid var(--brand)', color: 'inherit !important' },
+  '.cm-nonmatchingBracket': { color: 'var(--code-bad-bar) !important' },
+  '.cm-selectionMatch': { backgroundColor: 'var(--code-todo-bg)' },
+  '.cm-todoLine': { backgroundColor: 'var(--code-todo-bg)', boxShadow: 'inset 3px 0 var(--code-todo-bar)', color: 'var(--code-todo-ink)' },
   '.cm-todoLine span': { fontWeight: '600' },
-  '.cm-badLine': { backgroundColor: 'rgba(255,120,135,.16)', boxShadow: 'inset 3px 0 #ff8f9c' },
-  '.cm-badGutter': { color: '#ff8f9c', fontWeight: '700' },
-  '.cm-tooltip': { backgroundColor: 'var(--surface)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: '6px', fontFamily: 'var(--f-mono)' },
-  '.cm-tooltip-autocomplete > ul > li[aria-selected]': { backgroundColor: 'var(--accent)', color: '#fff' },
+  '.cm-badLine': { backgroundColor: 'var(--code-bad-bg)', boxShadow: 'inset 3px 0 var(--code-bad-bar)' },
+  '.cm-badGutter': { color: 'var(--code-bad-bar)', fontWeight: '700' },
+  '.cm-tooltip': { backgroundColor: 'var(--c-raised)', color: 'var(--text-1)', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm, 8px)', fontFamily: 'var(--f-mono)', boxShadow: 'var(--sh-3)' },
+  '.cm-tooltip-autocomplete > ul > li[aria-selected]': { backgroundColor: 'var(--brand)', color: 'var(--on-brand)' },
   '.cm-completionDetail': { opacity: .7, fontStyle: 'normal', marginLeft: '8px' },
-  '.cm-placeholder': { color: 'var(--code-c)' }
-}, { dark: true });
+  '.cm-placeholder': { color: 'var(--code-c)' },
+  '.cm-panels': { backgroundColor: 'var(--code-bar)', color: 'var(--code-ink)', borderTop: '1px solid var(--code-border)' },
+  '.cm-panels input, .cm-panels button': { fontFamily: 'inherit', color: 'var(--code-ink)', backgroundColor: 'var(--c-surface)', border: '1px solid var(--border-strong)', borderRadius: '6px' }
+});
 
 // 出错的行
 const setBad = StateEffect.define();

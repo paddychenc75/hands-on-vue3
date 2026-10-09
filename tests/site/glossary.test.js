@@ -138,7 +138,7 @@ function readTerms() {
       const g = R.group('侧边栏顶部：今日复习、术语表、速查表；术语表页高亮；其他页也有入口')
       await p.goto(base + '/glossary.html'); await p.waitForSelector('.VPSidebar')
       const top = await p.locator('.VPSidebar .VPSidebarItem.level-0').first().locator('a').allInnerTexts()
-      g.ok(top.join('|') === '首页|课程地图|今日复习|术语表|速查表', '顶部入口：' + top)
+      g.ok(top.join('|') === '首页|课程地图|今日复习|术语表|进度同步|速查表', '顶部入口：' + top)
       g.ok(await p.locator('.VPSidebar .is-active > .item .text').first().innerText() === '术语表', '术语表页：当前项是术语表')
       await p.goto(base + '/chapters/03-refs.html'); await p.waitForSelector('.VPSidebar')
       g.ok(await p.locator('.VPSidebar a[href$="/glossary.html"], .VPSidebar a[href$="/glossary"]').count() === 1, '章页的侧边栏也有术语表入口')

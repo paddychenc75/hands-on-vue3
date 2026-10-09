@@ -124,6 +124,7 @@ const rangeOf = (r: (typeof routes)[number]) => `${r.parts.length} 步 · 共 ${
             <div id="statReview" class="only-ret"><b>{{ learned }}</b><span>道题在复习中</span></div>
           </div>
           <p class="hero-prereq only-new">需要会 HTML、CSS 和 JavaScript 基础 · <a href="#prereq">看详细要求</a></p>
+          <p class="hero-prereq hero-sync">想在手机和电脑之间接着学？<a href="#sync">开启跨设备同步</a>（可选）</p>
         </div>
       </div>
     </header>

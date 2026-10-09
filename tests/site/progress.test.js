@@ -198,10 +198,34 @@ const wrongOf = (c, i) => (c.scAnswers[i] === 0 ? 1 : 0)
       const int = p.locator('.route[data-route="internals"]')
       g.ok((await int.locator('.chips a .opt-tag').count()) >= 1, '路线 3 里的选读章带“选读”标签')
       g.ok(await int.locator('.step-head a[href*="/check/1"]').count() === 1, '路线 3 链到阶段测验')
+      // 每条路线有“从这里开始”入口：路线 1、2 指向第 1 章（入门阶段第一个必读章），路线 3 指向第 1 阶段的测验；章号和标题都从元数据取
+      const first = PROGRESS_CH.find(c => c.stage === 1 && !c.optional)
+      const startOf = id => p.locator(`.route[data-route="${id}"] a.route-start`)
+      for (const id of ['quick-project', 'systematic']) {
+        g.ok(await startOf(id).count() === 1 && (await startOf(id).getAttribute('href')) === BASE_PATH + 'chapters/' + first.file, `路线 ${id} 的“从这里开始”指向第一章 ${first.file}：` + await startOf(id).getAttribute('href'))
+        g.ok((await startOf(id).innerText()).includes(`第 ${first.chapter} 章 ${first.title}`), `路线 ${id} 的入口文字取自元数据：` + await startOf(id).innerText())
+      }
+      g.ok((await startOf('internals').getAttribute('href')) === BASE_PATH + 'check/1' && (await startOf('internals').innerText()).includes('阶段测验'), '路线 internals 的“从这里开始”指向第 1 阶段的测验：' + await startOf('internals').getAttribute('href'))
+      // “整个阶段”的步骤：阶段名带链接，指向该阶段第一个必读章，章列表折叠着（展开后每章可点）
+      for (const route of ['quick-project', 'systematic']) {
+        const steps = p.locator(`.route[data-route="${route}"] .steps li`)
+        for (let i = 0; i < (await steps.count()); i++) {
+          const go = steps.nth(i).locator('a.stage-go')
+          if (!(await go.count())) continue
+          const stage = PROGRESS_CH.filter(c => !c.optional)
+          const fc = stage.find(c => (c.stage === i + 1))
+          g.ok((await go.getAttribute('href')) === BASE_PATH + 'chapters/' + fc.file && (await go.innerText()).includes(`从第 ${fc.chapter} 章开始`), `路线 ${route} 第 ${i + 1} 步的阶段链接指向该阶段第一章：` + await go.innerText())
+          g.ok(await steps.nth(i).locator('details.all-chapters[open]').count() === 0 && await steps.nth(i).locator('details.all-chapters a').count() >= 1, `路线 ${route} 第 ${i + 1} 步的章列表默认折叠、里面有章链接`)
+        }
+      }
+      g.ok(await p.locator('.route[data-route="quick-project"] .steps li').nth(0).locator('a.stage-go').count() === 1 && await p.locator('.route[data-route="quick-project"] .steps li').nth(1).locator('a.stage-go').count() === 1, '路线 1 的前两步（入门全部、进阶全部）都有链接')
+      g.ok(await sys.locator('a.stage-go').count() === STAGE_COUNT, '路线 2 每一步都有阶段链接')
+      // 展开折叠的章列表后，里面的链接也要能打开
+      await p.evaluate(() => document.querySelectorAll('#routes details.all-chapters').forEach(d => { d.open = true }))
       const hrefs = await p.$$eval('#routes a', as => as.map(a => a.getAttribute('href')))
       g.ok(hrefs.length > 20 && hrefs.every(h => h.startsWith(BASE_PATH)), '路线里的链接都带 base：' + hrefs.length)
       const bad = []
-      for (const h of [...new Set(hrefs)].slice(0, 60)) { const r = await p.request.get(site.origin + h.replace(/(?<!\.html)$/, h.includes('/chapters/') || h.includes('/check/') ? '.html' : '')); if (r.status() >= 400) bad.push(r.status() + ' ' + h) }
+      for (const h of [...new Set(hrefs)]) { const r = await p.request.get(site.origin + h.replace(/(?<!\.html)$/, h.includes('/chapters/') || h.includes('/check/') ? '.html' : '')); if (r.status() >= 400) bad.push(r.status() + ' ' + h) }
       g.ok(bad.length === 0, '路线里的链接没有 4xx：' + bad.slice(0, 3))
       g.ok(p.errs.length === 0, '没有控制台报错 ' + p.errs.join('|'))
       g.end()

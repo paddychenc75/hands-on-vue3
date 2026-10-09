@@ -730,6 +730,12 @@ html:not(.dark) .vp-doc .shiki, html:not(.dark) .vp-doc .shiki span { color: var
 .home .route .chips a { font-size: 12.5px; line-height: 1.5; color: var(--ink); text-decoration: none; padding: 1px 8px; border: 1px solid var(--line); border-radius: 99px; background: var(--sunken); }
 .home .route .chips a:hover { color: var(--accent); border-color: var(--accent); }
 .home .route .chips .num { font-family: var(--f-mono); color: var(--muted); }
+.home .route .route-start { align-self: flex-start; max-width: 100%; font-size: 14px; font-weight: 600; line-height: 1.5; color: var(--accent); text-decoration: none; padding: 6px 12px; border: 1px solid var(--accent); border-radius: 99px; background: var(--accent-soft); }
+.home .route .route-start:hover { background: var(--accent); color: var(--surface); }
+.home .route .stage-go { font-size: 14px; color: var(--accent); text-decoration: none; }
+.home .route .stage-go:hover { text-decoration: underline; }
+.home .route .all-chapters { margin-top: 4px; }
+.home .route .all-chapters summary { cursor: pointer; font-size: 12.5px; color: var(--muted); padding: 4px 0; }
 .home .route .skip, .home .route .test { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--muted); }
 .home .route .skip { padding-top: 8px; border-top: 1px dashed var(--line); }
 .home .stages-title { font-family: var(--f-display); font-size: 18px; margin: 4px 0 10px; border: 0; padding: 0; }

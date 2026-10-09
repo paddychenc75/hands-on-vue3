@@ -49,10 +49,17 @@ const routes = LEARNING_PATHS.map(path => {
       checks: (part.checkStages || []).map((s: number) => ({ stage: s, title: stageTitle(s), href: checkLink(s) }))
     }
   })
+  // “从这里开始”：这条路线第一步要学的第一章；第一步是阶段测验（第 3 条路线）时指向那个阶段测验。章号和标题都来自元数据
+  const p0 = parts[0]
+  const start = p0?.list[0]
+    ? { href: p0.list[0].link, text: `第 ${p0.list[0].chapter} 章 ${p0.list[0].title}` }
+    : p0?.checks[0]
+      ? { href: p0.checks[0].href, text: `先做 ${p0.checks[0].title} 阶段测验` }
+      : null
   const sk = path.skip
   const skipStages = (sk?.stages || []).map((s: number) => stageTitle(s))
   const skipOptional = sk?.optional ? chapterRanges(progressChapters.filter(c => c.optional).map(c => c.chapter as number)) : ''
-  return { id: path.id, title: path.title, who: path.who, test: path.test as string | undefined, parts, skip: sk ? { text: sk.text as string, stages: skipStages.join('、'), optional: skipOptional } : null }
+  return { id: path.id, title: path.title, who: path.who, test: path.test as string | undefined, parts, start, skip: sk ? { text: sk.text as string, stages: skipStages.join('、'), optional: skipOptional } : null }
 })
 
 const due = computed(() => (ready.value ? dueCount() : 0))
@@ -145,15 +152,22 @@ const resume = computed(() => {
         <article v-for="r in routes" :key="r.id" class="route" :data-route="r.id">
           <h3>{{ r.title }}</h3>
           <p class="who">{{ r.who }}</p>
+          <a v-if="r.start" class="route-start" :href="withBase(r.start.href)">从这里开始：{{ r.start.text }} →</a>
           <ol class="steps">
             <li v-for="(part, i) in r.parts" :key="i">
               <div class="step-head">
-                <b v-if="part.label">{{ part.label }}</b>
+                <!-- 整个阶段的步骤：阶段名链接到该阶段第一个必读章，章数多时章列表默认折叠 -->
+                <a v-if="part.all && part.list.length" class="stage-go" :href="withBase(part.list[0].link)"><b>{{ part.label }}</b>：从第 {{ part.list[0].chapter }} 章开始</a>
+                <b v-else-if="part.label">{{ part.label }}</b>
                 <span v-if="part.range" class="rng">{{ part.all ? '全部必读章：' : '' }}{{ part.range }}</span>
-                <template v-if="part.checks.length">先做 <template v-for="(c, k) in part.checks" :key="c.stage"><template v-if="k">、</template><a :href="withBase(c.href)">{{ c.title }}</a></template> 的阶段测验</template>
+                <span v-if="part.checks.length" class="chk">先做&nbsp;<template v-for="(c, k) in part.checks" :key="c.stage"><template v-if="k">、</template><a :href="withBase(c.href)">{{ c.title }}阶段测验</a></template></span>
               </div>
               <p>{{ part.text }}</p>
-              <div v-if="!part.all && part.list.length" class="chips"><a v-for="c in part.list" :key="c.id" :href="withBase(c.link)"><span class="num">{{ c.chapter }}.</span> {{ c.title }}<span v-if="c.optional" class="opt-tag">选读</span></a></div>
+              <details v-if="part.all && part.list.length" class="all-chapters">
+                <summary>列出这 {{ part.list.length }} 章</summary>
+                <div class="chips"><a v-for="c in part.list" :key="c.id" :href="withBase(c.link)"><span class="num">{{ c.chapter }}.</span> {{ c.title }}</a></div>
+              </details>
+              <div v-else-if="part.list.length" class="chips"><a v-for="c in part.list" :key="c.id" :href="withBase(c.link)"><span class="num">{{ c.chapter }}.</span> {{ c.title }}<span v-if="c.optional" class="opt-tag">选读</span></a></div>
             </li>
           </ol>
           <p v-if="r.skip" class="skip"><b>可以跳过：</b><template v-if="r.skip.stages">{{ r.skip.stages }}。</template><template v-if="r.skip.optional">选读章（{{ r.skip.optional }}）。</template>{{ r.skip.text }}</p>

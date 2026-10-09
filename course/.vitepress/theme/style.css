@@ -1255,6 +1255,11 @@ html[data-learner="returning"] .roadmap .stats { grid-template-columns: repeat(3
 .roadmap .sync-panel .sync-steps li, .roadmap .sync-panel .sync-notes li { display: list-item; margin: 6px 0; }
 .roadmap .sync-panel .sync-notes { border-left: 3px solid var(--warn); background: var(--warn-soft); border-radius: var(--r-sm); color: var(--text-1); }
 .roadmap .sync-panel .sync-fine { font-size: 13.5px; color: var(--text-3); }
+.roadmap .sync-panel .sync-phone { margin: 10px 0; padding: 12px 14px; border-left: 3px solid var(--brand); background: var(--brand-soft, var(--c-subtle)); border-radius: var(--r-sm); color: var(--text-1); }
+.roadmap .sync-panel .sync-phone p { margin: 0 0 8px; }
+.roadmap .sync-panel .sync-phone p:last-child { margin: 0; }
+.roadmap .sync-panel .sync-phone .btn { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: var(--r-md, 12px); background: var(--brand); color: #fff !important; font-weight: 650; text-decoration: none !important; }
+.dark .roadmap .sync-panel .sync-phone .btn { color: #06241a !important; }
 .roadmap .sync-panel .sync-form { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 12px 0; max-width: 560px; }
 .roadmap .sync-panel .sync-form label { font-weight: 650; color: var(--text-1); }
 .roadmap .sync-panel .sync-input { width: 100%; padding: 9px 11px; font: 14px var(--f-mono); color: var(--text-1); background: var(--c-subtle); border: 1px solid var(--border-strong); border-radius: var(--r-sm); }

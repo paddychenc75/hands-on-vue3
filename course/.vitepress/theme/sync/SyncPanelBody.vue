@@ -36,7 +36,12 @@ const needToken = computed(() => !!code.value && TOKEN_CODES.includes(code.value
 const reload = () => window.location.reload()
 const eng = <T,>(f: (m: Engine) => Promise<T> | T) => loadSyncEngine().then(f)
 const refreshBackups = () => eng(m => m.listBackups()).then(b => { backups.value = b })
-onMounted(() => { if (v.enabled) refreshBackups() })
+// 手机或平板（窄屏，或者只有触摸没有悬停）：多半是第二台设备，手里没有电脑上那个令牌（GitHub 只在创建时显示一次），直接引导新建一个
+const onPhone = ref(false)
+onMounted(() => {
+  if (v.enabled) refreshBackups()
+  try { onPhone.value = matchMedia('(max-width: 767px), (pointer: coarse) and (hover: none)').matches } catch {}
+})
 // 开启之后、每次同步成功（at 变了）之后重读备份列表
 watch(() => [v.enabled, s.value.at], () => { if (v.enabled) refreshBackups() })
 
@@ -153,11 +158,15 @@ const restore = (i: number) =>
     </p>
 
     <template v-if="!v.enabled">
+      <div v-if="onPhone" class="sync-phone">
+        <p><b>在手机上，或者这是第二台设备？直接新建一个令牌。</b>电脑上那个令牌只在创建时显示一次，现在已经看不到了，不用去找。两个令牌只要来自同一个 GitHub 账号，用的就是同一份进度。</p>
+        <p><a class="btn" :href="TOKEN_URL" target="_blank" rel="noopener noreferrer">去 GitHub 新建令牌</a></p>
+      </div>
       <ol class="sync-steps">
         <li>
           点这个链接：<a :href="TOKEN_URL" target="_blank" rel="noopener noreferrer">创建令牌</a>。它会在新标签页打开 GitHub 的创建页面。需要先登录 GitHub，页面是英文的。名称和权限已经填好，权限只勾了 gist（以 GitHub 页面显示为准）。
         </li>
-        <li>在 GitHub 页面最下面点“Generate token”。复制以 <code>ghp_</code> 开头的那串字符。它只显示一次。</li>
+        <li>在 GitHub 页面最下面点“Generate token”。复制以 <code>ghp_</code> 开头的那串字符。它只显示一次，离开那一页就再也看不到了。想在别的设备上用同一个，现在就存进密码管理器。</li>
         <li>回到本站，把令牌粘贴进下面的输入框，点“开启同步”。站点会先检查令牌能不能用，再做第一次同步，并告诉你结果。</li>
       </ol>
       <ul class="sync-notes">
@@ -165,7 +174,7 @@ const restore = (i: number) =>
         <li><b>过期时间：</b>GitHub 默认 30 天（以 GitHub 页面显示为准）。过期后同步会停，本站会提示你重新创建令牌。你可以选更长，或者选不过期。</li>
         <li><b>完成状态会被带回来：</b>开启同步后，在一台设备上把一章改回未完成，可能被另一台设备的已完成带回来。</li>
         <li>
-          <b>在另一台设备上：</b>打开本站，重复第 3 步。令牌用同一个，或者再建一个都行，但要用同一个 GitHub 账号。
+          <b>在另一台设备上：</b>打开本站，把这三步再做一遍，新建一个令牌。旧令牌事后看不到，不用去找；存了旧令牌的话，直接重复第 3 步粘贴它也行。两个令牌只要来自同一个 GitHub 账号，用的就是同一份进度。
           开启时，站点会在你的账号里找已有的同步文件 <code>hands-on-vue3-progress.json</code>。找到就接着用同一份，不会再建一个。
           个别令牌列不出私密 Gist，找不到时，展开下面的“手动填 Gist”，填第一台设备上显示的 Gist 链接或编号。
         </li>

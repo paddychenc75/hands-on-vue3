@@ -280,10 +280,11 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       ok(await d.page.evaluate(() => !!document.querySelector('.sync-result[aria-live="polite"]')), '结果区 aria-live=polite')
       // 三步指引
       const steps = await d.page.locator('.sync-steps li').allTextContents()
+      ok((await d.page.locator('.sync-panel .sync-phone').count()) === 0, '桌面宽度：不显示手机上的“直接新建一个令牌”提示')
       ok(steps.length === 3, '展开后是三步指引', String(steps.length))
       ok(/创建令牌/.test(steps[0]) && /新标签页/.test(steps[0]), '第 1 步：点“创建令牌”链接，新标签页打开', steps[0])
       ok(/需要先登录 GitHub，页面是英文的/.test(steps[0]) && /以 GitHub 页面显示为准/.test(steps[0]), '第 1 步：需要先登录 GitHub、页面是英文的；权限预填以 GitHub 页面显示为准', steps[0])
-      ok(/Generate token/.test(steps[1]) && /ghp_/.test(steps[1]) && /只显示一次/.test(steps[1]), '第 2 步：最下面点 Generate token，复制 ghp_ 开头的字符，只显示一次', steps[1])
+      ok(/Generate token/.test(steps[1]) && /ghp_/.test(steps[1]) && /只显示一次/.test(steps[1]) && /再也看不到/.test(steps[1]) && /密码管理器/.test(steps[1]), '第 2 步：最下面点 Generate token，复制 ghp_ 开头的字符，只显示一次、离开就看不到、可存进密码管理器', steps[1])
       ok(/粘贴/.test(steps[2]) && /开启同步/.test(steps[2]) && /先检查令牌能不能用/.test(steps[2]) && /第一次同步/.test(steps[2]), '第 3 步：粘贴、点“开启同步”，先检查令牌再做第一次同步', steps[2])
       const link = d.page.locator('.sync-steps a')
       const href = await link.getAttribute('href')
@@ -296,7 +297,7 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       ok(/默认 30 天（以 GitHub 页面显示为准）/.test(notes), '说明：“默认 30 天”后面有“以 GitHub 页面显示为准”', notes)
       ok(/把一章改回未完成，可能被另一台设备的已完成带回来/.test(notes), '说明：开启同步后把一章改回未完成，可能被另一台设备的已完成带回来', notes)
       ok(/过期/.test(notes) && /默认 30 天/.test(notes) && /同步会停/.test(notes) && /不过期/.test(notes), '说明：过期时间默认 30 天，过期后同步会停，可以选更长或不过期')
-      ok(/在另一台设备上/.test(notes) && /重复第 3 步/.test(notes) && /同一个 GitHub 账号/.test(notes) && /hands-on-vue3-progress\.json/.test(notes) && /手动填 Gist/.test(notes), '说明：另一台设备重复第 3 步，同一账号，怎样找到同一份 Gist')
+      ok(/在另一台设备上/.test(notes) && /新建一个令牌/.test(notes) && /旧令牌事后看不到/.test(notes) && /重复第 3 步/.test(notes) && /同一个 GitHub 账号/.test(notes) && /同一份进度/.test(notes) && /hands-on-vue3-progress\.json/.test(notes) && /手动填 Gist/.test(notes), '说明：另一台设备新建一个令牌（旧的看不到），同一账号就是同一份进度，怎样找到同一份 Gist')
       ok(/Gists/.test(await d.page.textContent('.sync-fine')) && (await d.page.locator('.sync-fine a').getAttribute('href')).includes('gists=write'), '备选的细粒度令牌：写明官方权限表里有 Gists（只有写入），链接预填 gists=write')
       ok(/只给它 gist 权限/.test(await d.page.textContent('.sync-safe')) && /末四位|只存在这台设备/.test(await d.page.textContent('.sync-safe')), '安全说明：令牌只存在本机、只给 gist 权限')
       ok(!(await d.page.evaluate(() => document.documentElement.scrollWidth > innerWidth)), '1440 宽度没有横向滚动')
@@ -310,6 +311,17 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       await d.page.goto(base + '/roadmap.html#sync')
       await d.page.waitForSelector('#sync-token')
       ok(!(await d.page.evaluate(() => document.documentElement.scrollWidth > innerWidth)), '390px：展开的面板没有横向滚动')
+      {
+        const tip = d.page.locator('.sync-panel .sync-phone')
+        ok(await tip.isVisible(), '手机宽度：面板顶部提示“直接新建一个令牌”')
+        const t = (await tip.textContent()) || ''
+        ok(/直接新建一个令牌/.test(t) && /只在创建时显示一次/.test(t) && /同一个 GitHub 账号/.test(t) && /同一份进度/.test(t), '手机提示：旧令牌只显示一次已看不到，同一账号的两个令牌是同一份进度', t)
+        const a = tip.locator('a.btn')
+        const href = (await a.getAttribute('href')) || ''
+        ok(href.startsWith('https://github.com/settings/tokens/new') && /scopes=gist/.test(href) && (await a.getAttribute('target')) === '_blank' && (await a.getAttribute('rel')) === 'noopener noreferrer', '手机提示里的按钮指向同一个创建令牌链接，新标签页打开', href)
+        const bb = await a.boundingBox()
+        ok(bb && bb.height >= 44, '手机提示里的按钮高度不小于 44px')
+      }
       await scrollTo(d.page, '#sync')
       await shot(d.page, 'sync-panel-open-guide')
       await d.page.evaluate(() => document.querySelector('#sync').open = false)

@@ -143,7 +143,7 @@ function readTerms() {
       await p.goto(base + '/chapters/03-refs.html'); await p.waitForSelector('.VPSidebar')
       g.ok(await p.locator('.VPSidebar a[href$="/glossary.html"], .VPSidebar a[href$="/glossary"]').count() === 1, '章页的侧边栏也有术语表入口')
       const nav = await p.locator('.VPNavBar .VPNavBarMenuLink').count()
-      g.ok(nav === 0, '顶栏没有“首页”“课程”导航项')
+      g.ok(nav === 1 && (await p.locator('.VPNavBar .VPNavBarMenuLink').first().innerText()).trim() === '课程地图' && /\/roadmap(\.html)?$/.test(await p.locator('.VPNavBar .VPNavBarMenuLink').first().getAttribute('href')), '顶栏只有一个导航项：课程地图（链到 /roadmap）')
       g.ok(await p.locator('.VPNavBarTitle a').first().getAttribute('href').then(h => /\/(index\.html)?$/.test(h) || h === '/'), '站名链接回首页')
       g.end()
     }

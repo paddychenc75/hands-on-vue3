@@ -10,6 +10,7 @@ import type { ChapterMeta } from '../../course-data.mts'
 import { STAGES, STAGE_COUNT } from '../../../stages'
 import { commit, cp, initProgress, progress, save, subscribeProgress } from '../../../engine/store'
 import { parseKey } from '../../../engine/cards'
+import { bootSync, setMergeContext } from '../../../engine/syncState'
 import { shouldAutoComplete, tallyProgress, type Tally } from '../../../engine/logic/completion'
 import { dueKeys } from '../../../engine/logic/srs'
 import { stageStatus } from '../../../engine/logic/stageCheck'
@@ -49,6 +50,9 @@ export function ensureReady(): void {
   initProgress({ chapters: specs })
   subscribeProgress(() => { rev.value++ })
   ready.value = true
+  // 跨设备同步（可选）：这里只登记合并要用的课程信息，并在本机开启过同步时才加载同步引擎；没开启就什么也不加载、不发请求
+  setMergeContext({ scAnswers: id => specById(id)?.scAnswers })
+  bootSync()
 }
 
 /** 在 computed 里先调用它，登记“依赖进度” */

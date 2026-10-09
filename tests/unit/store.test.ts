@@ -178,3 +178,41 @@ describe('订阅变化', () => {
     expect(s.progress.refs.done).toBe(true)
   })
 })
+
+describe('改动时间戳（跨设备同步用）', () => {
+  it('保存时给变了的练习草稿和笔记盖章；读进来的旧数据不盖章', () => {
+    const old = { refs: { sc: {}, ex: { f: { passed: false, code: { tpl: 'a', js: 'b' }, fails: 1 } }, done: false } }
+    const storage = fakeStorage({ [STORE_KEY]: JSON.stringify(old) })
+    let t = 1000
+    const s = createProgressStore({ storage, now: () => t })
+    s.init()
+    s.save()
+    expect(JSON.parse(storage.data.get(STORE_KEY)!)).toEqual(old) // 内容没变：没有任何新字段
+    t = 2000
+    s.cp('refs').ex.f.code = { tpl: 'a2', js: 'b' }
+    s.cp('refs').note = '想法'
+    s.save()
+    const saved = JSON.parse(storage.data.get(STORE_KEY)!)
+    expect(saved.refs.ex.f.t).toBe(2000)
+    expect(saved.refs.ts).toEqual({ note: 2000 })
+    expect(saved.refs.sc).toEqual({}) // 现有字段不变
+  })
+  it('resyncStamps 之后，换进来的内容不会被盖成刚改的', () => {
+    const s = createProgressStore({ storage: fakeStorage(), now: () => 5000 })
+    s.init()
+    Object.assign(s.progress, { refs: { sc: {}, ex: { f: { passed: false, fails: 2 } }, done: false } })
+    s.resyncStamps()
+    s.save()
+    expect(s.progress.refs.ex.f.t).toBeUndefined()
+  })
+  it('每次 save 发 hov-saved 事件', () => {
+    const target = new EventTarget()
+    const fn = vi.fn()
+    target.addEventListener('hov-saved', fn)
+    const s = createProgressStore({ storage: fakeStorage(), target })
+    s.init()
+    s.save()
+    s.commit()
+    expect(fn).toHaveBeenCalledTimes(2)
+  })
+})

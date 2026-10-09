@@ -27,6 +27,8 @@ export interface StageRecord {
   failedAt?: number
   /** 需要加强的章 id */
   weak?: string[]
+  /** 这条记录最近一次被改动的时间（跨设备同步用，由存储层在保存时盖章；见 logic/stamp.ts） */
+  t?: number
 }
 
 /** 练习的两段代码：模板（Vue 模板）和脚本（setup 函数体） */
@@ -58,6 +60,8 @@ export interface ExerciseProgress {
   stash?: CodePair
   /** 借助答案完成的标记（通过那一刻写入，之后不再改） */
   help?: ExerciseHelp
+  /** 草稿与提示阶梯这一组字段最近一次变化的时间（跨设备同步用，由存储层盖章） */
+  t?: number
 }
 
 /** 一章的进度 */
@@ -78,6 +82,10 @@ export interface ChapterProgress {
   note?: string
   /** 自我解释：是否已展开对照要点 */
   sx?: boolean
+  /** 同步时被另一份覆盖掉的其他笔记（界面叫“另一台设备的版本”），只由合并函数写 */
+  noteAlts?: string[]
+  /** 改动时间戳（跨设备同步用，由存储层盖章）：note 是笔记最近一次变化的时间 */
+  ts?: { note?: number }
 }
 
 /** 实验台"先猜"的记录。pick 是选中的选项序号；checked 为真表示已点"核对我的猜测" */

@@ -7,11 +7,14 @@
      所以本文件不依赖 vite 虚拟模块。
    - 为了让服务端渲染和客户端首次渲染一致，不在模块加载时读 localStorage：页面挂载后调用一次 init()。 */
 import { hasLegacy, LEGACY_PREFIX, migrateLegacy, type LegacyValues, type MigrationContext } from './logic/migrate.ts'
+import { fingerprints, stamp, type Fingerprints } from './logic/stamp.ts'
 import type { ChapterProgress, Progress } from './types.ts'
 
 export const STORE_KEY = 'hands-on-vue3-v1'
 /** 进度变化事件的名字（同一页面里写进度后发出；另一个标签页改了进度时也会发出） */
 export const PROGRESS_EVENT = 'hov-progress'
+/** 每次保存之后发出的事件。同步引擎（开启同步才加载）据此安排推送；没开启同步时没有人监听 */
+export const SAVED_EVENT = 'hov-saved'
 
 /** localStorage 的最小形状，测试里用假的 */
 export interface StorageLike {
@@ -36,6 +39,8 @@ export interface ProgressStore {
   cp(chapterId: string): ChapterProgress
   /** 订阅进度变化（本页的 emit 和其他标签页的改动），返回取消订阅函数 */
   subscribe(fn: () => void): () => void
+  /** 进度被同步引擎整体换过之后调用：把当前内容当作“已经保存过”，不要把它们盖成本机刚改的 */
+  resyncStamps(): void
 }
 
 /** 读出全部旧键：键名去掉前缀，值按 JSON 解析（解析失败的跳过） */
@@ -53,14 +58,21 @@ export function readLegacyValues(storage: StorageLike): LegacyValues {
   return out
 }
 
-export function createProgressStore(opts: { storage?: StorageLike | null; target?: EventTarget | null } = {}): ProgressStore {
-  const { storage = null, target = null } = opts
+export function createProgressStore(opts: { storage?: StorageLike | null; target?: EventTarget | null; now?: () => number } = {}): ProgressStore {
+  const { storage = null, target = null, now = Date.now } = opts
   const progress: Progress = {}
   let loaded = false
+  // 改动时间戳（跨设备同步合并时判断谁更新）：保存前把和上次不同的组盖上 now。只新增 ts / t 字段，见 logic/stamp.ts
+  const snap: Fingerprints = {}
+  const resyncStamps = () => {
+    for (const k of Object.keys(snap)) delete snap[k]
+    Object.assign(snap, fingerprints(progress))
+  }
 
   const replaceWith = (data: Progress) => {
     for (const k of Object.keys(progress)) delete progress[k]
     Object.assign(progress, data)
+    resyncStamps() // 读进来的内容（旧数据或另一个标签页写的）已经带着自己的时间戳，不重新盖
   }
   const readNew = (): Progress | null => {
     try {
@@ -74,11 +86,13 @@ export function createProgressStore(opts: { storage?: StorageLike | null; target
   }
 
   const save = () => {
+    stamp(progress, snap, now())
     try {
       storage?.setItem(STORE_KEY, JSON.stringify(progress))
     } catch {
       /* 写不进去就算了 */
     }
+    target?.dispatchEvent(new Event(SAVED_EVENT))
   }
   const emit = () => {
     target?.dispatchEvent(new Event(PROGRESS_EVENT))
@@ -104,6 +118,7 @@ export function createProgressStore(opts: { storage?: StorageLike | null; target
     },
     save,
     emit,
+    resyncStamps,
     commit() {
       save()
       emit()
@@ -137,4 +152,4 @@ function browserStorage(): StorageLike | null {
 
 /** 默认的全局实例：浏览器里读写 localStorage，服务端是空壳 */
 export const store: ProgressStore = createProgressStore({ storage: browserStorage(), target: typeof window !== 'undefined' ? window : null })
-export const { progress, init: initProgress, save, emit: emitProgress, commit, cp, subscribe: subscribeProgress } = store
+export const { progress, init: initProgress, save, emit: emitProgress, commit, cp, subscribe: subscribeProgress, resyncStamps } = store

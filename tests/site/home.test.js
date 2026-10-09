@@ -97,26 +97,76 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
       g.end()
       await p.ctx.close()
     }
-    // ---------- 用户接管：不抢滚动 ----------
+    // ---------- 滚动 = 一次一幕 ----------
     {
-      const g = R.group('用户接管：滚轮、触摸、键盘、拖滚动条立刻暂停，之后不再改滚动位置')
-      for (const how of ['wheel', 'key', 'touch', 'scrollbar']) {
-        const p = await open(site, { hasTouch: how === 'touch' }, { speed: 1 })
+      const g = R.group('滚动一次一幕：滚轮一次、惯性滚动、触摸上滑、键盘 ↓/PageDown/空格 各走一幕；向上回到上一幕；动画中连滚不连跳；播放中接管；开场向上、片尾向下无事发生')
+      const STOPS = [4.15, 9.45, 15.45, 22.45, 29.95, 35.95, 42.45, 48.95, 55.5]
+      const settled = async p => { await waitFor(p, async () => { const a = (await state(p)).y; await sleep(120); return (await state(p)).y === a }, 4000); await sleep(150); return state(p) }
+      const swipe = async (p, dy) => {
+        const c = await p.context().newCDPSession(p)
+        await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 200, y: 400 }] })
+        for (let i = 1; i <= 6; i++) { await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 200, y: 400 - (dy * i) / 6 }] }); await sleep(16) }
+        await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      }
+      const fAt = async p => p.evaluate(() => { const total = +getComputedStyle(document.querySelector('.film')).getPropertyValue('--total'); return (scrollY / (document.documentElement.scrollHeight - innerHeight)) * total })
+      const near = (a, b) => Math.abs(a - b) < 0.25
+      // 播放中被接管：滚一下 → 暂停，并走到下一幕（当前幕的停稳点），之后不再被改
+      for (const how of ['wheel', 'key', 'touch']) {
+        const p = await open(site, { hasTouch: how === 'touch', isMobile: how === 'touch', viewport: how === 'touch' ? { width: 390, height: 844 } : undefined }, { speed: 1 })
         await waitFor(p, async () => (await state(p)).playing, 4000)
         await sleep(1500)
         if (how === 'wheel') await p.mouse.wheel(0, 120)
         if (how === 'key') await p.keyboard.press('PageDown')
-        if (how === 'touch') await p.touchscreen.tap(600, 400)
-        if (how === 'scrollbar') await p.evaluate(() => window.scrollBy(0, 300)) // 无头浏览器的滚动条不占宽度，用脚本把滚动位置改掉来模拟拖滚动条
-        await sleep(300)
-        const a = await state(p)
-        await sleep(1500)
+        if (how === 'touch') await swipe(p, 120)
+        const a = await settled(p)
+        const f = await fAt(p)
+        await sleep(1200)
         const b = await state(p)
-        g.ok(!a.playing, how + '：立刻暂停')
-        g.ok(Math.abs(b.y - a.y) < 2, `${how}：暂停后滚动位置不再被改（${a.y} → ${b.y}）`)
+        g.ok(!a.playing && !b.playing, how + '：接管后暂停')
+        g.ok(near(f, STOPS[1]) && a.scene === 1, `${how}：从播放中滚一下 → 第 1 幕停稳点（f=${f.toFixed(2)}，scene=${a.scene}）`)
+        g.ok(Math.abs(b.y - a.y) < 2, `${how}：停稳后滚动位置不再被改（${a.y} → ${b.y}）`)
         await p.ctx.close()
       }
-      g.end()
+      const p = await open(site, {}, { played: true })
+      const hist = []
+      const step = async (fn, label) => { await fn(); const a = await settled(p); hist.push(a.scene); return { a, f: await fAt(p) } }
+      let r = await step(() => p.mouse.wheel(0, 100))
+      g.ok(r.a.scene === 1 && near(r.f, STOPS[1]), '滚轮一次 → 第 1 幕停稳点')
+      r = await step(() => p.mouse.wheel(0, 100))
+      g.ok(r.a.scene === 2 && near(r.f, STOPS[2]), '再滚一次 → 第 2 幕')
+      // 惯性滚动：一串 40 个递减的滚轮事件（间隔 25ms，约 1 秒）只走一幕
+      r = await step(async () => { for (let i = 0; i < 40; i++) { await p.mouse.wheel(0, Math.max(3, 90 - i * 2)); await sleep(25) } })
+      g.ok(r.a.scene === 3, '惯性滚动（一串滚轮事件）只走一幕：第 3 幕，实际 ' + r.a.scene)
+      r = await step(() => p.mouse.wheel(0, -100))
+      g.ok(r.a.scene === 2 && near(r.f, STOPS[2]), '向上滚一次 → 回到第 2 幕的停稳点')
+      r = await step(() => p.keyboard.press('ArrowDown'))
+      g.ok(r.a.scene === 3, '↓ → 第 3 幕')
+      r = await step(() => p.keyboard.press('Space'))
+      g.ok(r.a.scene === 4, '空格 → 第 4 幕')
+      r = await step(() => p.keyboard.press('PageUp'))
+      g.ok(r.a.scene === 3, 'PageUp → 回第 3 幕')
+      // 动画进行中连滚：最多多走一幕（排队一个），不会连跳
+      const before = (await state(p)).scene
+      await p.mouse.wheel(0, 100); await sleep(220); await p.mouse.wheel(0, 100); await sleep(220); await p.mouse.wheel(0, 100); await sleep(220); await p.mouse.wheel(0, 100)
+      r = await step(async () => {})
+      g.ok(r.a.scene - before >= 1 && r.a.scene - before <= 2, `动画中连滚 4 次最多走 2 幕（${before} → ${r.a.scene}）`)
+      // 到头：片尾向下无事发生，开场向上无事发生
+      await p.keyboard.press('End'); await settled(p)
+      const end = await state(p)
+      await p.mouse.wheel(0, 200); await sleep(600)
+      const end2 = await state(p)
+      g.ok(end.scene === 8 && end2.scene === 8 && Math.abs(end.y - end2.y) < 2 && end.ended, '片尾再向下滚：无事发生，停在收束幕')
+      await p.keyboard.press('Home'); await settled(p)
+      await p.mouse.wheel(0, -200); await sleep(600)
+      const top = await state(p)
+      g.ok(top.scene === 0, '开场向上滚：无事发生')
+      g.ok(await p.evaluate(() => getComputedStyle(document.documentElement).overflow === 'hidden'), '短片模式下页面没有原生滚动（html overflow: hidden）')
+      // 播放中程序改滚动位置（比如别的脚本）仍然让出控制权
+      await p.locator('.player .play').click(); await sleep(400)
+      await p.evaluate(() => window.scrollBy(0, 300)); await sleep(300)
+      g.ok(!(await state(p)).playing, '播放中滚动位置被外部改动：暂停')
+      g.ok(p.errs.length === 0, '没有控制台报错：' + p.errs.join('|'))
+      await p.ctx.close(); g.end()
     }
     // ---------- 控制条 ----------
     {
@@ -127,27 +177,27 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
       g.ok(await play.getAttribute('aria-label') === '暂停短片' && (await play.getAttribute('aria-pressed')) === 'true', '播放中：按钮是“暂停短片”')
       await play.click(); await sleep(200)
       g.ok(!(await state(p)).playing && (await play.getAttribute('aria-label')) === '继续播放短片' || (await play.getAttribute('aria-label')) === '播放短片', '点暂停：暂停')
-      await p.locator('.player .next').click(); await sleep(1000)
+      await p.locator('.player .next').click(); await sleep(2000)
       g.ok((await state(p)).scene === 1, '下一幕 → 第 1 幕')
-      await p.locator('.player .next').click(); await sleep(1000)
+      await p.locator('.player .next').click(); await sleep(2000)
       g.ok((await state(p)).scene === 2, '再下一幕 → 第 2 幕')
-      await p.locator('.player .prev').click(); await sleep(1000)
+      await p.locator('.player .prev').click(); await sleep(2000)
       g.ok((await state(p)).scene === 1 || (await state(p)).scene === 2, '上一幕：回到本幕开头或上一幕')
       const box = await p.locator('.scrub').boundingBox()
-      await p.mouse.click(box.x + box.width * 0.62, box.y + box.height / 2); await sleep(500)
+      await p.mouse.click(box.x + box.width * 0.62, box.y + box.height / 2); await sleep(2000)
       const sc = (await state(p)).scene
       g.ok(sc >= 5 && sc <= 6, '点进度条 62% 处 → 第 5 或 6 幕（实际 ' + sc + '）')
-      await p.locator('.scrub').focus(); await p.keyboard.press('ArrowRight'); await sleep(1000)
+      await p.locator('.scrub').focus(); await p.keyboard.press('ArrowRight'); await sleep(2000)
       g.ok((await state(p)).scene === sc + 1, '进度条获得焦点后按 → 切到下一幕')
-      await p.locator('.player .skip').click(); await sleep(1200)
+      await p.locator('.player .skip').click(); await sleep(2200)
       g.ok((await state(p)).scene === SCENE_COUNT - 1, '跳过：到收束幕，开始学习的按钮可见')
-      await p.locator('.player .replay').click(); await sleep(600)
+      await p.locator('.player .replay').click(); await sleep(900)
       const r = await state(p)
       g.ok(r.playing && r.y < 600, '重播：回到开头并播放')
       await play.focus(); await p.keyboard.press('Space'); await sleep(300)
       g.ok(!(await state(p)).playing, '播放按钮获得焦点后按空格 → 暂停')
       g.ok(await p.locator('.rail a').count() === SCENE_COUNT, '右侧 9 个幕进度圆点')
-      await p.locator('.rail a').nth(4).click(); await sleep(1200)
+      await p.locator('.rail a').nth(4).click(); await sleep(2200)
       g.ok((await state(p)).scene === 4, '点圆点跳到第 4 幕')
       g.ok(p.errs.length === 0, '没有控制台报错：' + p.errs.join('|'))
       g.end()
@@ -237,6 +287,69 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
         await p.ctx.close()
       }
       g.end()
+    }
+    // ---------- 手机四种尺寸：互不遮挡、触摸目标 ≥44px、都在视口内；收束幕放得下；“开始学习”真的进入学习 ----------
+    {
+      const g = R.group('手机 390×664、360×640、390×844、414×896：每一幕停稳的画面里文字、播放条、圆点互不遮挡，收束幕所有元素在视口内、无内部滚动，可点元素 ≥44px，没有横向滚动')
+      const STOPS = [4.15, 9.45, 15.45, 22.45, 29.95, 35.95, 42.45, 48.95, 55.5]
+      for (const [w, h] of [[390, 664], [360, 640], [390, 844], [414, 896]]) {
+        const p = await open(site, { viewport: { width: w, height: h }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, { played: true })
+        const bad = []
+        for (const [i, t] of STOPS.entries()) {
+          await scrollToTime(p, t); await sleep(500)
+          const r = await p.evaluate(() => {
+            const box = e => { const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
+            const vis = e => { const b = e.getBoundingClientRect(); const cs = getComputedStyle(e); return b.width > 0 && b.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && +cs.opacity > 0.05 }
+            const fin = document.querySelector('.film').dataset.active === '8'
+            const textSel = fin ? ['.s9 h2', '.s9 .eras .era-main', '.s9 .stats3 dd', '.s9 .fin-actions a', '.s9 .foot', '.s9 .fin-eyebrow'] : ['.sc.live .eyebrow', '.sc.live h1', '.sc.live h2', '.sc.live .lead', '.sc.live .desc', '.sc.live .hook', '.sc.live .st-actions a', '.sc.live .film-play', '.sc.live .st-links a']
+            const items = textSel.flatMap(s => [...document.querySelectorAll(s)].filter(vis).map(e => ({ s, ...box(e) })))
+            const obst = [['player', box(document.querySelector('.player'))], ...[...document.querySelectorAll('.rail .dot')].map(d => ['dot', box(d)])]
+            let overlap = 0, outside = 0
+            for (const it of items) {
+              for (const [, o] of obst) if (it.l < o.r - 1 && o.l < it.r - 1 && it.t < o.b - 1 && o.t < it.b - 1) overlap++
+              if (it.t < 0 || it.b > innerHeight + 1 || it.l < 0 || it.r > innerWidth + 1) outside++
+            }
+            for (let a = 0; a < items.length; a++) for (let b = a + 1; b < items.length; b++) { const x = items[a], y = items[b]; if (x.l < y.r - 1 && y.l < x.r - 1 && x.t < y.b - 1 && y.t < x.b - 1) overlap++ }
+            const legend = document.querySelector('.legend'); const lg = legend && vis(legend) ? box(legend) : null
+            let legendHit = 0
+            if (lg) for (const it of items) if (it.l < lg.r && lg.l < it.r && it.t < lg.b && lg.t < it.b) legendHit++
+            const c = document.querySelector('.s9 .sc-copy')
+            const small = [...document.querySelectorAll('.player button, .player a, .film-play, .fin-actions a')].filter(vis).filter(e => { const b = e.getBoundingClientRect(); return Math.min(b.width, b.height) < 43.5 }).map(e => e.className)
+            return { n: items.length, overlap, outside, legendHit, small, scrollOverflow: fin ? c.scrollHeight - c.clientHeight : 0, sw: document.documentElement.scrollWidth - innerWidth }
+          })
+          if (r.n < 2 || r.overlap || r.outside || r.legendHit || r.small.length || r.scrollOverflow > 1 || r.sw > 0) bad.push(`幕${i}:${JSON.stringify(r)}`)
+          if (SHOTS) await p.screenshot({ path: path.join(ROOT, `tests/screenshots/home-film-m${w}x${h}-${i}.png`) })
+        }
+        g.ok(bad.length === 0, `${w}×${h}：` + (bad.join(' ') || '9 幕停稳画面都互不遮挡、都在视口内、触摸目标都 ≥44px、无内部滚动和横向滚动'))
+        await p.ctx.close()
+      }
+      g.end()
+    }
+    // ---------- 播放条的“跳到结尾 / 开始学习”：名副其实，手机上真实触摸点按 ----------
+    {
+      const g = R.group('播放条右侧的按钮：不在片尾是“跳到结尾”，已在片尾是“开始学习”并真的进入学习（手机触摸点按）；放完后缩在左下角的播放条里没有“看着能点却没反应”的按钮')
+      const p = await open(site, { viewport: { width: 390, height: 664 }, isMobile: true, hasTouch: true }, { played: true })
+      const skip = p.locator('.player .skip')
+      g.ok(/跳到结尾/.test(await skip.innerText()) && await skip.getAttribute('aria-label') === '跳到结尾', '不在片尾：文字和 aria-label 是“跳到结尾”')
+      await skip.tap(); await sleep(2200)
+      let st = await state(p)
+      g.ok(st.scene === 8 && st.ended, '点“跳到结尾”：到收束幕（放完后的画面），仍在首页')
+      g.ok(/开始学习/.test(await skip.textContent()) && /开始学习/.test(await skip.getAttribute('aria-label')), '在片尾：文字和 aria-label 变成“开始学习”')
+      const hid = await p.evaluate(() => ['.play', '.prev', '.next', '.scrub', '.skip', '.replay', '.snd'].map(s => { const e = document.querySelector('.player ' + s); if (!e) return [s, 'none']; const cs = getComputedStyle(e); const b = e.getBoundingClientRect(); return [s, cs.display === 'none' || cs.visibility === 'hidden' || b.width === 0 ? 'hidden' : 'shown'] }))
+      console.log('  [数字] 手机放完后播放条：' + JSON.stringify(hid))
+      // 放完（ended）后播放条缩到左下角，“开始学习”按钮隐藏（主按钮就在画面里）；这里直接把影片时间放到片尾（没有 ended），在手机上真实点按它
+      await p.evaluate(() => { document.querySelector('.film').classList.remove('ended'); window.scrollTo(0, 1e6) }); await sleep(700)
+      await p.locator('.player .skip').tap(); await p.waitForURL(/\/chapters\//, { timeout: 8000 }).catch(() => {})
+      g.ok(/\/chapters\//.test(p.url()), '在片尾点“开始学习”：进入第 1 章 ' + p.url())
+      await p.ctx.close()
+      // 桌面：放完后的紧凑播放条里，可见的按钮都有效（重播、声音）
+      const q = await open(site, {}, { speed: 10 })
+      await waitFor(q, async () => (await state(q)).ended, 30000); await sleep(1500)
+      const vis = await q.evaluate(() => ['.play', '.prev', '.next', '.scrub', '.skip', '.replay', '.snd'].filter(s => { const e = document.querySelector('.player ' + s); return e && getComputedStyle(e).visibility !== 'hidden' && getComputedStyle(e).display !== 'none' }))
+      g.ok(vis.join() === '.replay,.snd', '桌面放完后紧凑播放条只剩“重播”和“声音”：' + vis)
+      await q.locator('.player .replay').click(); await sleep(800)
+      g.ok((await state(q)).playing, '“重播”真的重新开始播放')
+      await q.ctx.close(); g.end()
     }
     // ---------- Tab 走完 ----------
     {
@@ -337,15 +450,17 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
       const lsv = await p.evaluate(() => [localStorage.getItem('hands-on-vue3-film-sound'), localStorage.getItem('hands-on-vue3-film-tip'), localStorage.getItem('hands-on-vue3-v1')])
       g.ok(lsv[0] === 'on' && lsv[1] === '1' && !/film/.test(lsv[2] || ''), '偏好记在单独的 localStorage 键里，不写进学习进度的键')
       const f0 = a1.info.anchorF
-      await p.click('.player .next'); await sleep(1500)
+      // 滚动/按钮步进时配乐静音（只在连续播放时响），再点播放从当前这一幕的停稳点接着放，调度位置随影片时间改变
+      await p.click('.player .next'); await sleep(2400)
       const a2 = await hook()
-      g.ok(a2.info.anchorF >= f0 + 2 && a2.playing, '换幕后重新排程：调度位置随影片时间改变 ' + JSON.stringify([f0, a2.info.anchorF]))
+      g.ok(!a2.playing && a2.level < 0.0008, '手动步进到下一幕：配乐静音（只在连续播放时响）' + JSON.stringify([a2.playing, a2.level]))
+      await p.click('.player .play'); await sleep(1800)
+      const a5 = await hook()
+      g.ok(a5.state === 'running' && a5.level > 0.003 && a5.info.anchorF >= f0 + 2, '再点播放：从当前这一幕接着放，声音淡入回来，调度位置随影片时间改变 ' + JSON.stringify([f0, a5.info.anchorF]))
       await p.click('.player .play'); await sleep(550)
       const a3 = await hook(); await sleep(500); const a4 = await hook()
       g.ok(a3.level < 0.0008 && a4.state === 'suspended', '暂停：0.5 秒内输出静音，随后上下文 suspend ' + JSON.stringify([a3.level, a4.state]))
-      await p.click('.player .play'); await sleep(1800)
-      const a5 = await hook()
-      g.ok(a5.state === 'running' && a5.level > 0.003, '继续播放：声音淡入回来')
+      await p.click('.player .play'); await sleep(1200)
       await p.click('.snd'); await sleep(900)
       const a6 = await hook()
       g.ok(!a6.on && a6.state === 'suspended' && (await p.getAttribute('.snd', 'aria-pressed')) === 'false', '关掉声音：上下文 suspend，aria-pressed=false')
@@ -445,7 +560,7 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
       console.log(`  [数字] 首页首屏 JS gzip ${(main / 1024).toFixed(1)} kB，film 异步 chunk gzip ${(fg / 1024).toFixed(1)} kB`)
       g.ok(!files.some(f => /film\./.test(f)), '首页 HTML 不预加载 film chunk（它是异步的）')
       g.ok(main < 150 * 1024, `首屏 JS gzip < 150 kB（${(main / 1024).toFixed(1)}）`)
-      g.ok(fg < 12 * 1024, `film chunk gzip < 12 kB（${(fg / 1024).toFixed(1)}）`)
+      g.ok(fg < 14 * 1024, `film chunk gzip < 14 kB（${(fg / 1024).toFixed(1)}）`)
       const reqs = []
       const p = await open(site, {}, { played: true })
       g.ok(true, '首页就绪')

@@ -38,17 +38,22 @@ const POSES_DESKTOP: Pose[] = [
   [54, -14, 200, 10, 0.92], // 7 Vapor
   [64, -24, 0, -260, 0.34], // 8 收束
 ]
+/** 手机上相机要“取景”：每一幕只拍和本幕相关的区域，放大后节点文字才看得清。
+ *  平移用百分比（相对 .cam，也就是整个舞台）而不是像素：舞台的缩放比例正比于舞台宽度，百分比在不同宽度的手机上取到同一块区域。
+ *  focus(cx, cy, s)：把数据平面上的点 (cx, cy)（1000×620 设计坐标）移到画面中心，放大 s 倍。 */
+const focus = (cx: number, cy: number, s: number, rx = 46, rz = -12): Pose => [rx, rz, -((cx - 500) / 1000) * 0.98 * s * 100, -((cy - 310) / 1000) * 0.98 * 1.25 * s * 100, s]
 const POSES_MOBILE: Pose[] = [
-  [50, -26, 0, 20, 0.8],
-  [52, -20, 0, 10, 0.9],
-  [44, -14, 0, 0, 0.98],
-  [44, -12, 0, -10, 0.98],
-  [42, -10, 0, -10, 1.0],
-  [54, -16, 0, 20, 1.1],
-  [42, -10, 0, 0, 1.0],
-  [46, -14, 0, 10, 0.98],
-  [60, -24, 0, -250, 0.34],
+  focus(500, 310, 1.0, 50, -26), // 0 开场：整体
+  focus(690, 290, 1.65), // 1 手动改 DOM：todos、两个 Item、Counter
+  focus(585, 290, 1.25), // 2 Vue 1.0：四个绑定
+  focus(650, 200, 1.4), // 3 Vue 2.0：List、Footer 两棵子树
+  focus(560, 200, 1.22), // 4 Vue 3.0：动态节点和静态的盾
+  focus(560, 200, 1.18, 54, -14), // 5 组合式：数据层
+  focus(690, 250, 1.55), // 6 3.4 / 3.5：todos、Item、Footer、Counter
+  focus(585, 290, 1.25), // 7 Vapor
+  [60, -24, 0, -250, 0.34], // 8 收束（舞台已淡出）
 ]
+const poseCssMobile = (p: Pose) => `rotateX(${p[0]}deg) rotateZ(${p[1]}deg) translate3d(${p[2].toFixed(2)}%, ${p[3].toFixed(2)}%, 0px) scale(${p[4]})`
 
 export function buildTracks(mobile = false): Tracks {
   const raw: Tracks = {}
@@ -137,13 +142,14 @@ export function buildTracks(mobile = false): Tracks {
 
   /* ===== 相机 ===== */
   const poses = mobile ? POSES_MOBILE : POSES_DESKTOP
-  k('cam', 0, { transform: poseCss([68, -40, poses[0][2] * 0.6, 60, poses[0][4] * 0.85]) }, EASE.inout)
+  const css = mobile ? poseCssMobile : poseCss
+  k('cam', 0, { transform: css(mobile ? [68, -40, 0, 8, poses[0][4] * 0.85] : [68, -40, poses[0][2] * 0.6, 60, poses[0][4] * 0.85]) }, EASE.inout)
   poses.forEach((p, i) => {
     const arrive = i === 0 ? 4.6 : M[i] + 0.9
-    k('cam', arrive, { transform: poseCss(p) }, EASE.inout)
+    k('cam', arrive, { transform: css(p) }, EASE.inout)
     const end = i === poses.length - 1 ? TOTAL : M[i + 1] - 0.05
-    const drift: Pose = [p[0] + 1.5, p[1] + 2, p[2] - 8, p[3] + 4, p[4] * 1.025]
-    k('cam', end, { transform: poseCss(drift) }, EASE.lin)
+    const drift: Pose = mobile ? [p[0] + 1.5, p[1] + 2, p[2] - 1, p[3] + 0.5, p[4] * 1.025] : [p[0] + 1.5, p[1] + 2, p[2] - 8, p[3] + 4, p[4] * 1.025]
+    k('cam', end, { transform: css(drift) }, EASE.lin)
   })
 
   /* ===== 0 开场：三层空间由下往上搭起来 ===== */

@@ -126,7 +126,7 @@ const exTotal = progressChapters.reduce((a, c) => a + c.ex.length, 0)
 const scTotal = progressChapters.reduce((a, c) => a + c.scCount, 0)
 const first = progressChapters[0]
 /** 收束幕的三个数字（构建时从章节数据算出，进入收束幕后从 0 滚动到这个值） */
-const STATS: [number, string][] = [[progressChapters.length, `章（含 ${progressChapters.filter(c => c.optional).length} 章选读）· ${STAGE_COUNT} 个阶段`], [exTotal, '道自动判题练习'], [scTotal, '道自测题进入间隔复习']]
+const STATS: [number, string, string?][] = [[progressChapters.length, `章（含 ${progressChapters.filter(c => c.optional).length} 章选读）`, ` · ${STAGE_COUNT} 个阶段`], [exTotal, '道自动判题练习'], [scTotal, '道自测题进入间隔复习']]
 const chapterLabel = (id: string) => chapterById(id)?.title || id
 const chapterHref = (id: string) => withBase(chapterById(id)?.link || first.link)
 
@@ -382,9 +382,9 @@ onBeforeUnmount(() => {
           </div>
           <div class="fin-act">
             <dl class="stats3">
-              <div v-for="[n, label] in STATS" :key="label">
+              <div v-for="[n, label, extra] in STATS" :key="label">
                 <dt :data-count="n">{{ n }}</dt>
-                <dd>{{ label }}</dd>
+                <dd>{{ label }}<span v-if="extra" class="sep">{{ extra }}</span></dd>
               </div>
             </dl>
             <div class="fin-actions">

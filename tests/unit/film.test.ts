@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DATA, DURATIONS, ERA_COLORS, MARKS, MEM_DROP, MOVERS, NODES, SCENE_COUNT, SECONDS_PER_SCREEN, STATIONS, TOTAL, depthOf, subtree } from '../../course/engine/logic/filmData.ts'
 import { buildTracks } from '../../course/engine/logic/filmTracks.ts'
-import { changeSpans, sceneOf, scrollOfTime, timeOfScroll } from '../../course/engine/film.ts'
+import { changeSpans, nextScene, prevScene, sceneOf, scrollOfTime, stopOf, timeOfScroll } from '../../course/engine/film.ts'
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -154,5 +154,31 @@ describe('第二轮：时代主色、功能聚合、内存条', () => {
     for (const sel of ['.fin-eyebrow', '.mk-in', '.fin-head .desc', '.stats3', '.fin-actions', '.foot']) expect(t[`css:[data-w=cp-8] ${sel}`], sel).toBeTruthy()
     expect(t['tl-draw']).toBeTruthy()
     for (const n of ['pl1', 'pl3', 'pl4']) expect(t[n].some(k => k.opacity === 0 && k.t > MARKS[8]), n).toBe(true)
+  })
+})
+
+describe('一次一幕：每一幕的停稳点和步进', () => {
+  it('停稳点在这一幕的文字退场之前（文字 M[i+1]-0.5 开始退场），收束幕是片尾，按幕严格递增', () => {
+    for (let i = 0; i < SCENE_COUNT - 1; i++) {
+      expect(sceneOf(stopOf(i))).toBe(i)
+      expect(stopOf(i)).toBeLessThanOrEqual(MARKS[i + 1] - 0.5)
+      if (i) expect(stopOf(i)).toBeGreaterThan(stopOf(i - 1))
+    }
+    expect(stopOf(SCENE_COUNT - 1)).toBe(TOTAL)
+    expect(sceneOf(stopOf(SCENE_COUNT - 1))).toBe(SCENE_COUNT - 1)
+  })
+  it('往后：刚开始直接去第 1 幕；停在某幕的停稳点就是下一幕；幕中间先到本幕停稳点；片尾没有下一幕', () => {
+    expect(nextScene(0)).toBe(1)
+    expect(nextScene(stopOf(0))).toBe(1)
+    expect(nextScene(stopOf(3))).toBe(4)
+    expect(nextScene(MARKS[3] + 1)).toBe(3)
+    expect(nextScene(TOTAL)).toBe(-1)
+  })
+  it('往前：停在某幕的停稳点就是上一幕；幕中间回到上一幕的停稳点；开场之前没有上一幕', () => {
+    expect(prevScene(stopOf(3))).toBe(2)
+    expect(prevScene(MARKS[3] + 1)).toBe(2)
+    expect(prevScene(TOTAL)).toBe(SCENE_COUNT - 2)
+    expect(prevScene(stopOf(0))).toBe(-1)
+    expect(prevScene(0)).toBe(-1)
   })
 })

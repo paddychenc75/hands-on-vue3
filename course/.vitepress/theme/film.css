@@ -413,3 +413,88 @@ html[data-learner="returning"] .film .only-new { display: none; }
 @keyframes film-tip { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (max-width: 899px) { .film.ended[data-active="8"] .player { transform: translateX(calc(-50% - (var(--pw) / 2 - 52px))) scale(.9); } .film .player .snd-t { display: none; } .film .player .snd { padding: 0; width: 38px; height: 38px; justify-content: center; } }
 @media (max-width: 420px) { .film .player .prev, .film .player .next { display: none; } }
+
+/* ---------- 滚动改成“一次一幕”：短片模式下页面没有原生滚动，由 film.ts 用滚轮、触摸、键盘手势驱动 ----------
+   html 不再产生滚动条和惯性滚动（overflow: hidden、overscroll-behavior: none），.film 的 touch-action: none 让触摸不触发浏览器自己的滚动和下拉刷新，
+   收束幕如果内容放不下，它自己的滚动容器 touch-action: pan-y（滚动容器是 touch-action 向上累计的终点，所以不受 .film 的 none 影响）。 */
+@media (prefers-reduced-motion: no-preference) {
+  html.film-dyn:has(.film.ready), html.film-dyn:has(.film.ready) body { overflow: hidden; overscroll-behavior: none; }
+  html.film-dyn .film.ready { touch-action: none; -webkit-user-select: none; user-select: none; }
+  html.film-dyn .film.ready .s9 .sc-copy { touch-action: pan-y; -webkit-user-select: auto; user-select: auto; }
+  /* 首页不需要 VitePress 的“本页导航条”（回到顶部）；窄屏时顶栏也固定在最上面，不随页面滚走 */
+  html.film-dyn:has(.film.ready) .VPLocalNav { display: none; }
+  @media (max-width: 959px) { html.film-dyn:has(.film.ready) .VPNav { position: fixed; top: 0; left: 0; right: 0; } }
+}
+
+/* ---------- 手机（≤899px）：舞台与文字区重新分配，所有可点元素 ≥44px，文字给圆点列让出右边距，收束幕在矮屏上放得下 ---------- */
+@media (max-width: 899px) {
+  .film .player { gap: 4px; padding: 6px 8px; bottom: max(8px, env(safe-area-inset-bottom)); width: min(660px, calc(100vw - 16px)); }
+  .film .player button, .film .player a { min-width: 44px; height: 44px; }
+  .film .player .snd, .film .player .skip { min-height: 44px; height: 44px; }
+  .film .player .skip { padding: 0 10px; font-size: 13px; }
+  .film .player .replay { display: none; } /* 放完后“播放”按钮就是“重播”，手机上不再单放一个，把宽度让给进度条 */
+  .film .scrub { min-width: 120px; height: 44px; }
+  .film .scrub .seg { height: 8px; }
+  .film .rail { right: 0; }
+  .film .rail a { width: 28px; height: 44px; }
+  .film .film-play, .film .st-links a, .film .st-actions .btn { min-height: 44px; display: inline-flex; align-items: center; }
+  /* 放完后缩在左下角的播放条：手机上留“播放”（此时就是重播）和“声音” */
+  .film.ended[data-active="8"] .player .play { visibility: visible; }
+  .film .snd-tip { bottom: auto; top: calc(var(--nav) + 10px); left: auto; right: 34px; transform: none; font-size: 13px; padding: 8px 14px; animation: none; }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 899px) {
+  html.film-dyn .film .world { height: clamp(240px, calc(var(--V) - 292px), 560px); }
+  html.film-dyn .film .sc-copy { left: 20px; right: 44px; bottom: calc(68px + max(8px, env(safe-area-inset-bottom))); gap: 8px; }
+  html.film-dyn .film .sc-copy::before { inset: -20px -44px -80px -20px; }
+  html.film-dyn .film .sc-copy h2 { font-size: 24px; line-height: 1.25; }
+  html.film-dyn .film .desc { font-size: 14.5px; line-height: 1.65; }
+  html.film-dyn .film .hook { font-size: 13.5px; }
+  html.film-dyn .film .s0 .sc-copy { right: 44px; }
+  html.film-dyn .film .s0 h1 { font-size: clamp(40px, 12vw, 54px); }
+  html.film-dyn .film .s0 .lead { font-size: 15px; line-height: 1.65; }
+  html.film-dyn .film .digits { font-size: 40px; }
+  html.film-dyn .film .ytags { font-size: 12px; height: 18px; }
+  html.film-dyn .film .ybars { width: 128px; }
+  html.film-dyn .film .legend { left: 12px; right: 40px; bottom: 6px; gap: 4px 10px; font-size: 11px; }
+  /* 舞台里的字放大：相机在手机上取景更近，节点文字按比例放大才看得清 */
+  html.film-dyn .film .nd, html.film-dyn .film .gn { font-size: 17px; }
+  html.film-dyn .film .card code { font-size: 15px; }
+  html.film-dyn .film .plbl { font-size: 15px; }
+  html.film-dyn .film .col { font-size: 17px; }
+  html.film-dyn .film .eq, html.film-dyn .film .chip { font-size: 14px; }
+  html.film-dyn .film .cl { font-size: 12.5px; padding: 3px 9px; }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 899px) and (max-height: 720px) {
+  html.film-dyn .film .hook { display: none; }
+  html.film-dyn .film .sc-copy h2 { font-size: 22px; }
+  html.film-dyn .film .desc { font-size: 14px; line-height: 1.55; }
+  html.film-dyn .film .world { height: clamp(220px, calc(var(--V) - 262px), 560px); }
+}
+/* 收束幕（手机）：7 站一行一站压紧，数字区缩成三个小字号的并排，按钮贴着播放条上方，整幕不出现内部滚动 */
+@media (prefers-reduced-motion: no-preference) and (max-width: 899px) {
+  html.film-dyn .film .s9 .sc-copy { bottom: 0; right: 0; left: 0; align-content: start; }
+  html.film-dyn .film .fin { padding: 14px 40px 0 16px; gap: 8px; min-height: 0; height: calc(var(--V) - 84px - env(safe-area-inset-bottom)); grid-template-rows: auto auto auto auto; align-content: space-between; }
+  html.film-dyn .film .fin-eyebrow { font-size: 12px; letter-spacing: .22em; }
+  html.film-dyn .film .fin h2 { font-size: 22px; }
+  html.film-dyn .film .fin-head { gap: 6px; }
+  html.film-dyn .film .fin .desc { display: none; }
+  html.film-dyn .film .tl { align-self: start; min-height: 0; }
+  html.film-dyn .film .stats3 dd .sep { display: none; }
+  html.film-dyn .film[data-active="0"] .legend { display: none; }
+  html.film-dyn .film .era { padding: 3px 0 3px 30px; }
+  html.film-dyn .film .era .dt { top: 11px; width: 12px; height: 12px; left: 4px; }
+  html.film-dyn .film .era-main .yr { min-width: 3.9em; font-size: 15px; }
+  html.film-dyn .film .era-main b { font-size: 14px; }
+  html.film-dyn .film .era-main .ln, html.film-dyn .film .era-more { font-size: 11.5px; line-height: 1.3; }
+  html.film-dyn .film .era-box { gap: 0 10px; }
+  html.film-dyn .film .tl-line { top: 10px; bottom: 10px; }
+  html.film-dyn .film .fin-act { display: grid; gap: 8px; }
+  html.film-dyn .film .stats3 { margin: 0; }
+  html.film-dyn .film .stats3 div { padding: 0 8px; }
+  html.film-dyn .film .stats3 dt { font-size: 20px; min-width: 0; }
+  html.film-dyn .film .stats3 dd { font-size: 10px; margin: 0; line-height: 1.25; }
+  html.film-dyn .film .fin-actions { position: static; padding: 0; background: none; }
+  html.film-dyn .film .fin-actions .btn.big { padding: 11px 20px; font-size: 15px; min-height: 44px; }
+  html.film-dyn .film .fin-actions .btn.ghost { padding: 10px 14px; font-size: 13px; min-height: 44px; }
+  html.film-dyn .film .foot { font-size: 11px; }
+}

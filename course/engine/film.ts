@@ -39,6 +39,21 @@ export const sceneOf = (f: number): number => {
 export const timeOfScroll = (y: number, maxY: number): number => (maxY <= 0 ? 0 : clamp(y / maxY, 0, 1) * TOTAL);
 export const scrollOfTime = (f: number, maxY: number): number => (clamp(f, 0, TOTAL) / TOTAL) * maxY;
 
+/** 每一幕“停稳”的影片时间：这一幕的文字和动作都放完、画面完整，而下一幕的文字还没开始退场的那个点；收束幕是片尾。
+ *  滚一下 = 前进或后退一幕 = 动画着走到相邻一幕的停稳点。 */
+export const stopOf = (i: number): number => (i >= LAST ? TOTAL : i <= 0 ? MARKS[1] - 0.85 : MARKS[i + 1] - 0.55);
+/** 从影片时间 f 往后走一幕：第一个停稳点在 f 之后的幕（f 恰好停在某幕上就是下一幕）；已经在片尾返回 -1 */
+export const nextScene = (f: number): number => {
+  // 第 0 幕（开场）从来不是“往后走”的目标：片子刚开始时开场的字已经全在了，第一次手势直接去第 1 幕；只有圆点、Home、往回走才会停到开场的停稳点
+  for (let i = 1; i <= LAST; i++) if (stopOf(i) > f + 0.05) return i;
+  return -1;
+};
+/** 往前走一幕：最后一个停稳点在 f 之前的幕；已经在开场之前返回 -1 */
+export const prevScene = (f: number): number => {
+  for (let i = LAST; i >= 0; i--) if (stopOf(i) < f - 0.05) return i;
+  return -1;
+};
+
 interface Track {
   anims: Animation[];
   /** 值在变化的时间段（秒） */
@@ -409,7 +424,49 @@ export function attach(root: HTMLElement): () => void {
     ui.state(false, true);
     window.setTimeout(() => engine?.hush(), 1500);
   }
-  /** 跳到某个影片时间（用户点上一幕、下一幕、进度条）：短暂地滑过去，然后保持原来的播放状态 */
+  /** 让影片时间从当前值滑到 to（动画着把中间的动作过一遍，不是瞬移）：时长按路程折算，向前约 4 倍速、向后约 6 倍速，夹在 0.8–1.5 秒（倒放 0.6–1.2 秒） */
+  let stepQueue: (() => void) | null = null;
+  const animateTo = (to: number, then?: () => void) => {
+    pause('step');
+    window.clearTimeout(autoTimer);
+    root.classList.remove('ended');
+    to = clamp(to, 0, TOTAL);
+    const done = () => {
+      tweening = false;
+      tick = 0;
+      if (to >= TOTAL - 0.01) {
+        playing = false;
+        root.classList.add('ended');
+        ui.state(false, true);
+      }
+      then?.();
+      const q = stepQueue;
+      stepQueue = null;
+      q?.();
+    };
+    if (reduceMQ.matches || Math.abs(to - curF) < 0.01) {
+      scrollTo(scrollOfTime(to, maxY()));
+      setF(to);
+      done();
+      return;
+    }
+    tweening = true;
+    const from = curF;
+    const d = Math.abs(to - from);
+    const dur = (to > from ? clamp(d / 4, 0.8, 1.5) : clamp(d / 6, 0.6, 1.2)) / speed();
+    const t0 = performance.now();
+    const step = (now: number) => {
+      const x = clamp((now - t0) / (dur * 1000), 0, 1);
+      const e = 1 - (1 - x) ** 2.2; // 先快后慢，停稳
+      const v = from + (to - from) * e;
+      scrollTo(scrollOfTime(v, maxY()));
+      setF(v);
+      if (x < 1) tick = requestAnimationFrame(step);
+      else done();
+    };
+    tick = requestAnimationFrame(step);
+  };
+  /** 跳到某个影片时间：smooth 为假就瞬移（重播、锚点）；为真就用上面的滑动 */
   const seek = (f: number, smooth = true) => {
     const was = playing;
     pause('seek');
@@ -421,50 +478,105 @@ export function attach(root: HTMLElement): () => void {
       if (was) play();
       return;
     }
-    tweening = true;
-    const from = curF;
-    const t0 = performance.now();
-    const step = (now: number) => {
-      const x = clamp((now - t0) / 650, 0, 1);
-      const e = x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2;
-      const v = from + (to - from) * e;
-      scrollTo(scrollOfTime(v, maxY()));
-      setF(v);
-      if (x < 1) tick = requestAnimationFrame(step);
-      else {
-        tick = 0;
-        tweening = false;
-        if (was) play();
-      }
-    };
-    tick = requestAnimationFrame(step);
+    animateTo(to, was ? () => play() : undefined);
   };
-  /** 一幕的“起点”：最后一幕（收束）去它放完之后的样子（时间轴、数字、按钮都已就位），而不是它刚开始、还空着的时候 */
-  const sceneStart = (i: number) => (i >= LAST ? TOTAL : MARKS[clamp(i, 0, LAST)] + (i === 0 ? 0 : 0.25));
-  const toScene = (i: number) => seek(sceneStart(i));
+  /** 去第 i 幕的停稳点（圆点、进度条点击、上一幕/下一幕、键盘、滚动手势全部走这一个函数）；动画进行中再来的输入最多排队一个 */
+  const goStop = (i: number) => {
+    if (tweening) {
+      stepQueue = () => goStop(i);
+      return;
+    }
+    animateTo(stopOf(clamp(i, 0, LAST)));
+  };
+  /** 一次手势 = 一幕：dir 为 1 往后、-1 往前 */
+  const userStep = (dir: 1 | -1) => {
+    if (!isDyn()) return;
+    if (tweening) {
+      stepQueue = () => userStep(dir);
+      return;
+    }
+    const i = dir > 0 ? nextScene(curF) : prevScene(curF);
+    if (i < 0) {
+      pause('user');
+      return;
+    }
+    goStop(i);
+  };
 
-  // 用户接管：任何滚轮、触摸、键盘滚动、拖滚动条都立刻暂停（全部是被动监听，不阻止默认行为）
+  // 用户接管：滚轮、触摸上滑下滑、键盘（↓ PageDown 空格 / ↑ PageUp）都是“一次一幕”。短片模式下页面没有原生滚动（html 是 overflow: hidden、touch-action: none），
+  // 所以这里不需要、也没有 preventDefault，监听全是被动的；惯性滚动、一串滚轮事件按“手势”算一次
   const takeOver = () => {
-    if (playing && !tweening) pause('user');
     window.clearTimeout(autoTimer);
     hashTimers.forEach(t => window.clearTimeout(t));
   };
-  addEventListener('wheel', takeOver, { passive: true, ...sig });
-  addEventListener('touchstart', takeOver, { passive: true, ...sig });
-  addEventListener('touchmove', takeOver, { passive: true, ...sig });
+  const inFinaleScroller = (t: EventTarget | null) => {
+    const c = (t as HTMLElement | null)?.closest?.('.s9 .sc-copy') as HTMLElement | null;
+    return !!c && c.scrollHeight > c.clientHeight + 1;
+  };
+  let wheelBusy = false;
+  let wheelIdle = 0;
   addEventListener(
-    'keydown',
+    'wheel',
+    e => {
+      if (!isDyn() || e.ctrlKey || Math.abs(e.deltaY) < 2 || Math.abs(e.deltaY) < Math.abs(e.deltaX) || inFinaleScroller(e.target)) return;
+      takeOver();
+      window.clearTimeout(wheelIdle);
+      wheelIdle = window.setTimeout(() => (wheelBusy = false), 160);
+      if (wheelBusy) return;
+      wheelBusy = true;
+      userStep(e.deltaY > 0 ? 1 : -1);
+    },
+    { passive: true, ...sig },
+  );
+  let touchY = 0;
+  let touchX = 0;
+  let touchLive = false;
+  addEventListener(
+    'touchstart',
     e => {
       const t = e.target as HTMLElement | null;
-      if (t?.closest?.('.player') || /^(INPUT|TEXTAREA|SELECT)$/.test(t?.tagName || '')) return;
-      if ([' ', 'Spacebar', 'PageDown', 'PageUp', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) takeOver();
+      touchLive = isDyn() && e.touches.length === 1 && !t?.closest?.('.player, .snd-tip, .rail') && !inFinaleScroller(t);
+      touchY = e.touches[0]?.clientY ?? 0;
+      touchX = e.touches[0]?.clientX ?? 0;
     },
     { passive: true, ...sig },
   );
   addEventListener(
-    'mousedown',
+    'touchmove',
     e => {
-      if (e.clientX >= document.documentElement.clientWidth) takeOver(); // 点在滚动条上
+      if (!touchLive) return;
+      const dy = touchY - (e.touches[0]?.clientY ?? touchY);
+      const dx = touchX - (e.touches[0]?.clientX ?? touchX);
+      if (Math.abs(dy) > 36 && Math.abs(dy) > Math.abs(dx) * 1.2) {
+        touchLive = false; // 一次滑动只算一幕
+        takeOver();
+        userStep(dy > 0 ? 1 : -1);
+      }
+    },
+    { passive: true, ...sig },
+  );
+  addEventListener('touchend', () => (touchLive = false), { passive: true, ...sig });
+  addEventListener('touchcancel', () => (touchLive = false), { passive: true, ...sig });
+  addEventListener(
+    'keydown',
+    e => {
+      if (!isDyn() || e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
+      const t = e.target as HTMLElement | null;
+      // 焦点在按钮、链接、输入框、进度条、播放器上时，这些键归它们自己（空格要能按按钮）
+      if (t?.closest?.('.player, button, a, input, textarea, select, [role="slider"], [contenteditable]')) return;
+      if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'PageDown' || e.key === 'ArrowDown') {
+        takeOver();
+        userStep(1);
+      } else if (e.key === 'PageUp' || e.key === 'ArrowUp') {
+        takeOver();
+        userStep(-1);
+      } else if (e.key === 'Home') {
+        takeOver();
+        goStop(0);
+      } else if (e.key === 'End') {
+        takeOver();
+        goStop(LAST);
+      }
     },
     { passive: true, ...sig },
   );
@@ -534,7 +646,7 @@ export function attach(root: HTMLElement): () => void {
       <button type="button" class="next" aria-label="下一幕">${I.next}</button>
       <button type="button" class="replay" aria-label="重播">${I.replay}</button>
       <button type="button" class="snd" aria-pressed="false" aria-label="声音（配乐）">${I.spk}<span class="snd-t">声音</span></button>
-      <a class="skip" href="#scene-8"><span class="sk-long">跳过，</span>开始学习 →</a>`;
+      <a class="skip" href="#scene-8" aria-label="跳到结尾">跳到结尾 →</a>`;
     const live = document.createElement('div');
     live.className = 'live-region';
     live.setAttribute('aria-live', 'polite');
@@ -542,8 +654,10 @@ export function attach(root: HTMLElement): () => void {
     const playBtn = q<HTMLButtonElement>('.play');
     const scrub = q<HTMLElement>('.scrub');
     const scrubTip = q<HTMLElement>('.tip');
+    const skipEl = q<HTMLAnchorElement>('.skip');
     const segs = [...bar.querySelectorAll<HTMLElement>('.seg i')];
     let resume = false;
+    let lastFin = false;
     let lastFill: number[] = [];
     const tip = document.createElement('button');
     tip.type = 'button';
@@ -559,8 +673,8 @@ export function attach(root: HTMLElement): () => void {
       if (filmBtn) filmBtn.hidden = !isDyn() || isPlaying;
     };
     playBtn.addEventListener('click', () => (playing ? pause('button') : play(true)), sig);
-    q('.prev').addEventListener('click', () => toScene(activeScene === LAST ? LAST - 1 : Math.max(0, curF - MARKS[activeScene] > 1.2 ? activeScene : activeScene - 1)), sig);
-    q('.next').addEventListener('click', () => toScene(activeScene + 1), sig);
+    q('.prev').addEventListener('click', () => userStep(-1), sig);
+    q('.next').addEventListener('click', () => userStep(1), sig);
     q('.replay').addEventListener(
       'click',
       () => {
@@ -570,12 +684,16 @@ export function attach(root: HTMLElement): () => void {
       },
       sig,
     );
-    q('.skip').addEventListener(
+    // “跳到结尾”：不在片尾时去片尾；已经在片尾（放完后的画面）时，它就是“开始学习”，直接进入学习（和收束幕的主按钮同一个目标）
+    skipEl.addEventListener(
       'click',
       e => {
         e.preventDefault();
-        pause('skip');
-        toScene(LAST);
+        if (curF >= TOTAL - 0.05) (root.querySelector('.s9 .fin-actions .btn.big') as HTMLAnchorElement | null)?.click();
+        else {
+          pause('skip');
+          goStop(LAST);
+        }
       },
       sig,
     );
@@ -589,16 +707,17 @@ export function attach(root: HTMLElement): () => void {
       const r = scrub.getBoundingClientRect();
       return clamp((e.clientX - r.left) / r.width, 0, 1);
     };
+    // 点一下进度条 = 去那一幕的停稳点；按住拖动 = 连续擦洗（拖动超过 5px 才算拖动）
     let dragging = false;
+    let moved = false;
+    let downX = 0;
     scrub.addEventListener(
       'pointerdown',
       e => {
         dragging = true;
+        moved = false;
+        downX = e.clientX;
         scrub.setPointerCapture(e.pointerId);
-        pause('scrub');
-        root.classList.remove('ended');
-        scrollTo(scrollOfTime(frac(e) * TOTAL, maxY()));
-        setF(frac(e) * TOTAL);
       },
       sig,
     );
@@ -610,7 +729,12 @@ export function attach(root: HTMLElement): () => void {
         scrubTip.textContent = SCENE_LABELS[sceneOf(f)];
         scrubTip.style.opacity = '1';
         scrubTip.style.transform = `translateX(${clamp(e.clientX - r.left - 40, 0, Math.max(0, r.width - 160))}px)`;
-        if (dragging) {
+        if (dragging && (moved || Math.abs(e.clientX - downX) > 5)) {
+          if (!moved) {
+            moved = true;
+            pause('scrub');
+            root.classList.remove('ended');
+          }
           scrollTo(scrollOfTime(f, maxY()));
           setF(f);
         }
@@ -619,7 +743,11 @@ export function attach(root: HTMLElement): () => void {
     );
     scrub.addEventListener(
       'pointerup',
-      () => {
+      e => {
+        if (dragging && !moved) {
+          pause('scrub');
+          goStop(sceneOf(frac(e) * TOTAL));
+        }
         dragging = false;
       },
       sig,
@@ -641,20 +769,20 @@ export function attach(root: HTMLElement): () => void {
         const onButton = (e.target as HTMLElement).tagName === 'BUTTON' || (e.target as HTMLElement).tagName === 'A';
         if (e.key === 'ArrowRight') {
           e.preventDefault();
-          toScene(activeScene + 1);
+          userStep(1);
         } else if (e.key === 'ArrowLeft') {
           e.preventDefault();
-          toScene(activeScene - 1);
+          userStep(-1);
         } else if ((e.key === ' ' || e.key === 'Spacebar') && !onButton) {
           e.preventDefault();
           if (playing) pause('key');
           else play();
         } else if (e.key === 'Home') {
           e.preventDefault();
-          toScene(0);
+          goStop(0);
         } else if (e.key === 'End') {
           e.preventDefault();
-          toScene(LAST);
+          goStop(LAST);
         }
       },
       sig,
@@ -683,6 +811,15 @@ export function attach(root: HTMLElement): () => void {
       },
       update(f: number) {
         const s = sceneOf(f);
+        const fin = f >= TOTAL - 0.05;
+        if (fin !== lastFin) {
+          lastFin = fin;
+          const go = root.querySelector<HTMLAnchorElement>('.s9 .fin-actions .btn.big');
+          skipEl.textContent = fin ? '开始学习 →' : '跳到结尾 →';
+          skipEl.setAttribute('aria-label', fin ? '开始学习：' + (go?.textContent?.replace(/\s+/g, ' ').trim() ?? '') : '跳到结尾');
+          if (fin && go) skipEl.setAttribute('href', go.getAttribute('href') || '#');
+          else skipEl.setAttribute('href', '#scene-8');
+        }
         segs.forEach((el, i) => {
           const v = Math.round(clamp((f - MARKS[i]) / DURATIONS[i], 0, 1) * 1000) / 1000;
           if (lastFill[i] !== v) {
@@ -702,7 +839,7 @@ export function attach(root: HTMLElement): () => void {
     };
   }
   const onScene = (s: number) => {
-    if (playing) ui.announce(s);
+    if (playing || tweening) ui.announce(s);
   };
 
   /* ---------- 幕进度指示（右侧圆点）和锚点 ---------- */
@@ -712,7 +849,7 @@ export function attach(root: HTMLElement): () => void {
       e => {
         if (!isDyn()) return;
         e.preventDefault();
-        seek(sceneStart(i));
+        goStop(i);
       },
       sig,
     );
@@ -735,8 +872,8 @@ export function attach(root: HTMLElement): () => void {
   const applyHash = () => {
     const i = Number(location.hash.slice(-1));
     const goto = () => {
-      scrollTo(scrollOfTime(sceneStart(i), maxY()));
-      setF(sceneStart(i));
+      scrollTo(scrollOfTime(stopOf(i), maxY()));
+      setF(stopOf(i));
     };
     goto();
     hashTimers = [300, 900].map(ms => window.setTimeout(goto, ms));

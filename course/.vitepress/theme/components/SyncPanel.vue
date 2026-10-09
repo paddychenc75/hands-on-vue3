@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 课程地图页的“跨设备同步”面板（折叠，默认收起）。面板内容（sync/SyncPanelBody.vue）是单独的异步 chunk，展开时才加载；
 // 这里只用主包里的小状态文件，不加载同步引擎。服务端渲染和首次水合时显示“未开启”，挂载后才读本机配置，所以不会水合不一致。
-import { defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vitepress'
 import { STATE_LABEL, useSyncStatus } from '../composables/sync'
 
@@ -11,8 +11,14 @@ const v = useSyncStatus()
 const el = ref<HTMLDetailsElement | null>(null)
 const route = useRoute()
 
+// 地址带 #sync（侧栏入口、顶栏标记的“同步设置”）：展开面板，并把焦点放到面板标题上（读屏软件和键盘用户知道到了哪里）
 const fromHash = () => {
-  if (location.hash === '#sync') open.value = true
+  if (location.hash !== '#sync') return
+  open.value = true
+  nextTick(() => {
+    if (el.value) el.value.open = true
+    el.value?.querySelector('summary')?.focus({ preventScroll: false })
+  })
 }
 onMounted(() => {
   fromHash()

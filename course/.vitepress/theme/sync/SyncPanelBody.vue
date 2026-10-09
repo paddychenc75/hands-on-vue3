@@ -155,14 +155,15 @@ const restore = (i: number) =>
     <template v-if="!v.enabled">
       <ol class="sync-steps">
         <li>
-          点这个链接：<a :href="TOKEN_URL" target="_blank" rel="noopener noreferrer">创建令牌</a>。它会在新标签页打开 GitHub 的创建页面。名称和权限已经填好，权限只勾了 gist。
+          点这个链接：<a :href="TOKEN_URL" target="_blank" rel="noopener noreferrer">创建令牌</a>。它会在新标签页打开 GitHub 的创建页面。需要先登录 GitHub，页面是英文的。名称和权限已经填好，权限只勾了 gist（以 GitHub 页面显示为准）。
         </li>
         <li>在 GitHub 页面最下面点“Generate token”。复制以 <code>ghp_</code> 开头的那串字符。它只显示一次。</li>
         <li>回到本站，把令牌粘贴进下面的输入框，点“开启同步”。站点会先检查令牌能不能用，再做第一次同步，并告诉你结果。</li>
       </ol>
       <ul class="sync-notes">
         <li><b>只勾 gist 权限，别的都不要勾。</b>即使令牌泄露，对方也只能动你的 Gist，碰不到你的代码仓库。</li>
-        <li><b>过期时间：</b>GitHub 默认 30 天。过期后同步会停，本站会提示你重新创建令牌。你可以选更长，或者选不过期。</li>
+        <li><b>过期时间：</b>GitHub 默认 30 天（以 GitHub 页面显示为准）。过期后同步会停，本站会提示你重新创建令牌。你可以选更长，或者选不过期。</li>
+        <li><b>完成状态会被带回来：</b>开启同步后，在一台设备上把一章改回未完成，可能被另一台设备的已完成带回来。</li>
         <li>
           <b>在另一台设备上：</b>打开本站，重复第 3 步。令牌用同一个，或者再建一个都行，但要用同一个 GitHub 账号。
           开启时，站点会在你的账号里找已有的同步文件 <code>hands-on-vue3-progress.json</code>。找到就接着用同一份，不会再建一个。

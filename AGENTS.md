@@ -83,7 +83,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `editor/entry.js` | 练习编辑器（CodeMirror 6），被 `Exercise` 组件直接导入 | — |
 | `scripts/` | `check-content.mjs`（内容校验）、`check-docs.mjs`（文档数字核对）、`new-chapter.mjs`（加章脚手架）、`e2e.mjs`（浏览器测试入口）、`setup-hooks.mjs`（启用提交前钩子）、`shot.mjs`（截图）；`lib/` 是它们共用的（`validate.mjs` 是全部校验规则，`section-refs.mjs` 是小节引用的统一扫描（校验和改号共用），`known-issues.mjs` 是临时豁免，目前是空的；`ref-tense.mjs` 查引用的措辞和对象章的位置是否一致；`reorder.mjs` 和 `reorder-chapters.mjs` 一次重排所有章） | — |
 | `tests/unit/` | Vitest 单元测试（`*.test.ts`）；规则对照表见 `tests/unit/README.md` | 需要浏览器的测试 |
-| `tests/site/` | Playwright 测试：`exercises.test.js`、`progress.test.js`、`mechanics.test.js`、`glossary.test.js`、`folds.test.js`、`home.test.js`（首页短片，约 5 分钟）、`sync.test.js`（跨设备同步，配 `_fakegithub.mjs` 假接口；设 `SYNC_SHOTS=<目录>` 才保存截图），`helpers.js` 是共用的；`labs/NN-id.js` 是各章实验台的测试数据 | — |
+| `tests/site/` | Playwright 测试：`exercises.test.js`、`progress.test.js`、`mechanics.test.js`、`glossary.test.js`、`folds.test.js`、`home.test.js`（首页短片，约 5 分钟）、`sync.test.js`（跨设备同步，配 `_fakegithub.mjs` 假接口；设 `SYNC_SHOTS=<目录>` 才保存截图；`SYNC_THROTTLE=4` 降 CPU；`SYNC_ONLY=lease` 只跑租约和兜底），`helpers.js` 是共用的；`labs/NN-id.js` 是各章实验台的测试数据 | — |
 | `tests/expected.cjs` | 测试里**锁定**的章数、选读章 id 和每阶段题数，集中在这一个文件；其余数字都从元数据算 | 别处再写死数字 |
 | `docs/` | 三份旧审查报告和教学设计调研。**它们针对的是第 14 版单文件课程**（`vue3-course.html`，已删除，取回见提交 `a2fe105`），只作背景参考，不检查 | — |
 | `.github/` | `workflows/ci.yml`（check + e2e）、`deploy.yml`（CI 通过后部署）、`dependabot.yml` | — |
@@ -261,26 +261,26 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 
 性质由 `tests/unit/merge.test.ts` 用手写用例 + 随机生成的进度固定：幂等 `merge(a,a)=a`、可交换、可结合（默认 600 组随机三元组，改合并规则后可临时调到 3 万组）、合并结果包含两边、任何一边已完成的章 / 练习 / 自测答案 / 卡片 / 先猜 / 阶段 / 阅读位置都不会消失、旧数据合并不报错、未知字段保留、不改参数。`stamp` 的字段表和 `merge` 的字段表一致由测试核对。
 
-**已知取舍**：因为完成取“或”，开启同步后一章不能再“取消完成”（本课程本来也没有手动取消按钮）；一道练习的 `passed` 同理。时间取“较新”依赖设备时钟：两台设备时钟差几分钟，只影响草稿 / 笔记 / 阶段测验这几类二选一的记录谁赢（输的笔记仍保留在 `noteAlts`，草稿在合并前的备份里），不影响完成状态和复习卡片的并集。
+**已知取舍**：因为完成取“或”，开启同步后，在一台设备上把一章改回未完成，可能被另一台设备的已完成带回来（界面上也有这句提示；本课程本来也没有手动取消按钮）；一道练习的 `passed` 同理。时间取“较新”依赖设备时钟：两台设备时钟差几分钟，只影响草稿 / 笔记 / 阶段测验这几类二选一的记录谁赢（输的笔记仍保留在 `noteAlts`，草稿在合并前的备份里），不影响完成状态和复习卡片的并集。
 
 ### 同步时机与引擎（`syncEngine.ts`，按需加载）
 
-- **启动**：`learn.ts` 的 `ensureReady()` 登记合并用的课程信息（`setMergeContext`）并调用 `bootSync()`；本机存了配置才在约 0.6 秒后加载引擎。别的标签页开启同步时（`storage` 事件）这个页面也跟着启动。
+- **启动**：`learn.ts` 的 `ensureReady()` 登记合并用的课程信息（`setMergeContext`）并调用 `bootSync()`；本机存了配置才在约 0.6 秒后加载引擎（慢设备上还要等 chunk 下载，可能更久）。别的标签页开启同步时（`storage` 事件）这个页面也跟着启动。**引擎加载完成之前保存的进度**没有事件可听，所以不靠事件：`start()` 把现在的进度签名和状态键里 `sig`（上次同步成功时存的）比，不同（或根本没存过）就算有没推送的改动，启动后的第一次同步就推送。
 - **开启**：校验令牌（`GET /user`；经典令牌看 `x-oauth-scopes` 有没有 `gist`；细粒度令牌没有这个头，权限留到读写时才知道）→ 在账号里列出 gist（分页，`Link` 头）找同名文件，没有才创建（`public: false`）→ 保存配置 → 立即同步一次，显示“从云端合并了 N 章 / 已把本机进度上传”。个别令牌列不出私密 Gist 时，面板里可以手动填 Gist 链接或编号。**第二台设备就靠这一步找到同一份 Gist**：开启时按文件名在账号里找，找到就用，不会再建。
 - **一次同步** = 读云端（`If-None-Match` 条件请求，304 不计入限额）→ 和本机合并 → 合并结果写回本机和云端（内容有差别才写）。所以推送前总是先拉，不会覆盖另一台设备刚写的内容；两台设备写之间的极小空隙里 PATCH 可能覆盖对方，但对方的本机进度还在，下次拉取发现云端缺内容时会合并后再推，自愈。
-- **时机**：页面加载后拉取；本机进度变化（`save()` 发 `hov-saved`）后防抖 6 秒、最长 10 秒推送；页面隐藏 / 关闭时有未推送的改动，用 `fetch(..., { keepalive: true })` 尽力推一次（请求体上限 64 KB，超过就放弃，下次打开页面再同步）；回到前台且距上次拉取超过 5 分钟再拉；`online` 事件触发重试。**判断有没有改动**靠“不含阅读位置的进度签名”（每次同步完成时存进状态键的 `sig`）：页面刚加载、引擎还没起来时发生的改动，和只改了阅读位置，都靠它判断。
-- **多标签页**：`navigator.locks`（Web Locks）选出一个标签页负责联网（没有这个 API 时每个标签页都联网，靠“先读后合并”保证正确）。其他标签页写进 localStorage 的进度，靠 `storage` 事件通知负责的标签页去合并并推送（注意 `store.ts` 自己的 `storage` 监听可能已经先把内存换成了 localStorage 的内容，所以负责的标签页用签名而不是“内存有没有变”判断）；“立即同步”用 `BroadcastChannel` 转给负责的标签页。
+- **时机**：页面加载后拉取；本机进度变化（`save()` 发 `hov-saved`）后防抖 6 秒、最长 10 秒推送；页面隐藏 / 关闭时有未推送的改动，用 `fetch(..., { keepalive: true })` 尽力推一次（请求体上限 64 KB，超过就放弃，下次打开页面再同步）；回到前台且距上次拉取超过 5 分钟再拉；`online` 事件触发重试。**判断有没有改动**靠“不含阅读位置的进度签名”（每次同步成功时存进状态键的 `sig`，只改了阅读位置不算改动）：每次同步开始前、引擎启动时、之后每 60 秒各核对一次，不一致就推送，所以事件丢了、页面被冻结、引擎还没起来时发生的改动都不会漏。**兜底定时器**（负责联网的标签页上，每 60 秒）：核对签名；没有马上要到点的同步就立刻做；因网络问题暂停了自动重试的在这里恢复。**触发源**：`hov-saved`（保存）、`storage`（别的标签页）、`online`、`visibilitychange`、`pageshow`、`focus`、60 秒定时器。
+- **多标签页**：用 localStorage 里的**租约**（`hands-on-vue3-v1:sync-lease`，`{ id, at, vis }`）选出一个标签页负责联网：持有者每 5 秒续约，15 秒没续约算失效，可见的标签页可以接管不可见的标签页，页面关闭（`pagehide`）时释放；判断规则是纯函数 `logic/syncPlan.ts` 的 `leaseFree`。不用 Web Locks：后台标签页被冻结或丢弃时锁可能一直被占着，前台页面就没人推送了。两个页面偶尔同时联网是安全的（先读后合并，合并幂等）。其他标签页写进 localStorage 的进度，靠 `storage` 事件通知负责的标签页去合并并推送（注意 `store.ts` 自己的 `storage` 监听可能已经先把内存换成了 localStorage 的内容，所以负责的标签页用签名而不是“内存有没有变”判断）；“立即同步”用 `BroadcastChannel` 转给负责的标签页。
 - **界面不被冲掉**：用合并结果更新内存时**就地**写（保持页面里组件拿着的对象身份），只发 `hov-progress` 让侧栏、顶栏、地图页刷新；章页 / 复习 / 阶段测验页打开时画好的内容不重绘（可能正在答题），只在状态里记 `remoteChanged`，顶栏标记的弹层和面板提示“进度已从另一台设备更新”并给“刷新页面”按钮。
 - **绝不丢本地数据**：用合并结果覆盖本机进度前先备份（`:backup`，最近 2 份；写不进去就不覆盖）；先写 localStorage，成功了才改内存；任何错误都不动本地进度。面板里可以“恢复同步前的本地进度”（恢复后下次同步仍会把云端的合并回来，想彻底回到那时先断开同步）。
 - **错误**（`syncEngine.ts` 的 `MSG`）：断网 / 5xx → 状态“有未同步的更改”，指数退避（5 秒起、翻倍、最多 5 分钟、抖动 ±20%、连续 8 次后暂停自动重试，回到前台或点“立即同步”再试）；401 → 停止同步，提示重新创建令牌，面板和顶栏弹层里都有“重新创建令牌”的同一个链接；403 且 `x-ratelimit-remaining: 0` 或带 `retry-after`（每小时 5000 次）→ 等到 `x-ratelimit-reset` 再试；其他 403 → 令牌没有 gist 写权限；404 → Gist 被删，可一键重新创建；文件被截断（`truncated`，走 `raw_url`）读不全 / 内容不是合法进度 → **不覆盖**，另存原文件的备份文件到 Gist，提示并可“用本机进度重建”；schema 比本站新 → 只读合并、不覆盖、提示刷新；存储空间不足 → 不动本机进度并提示。
-- 测试用的时间调节：`window.__hovSyncTest = { debounce, maxWait, pullAfter, initialDelay, backoff }`（只在 e2e 里由 `addInitScript` 设置）。
+- 测试用的时间调节：`window.__hovSyncTest = { debounce, maxWait, pullAfter, initialDelay, backoff, heartbeat, periodic, leaseTtl, bootDelay }`（只在 e2e 里由 `addInitScript` 在页面加载前设置；`bootDelay` 是引擎启动延迟，用来模拟慢设备）。
 
 ### 令牌与安全约定（硬性）
 
 - 令牌只存在本机 `localStorage['hands-on-vue3-v1:sync']`，只用于请求 `https://api.github.com`（`syncEngine.ts` 的 `request()` 里用 `isAllowedUrl` 白名单校验：https、主机 `api.github.com`、无账号密码、无端口；读 Gist 原文的 `raw_url` 只允许 `gist.githubusercontent.com` / `gist.github.com`，且**不带令牌**）。`fetch` 一律 `referrerPolicy: 'no-referrer'`、`credentials: 'omit'`、`redirect: 'error'`、`cache: 'no-store'`。
 - 令牌不进 URL、不写日志（引擎里没有任何 `console` 调用）、不出现在错误提示和状态里（提示都是固定的中文，不回显服务器内容；状态键不含令牌；界面只显示末四位）、不进导出文件和 Gist 内容（`progress` 里没有令牌，配置在另一个键里）。输入框 `type="password"`、`autocomplete="off"`，开启后立即清空。
 - 界面上用平实的话写明：令牌存在这台设备的浏览器里；任何能在这个网站上运行脚本的东西都能读到它，所以**只给它 gist 权限**；公用电脑上用完请断开。“断开同步”删除本机的令牌和 Gist 编号，云端 Gist 是否一并删除由用户选（默认保留）。
-- 令牌类型（2026-10 对照 GitHub 官方文档核实）：面板主推**经典令牌**，只勾 `gist`：创建链接 `https://github.com/settings/tokens/new?scopes=gist&description=hands-on-vue3-sync`（`TOKEN_URL`，定义在 `logic/syncView.ts`，面板、顶栏弹层、401 提示共用）。`scopes` 预填参数是长期可用的写法，但官方文档没有写它。**细粒度令牌**官方文档的权限表（<https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens>）里有账号权限 `Gists`，只有写入一档，创建页支持用地址参数预填（`gists=write`、`expires_in`，见 <https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens>）；但权限表里 Gists 一节没有列“列出 / 读取 Gist”的接口，本站没法用真实令牌验证它能不能列出私密 Gist，所以作备选并写明，不作主推。GitHub 创建页默认过期时间是 30 天（细粒度用地址参数时 `expires_in` 缺省也是 30 天），面板里告诉用户过期后同步会停、可以选更长或不过期。
+- 令牌类型（2026-10 对照 GitHub 官方文档核实；面板里“默认 30 天”和权限预填两处都加了“以 GitHub 页面显示为准”）：面板主推**经典令牌**，只勾 `gist`：创建链接 `https://github.com/settings/tokens/new?scopes=gist&description=hands-on-vue3-sync`（`TOKEN_URL`，定义在 `logic/syncView.ts`，面板、顶栏弹层、401 提示共用）。`scopes` 预填参数是长期可用的写法，但官方文档没有写它。**细粒度令牌**官方文档的权限表（<https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens>）里有账号权限 `Gists`，只有写入一档，创建页支持用地址参数预填（`gists=write`、`expires_in`，见 <https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens>）；但权限表里 Gists 一节没有列“列出 / 读取 Gist”的接口，本站没法用真实令牌验证它能不能列出私密 Gist，所以作备选并写明，不作主推。GitHub 创建页默认过期时间是 30 天（细粒度用地址参数时 `expires_in` 缺省也是 30 天），面板里告诉用户过期后同步会停、可以选更长或不过期。
 - 开发和测试里**不用任何真实令牌、不创建真实 Gist**：`tests/site/sync.test.js` 用 Playwright 的 `route` 拦截 `api.github.com`，接内存里的假 Gist 服务（`tests/site/_fakegithub.mjs`）；没接假服务的浏览器上下文里，发往 github 的请求一律中止并记下来（断言一个都没有）。令牌是带标记的假字符串，全程搜索它有没有出现在 DOM、控制台、请求地址、Referer、导出文件、Gist 内容、断开后的 localStorage。
 
 ### 改进度结构时怎样保持合并兼容

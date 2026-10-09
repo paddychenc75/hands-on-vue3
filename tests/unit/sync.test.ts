@@ -8,7 +8,9 @@ import {
   ago,
   backoffDelay,
   classify,
+  LEASE_TTL,
   isAllowedUrl,
+  leaseFree,
   lastFour,
   looksLikeToken,
   nextPage,
@@ -182,3 +184,28 @@ describe('其他小函数', () => {
     expect(parseGistId('hello')).toBe(null);
   });
 });
+
+describe('联网负责人的租约', () => {
+  const now = 100_000
+  it('没有租约、租约是自己的：可以当负责人', () => {
+    expect(leaseFree(null, 'a', now, true)).toBe(true)
+    expect(leaseFree({ id: 'a', at: now, vis: true }, 'a', now, false)).toBe(true)
+  })
+  it('别人的租约还新鲜：不能抢（都可见，或自己不可见）', () => {
+    expect(leaseFree({ id: 'b', at: now - 5000, vis: true }, 'a', now, true)).toBe(false)
+    expect(leaseFree({ id: 'b', at: now - 1000, vis: true }, 'a', now, false)).toBe(false)
+    expect(leaseFree({ id: 'b', at: now - 1000, vis: false }, 'a', now, false)).toBe(false)
+  })
+  it('15 秒没续约就算失效', () => {
+    expect(leaseFree({ id: 'b', at: now - LEASE_TTL, vis: true }, 'a', now, false)).toBe(false)
+    expect(leaseFree({ id: 'b', at: now - LEASE_TTL - 1, vis: true }, 'a', now, false)).toBe(true)
+    expect(leaseFree({ id: 'b', at: now - 1000, vis: true }, 'a', now, false, 500)).toBe(true)
+  })
+  it('可见页面可以接管不可见页面，反过来不行', () => {
+    expect(leaseFree({ id: 'b', at: now, vis: false }, 'a', now, true)).toBe(true)
+    expect(leaseFree({ id: 'b', at: now, vis: true }, 'a', now, false)).toBe(false)
+  })
+  it('租约内容坏了按没有租约处理', () => {
+    expect(leaseFree({ id: 5 } as any, 'a', now, false)).toBe(true)
+  })
+})

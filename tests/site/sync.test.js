@@ -15,11 +15,17 @@ const R = makeReporter()
 const CH = loadChapters().filter(c => c.stage != null && !c.optional && c.scAnswers.length > 0)
 const TOKEN = 'ghp_ZZTESTMARKERTOKEN0123456789abcdef'
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=hands-on-vue3-sync'
-const TUNE = { debounce: 250, maxWait: 500, pullAfter: 0, initialDelay: 100, backoff: 150 }
+// 测试里把防抖、退避、心跳缩短（页面加载前由 addInitScript 注入）；真实时长另有一组断言（见“真实时长”一节）。
+// SYNC_THROTTLE=4 用 CDP 给每个页面降 CPU（模拟 CI 上慢 4 倍的机器）；等待条件一律轮询到成立或超时，超时按降速倍数放大。
+// SYNC_ONLY=lease 只跑“引擎晚启动 / 租约接管 / 兜底定时器 / 真实时长”那一组（用来在旧代码上复现缺陷）。
+const TUNE = { debounce: 250, maxWait: 500, pullAfter: 0, initialDelay: 100, backoff: 150, heartbeat: 500, periodic: 3000, leaseTtl: 3000 }
+const K = Math.max(1, Number(process.env.SYNC_THROTTLE) || 1)
+const ONLY = process.env.SYNC_ONLY || ''
 const SHOTS = process.env.SYNC_SHOTS
 const FILE = 'hands-on-vue3-progress.json'
 const sleep = ms => new Promise(r => setTimeout(r, ms))
-const until = async (fn, ms = 8000, step = 100) => {
+const until = async (fn, ms = 30000, step = 100) => {
+  ms = Math.max(ms, 30000) * Math.max(1, K / 2)
   const t = Date.now()
   while (Date.now() - t < ms) {
     try {
@@ -47,6 +53,7 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
     else await ctx.route(/^https:\/\/(api\.github\.com|gist\.githubusercontent\.com|gist\.github\.com)\//, route => { all.blocked.push(route.request().url()); route.abort() })
     const d = { ctx, errs: [], logs: [], reqs: [] }
     ctx.on('page', p => {
+      if (K > 1) ctx.newCDPSession(p).then(c => c.send('Emulation.setCPUThrottlingRate', { rate: K })).catch(() => {})
       p.on('console', m => d.logs.push(m.text()))
       p.on('pageerror', e => d.errs.push(e.message))
       p.on('request', r => d.reqs.push({ url: r.url(), headers: r.headers() }))
@@ -75,10 +82,14 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
     }, [STORE_KEY, id])
     await p.goto(url(c))
     await p.waitForSelector('.chapter-foot')
-    await p.waitForTimeout(300)
     const box = p.locator('.vp-doc .sc:not(.predict)').nth(0)
-    await box.locator('.sc-o').nth(c.scAnswers[0]).click()
-    await box.locator('.sc-o.right').waitFor()
+    // 慢设备上页面还没水合完时点击没有效果：点到出现“答对”为止
+    const right = box.locator('.sc-o.right')
+    ok(await until(async () => {
+      if (await right.count()) return true
+      await box.locator('.sc-o').nth(c.scAnswers[0]).click({ timeout: 3000 }).catch(() => {})
+      return (await right.count()) > 0
+    }), '学一章：答对第 1 道自测 ' + id)
   }
   async function openPanel(p) {
     await p.goto(base + '/roadmap.html#sync')
@@ -118,17 +129,134 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
     await p.waitForTimeout(150)
   }
 
+
+  /** 后台同步不能只靠一个事件源（React 课在 CI 上暴露的缺陷：引擎还没启动、锁被后台页面占着、定时器丢了） */
+  async function leaseSection() {
+    const ghs = fakeGitHub()
+    ghs.st.valid.add(TOKEN)
+    const remoteHas = (g, id) => g.remote(FILE)?.progress[id]?.done === true
+    const LEASE = STORE_KEY + ':sync-lease'
+
+    // (1) 引擎还没加载好（慢设备）时就保存了进度：不能漏掉，引擎启动后要推上去（不依赖启动前的事件）
+    const S = await device(ghs, { tune: { ...TUNE, bootDelay: 6000 } })
+    await enable(S.page)
+    await learn(S.page, ids[0]) // 整页跳转后引擎要 6 秒才启动，这期间已经保存
+    ok((await prog(S.page))[ids[0]]?.done && !remoteHas(ghs, ids[0]), '引擎启动前：进度已保存在本机，云端还没有')
+    ok(await until(() => remoteHas(ghs, ids[0]), 45000), '引擎启动前保存的进度，启动后也会推送到云端')
+    await S.ctx.close()
+
+    // (2) 持租约的页面被冻结（后台页面被浏览器冻结或丢弃）：另一个可见页面几秒内接管并推送
+    const ghf = fakeGitHub()
+    ghf.st.valid.add(TOKEN)
+    const F = await device(ghf)
+    await enable(F.page)
+    const holder = p => p.evaluate(k => JSON.parse(localStorage.getItem(k) || 'null')?.id, LEASE)
+    const h0 = await holder(F.page) // 换页之前的持有者（整页跳转时旧页面释放租约，新页面再取得，id 会变）
+    await F.page.goto(base + '/roadmap.html')
+    await F.page.waitForSelector('.sync-badge')
+    const first = await until(async () => { const h = await holder(F.page); return h && h !== h0 && h })
+    ok(!!first, '有一个页面持有联网租约（localStorage 里的 :sync-lease）')
+    const F2 = await F.ctx.newPage()
+    F2.on('pageerror', e => F.errs.push(e.message))
+    await F2.goto(base + '/roadmap.html')
+    await F2.waitForSelector('.sync-badge')
+    await F2.bringToFront()
+    // 让持有者页面的 JS 停住（心跳和定时器都不再跑），就像后台页面被浏览器冻结：用调试器暂停，比 Page.setWebLifecycleState 可靠
+    const cdp = await F.ctx.newCDPSession(F.page)
+    await cdp.send('Debugger.enable')
+    await cdp.send('Debugger.pause')
+    await learn(F2, ids[1])
+    ok(await until(() => remoteHas(ghf, ids[1]), 45000), '持租约的页面被冻结后，另一个页面接管并把进度推送到云端')
+    const second = await holder(F2)
+    ok(second && second !== first, '租约换成了另一个页面', `${first} -> ${second}`)
+    await cdp.send('Debugger.resume').catch(() => {})
+    await F.ctx.close()
+
+    // (3) 页面关闭时释放租约：另一个页面不用等到过期
+    const ghc = fakeGitHub()
+    ghc.st.valid.add(TOKEN)
+    const C = await device(ghc, { tune: { ...TUNE, leaseTtl: 600000 } }) // 过期时间很长：只有“释放”才能让别人接管
+    await enable(C.page)
+    const hc0 = await holder(C.page)
+    await C.page.goto(base + '/roadmap.html')
+    await C.page.waitForSelector('.sync-badge')
+    const c1 = await until(async () => { const h = await holder(C.page); return h && h !== hc0 && h })
+    const C2 = await C.ctx.newPage()
+    await C2.goto(base + '/roadmap.html')
+    await C2.waitForSelector('.sync-badge')
+    ok(await holder(C2) === c1, '另一个页面看到租约还在原来的持有者手里')
+    await C.page.close({ runBeforeUnload: true })
+    ok(await until(async () => { const h = await holder(C2); return h && h !== c1 }), '持有者页面关闭时释放租约，另一个页面接管（不用等租约过期）')
+    await C.ctx.close()
+
+    // (4) 兜底：防抖定时器很久才到点（或事件丢了）时，低频检查也会把没推送的更改推出去
+    const ghp = fakeGitHub()
+    ghp.st.valid.add(TOKEN)
+    const P = await device(ghp, { tune: { ...TUNE, debounce: 3_600_000, maxWait: 3_600_000, periodic: 2000 } })
+    await enable(P.page)
+    await P.page.goto(url(chap(ids[0])))
+    await P.page.waitForSelector('.chapter-foot')
+    ok(await until(() => holder(P.page)), '引擎已经在运行并持有租约')
+    await sleep(500 * K)
+    const pbox = P.page.locator('.vp-doc .sc:not(.predict)').nth(0)
+    ok(await until(async () => {
+      if ((await prog(P.page))[ids[0]]?.sc?.[0] !== undefined) return true
+      await pbox.locator('.sc-o').nth(chap(ids[0]).scAnswers[0]).click({ timeout: 3000 }).catch(() => {})
+      return (await prog(P.page))[ids[0]]?.sc?.[0] !== undefined
+    }), '引擎运行中答一道自测（保存）')
+    ok(await until(() => ghp.remote(FILE)?.progress[ids[0]]?.sc?.[0] !== undefined, 45000), '防抖定时器要一小时才到点，低频兜底检查仍把没推送的更改推上去')
+    await P.ctx.close()
+
+    // (5) 因网络问题暂停了自动重试的：低频检查恢复它
+    const ghn = fakeGitHub()
+    ghn.st.valid.add(TOKEN)
+    const N = await device(ghn, { tune: { ...TUNE, periodic: 2000, backoff: 20 } })
+    await enable(N.page)
+    ghn.st.mode = 'offline'
+    await learn(N.page, ids[2])
+    ok(await until(async () => /"pending"/.test(await syncStatus(N.page))), '断网：状态是“有未同步的更改”')
+    // 连续失败到上限会暂停自动重试（MAX_ATTEMPTS = 8，退避 150ms 起步）；恢复联网后不触发 online 事件，靠低频检查恢复
+    await sleep(8000 * K)
+    ghn.st.mode = 'ok'
+    ok(await until(() => remoteHas(ghn, ids[2]), 60000), '恢复联网后（没有 online 事件）低频检查重启了暂停的自动重试并推送')
+    await N.ctx.close()
+
+    // (6) 真实时长（不缩短防抖、心跳、轮询间隔）：改动后等防抖（约 6 秒）再推送
+    const ghr = fakeGitHub()
+    ghr.st.valid.add(TOKEN)
+    const Rl = await device(ghr, { tune: null })
+    await enable(Rl.page)
+    await learn(Rl.page, ids[0])
+    ok(await until(() => remoteHas(ghr, ids[0]), 60000), '真实时长：学完一章后自动推送到云端')
+    // 引擎已经在运行：再改一处（自我解释的笔记），推送要等防抖（6 秒，最长 10 秒）。
+    // 不拿“学完一章”计时：慢设备上引擎启动晚于保存，启动后会立刻推送，那是对的
+    await Rl.page.fill('#sx-' + ids[0], '我的笔记：用来测试同步的防抖时长')
+    const t0 = Date.now()
+    const w0 = ghr.writes().length
+    ok(await until(() => ghr.remote(FILE)?.progress[ids[0]]?.note?.includes('防抖时长'), 60000), '真实时长：改动后自动推送')
+    const dt = Date.now() - t0
+    ok(dt >= 4500 && dt <= 30000 * K, '真实时长：推送等了防抖（约 6 秒，不是每次改动立刻推送）', String(dt))
+    ok(ghr.writes().length - w0 <= 2, '真实时长：多次输入合并成一次推送', String(ghr.writes().length - w0))
+    await Rl.ctx.close()
+  }
+
   try {
+    if (ONLY === 'lease') {
+      await leaseSection()
+      await site.stop()
+      console.log(R.bad ? '有 ' + R.bad + ' 项失败' : '全部通过')
+      process.exit(R.bad ? 1 : 0)
+    }
     /* =============== 0. 没开启同步：不加载同步代码、不发 github 请求；面板里的指引 =============== */
     {
       const d = await device(null)
       await d.page.goto(base + '/roadmap.html')
       await d.page.waitForSelector('.roadmap')
-      await d.page.waitForTimeout(1500)
+      await d.page.waitForTimeout(1500 * K)
       await learn(d.page, ids[0])
       await d.page.goto(base + '/roadmap.html')
       await d.page.waitForSelector('#sync')
-      await d.page.waitForTimeout(1500)
+      await d.page.waitForTimeout(1500 * K)
       const urls = d.reqs.map(r => r.url)
       ok(!urls.some(u => /github\.com|githubusercontent\.com/.test(u)), '未开启同步：不发任何到 github.com 的请求')
       ok(!urls.some(u => /syncEngine|syncFormat/.test(u)), '未开启同步：不加载同步引擎 chunk')
@@ -154,6 +282,7 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       const steps = await d.page.locator('.sync-steps li').allTextContents()
       ok(steps.length === 3, '展开后是三步指引', String(steps.length))
       ok(/创建令牌/.test(steps[0]) && /新标签页/.test(steps[0]), '第 1 步：点“创建令牌”链接，新标签页打开', steps[0])
+      ok(/需要先登录 GitHub，页面是英文的/.test(steps[0]) && /以 GitHub 页面显示为准/.test(steps[0]), '第 1 步：需要先登录 GitHub、页面是英文的；权限预填以 GitHub 页面显示为准', steps[0])
       ok(/Generate token/.test(steps[1]) && /ghp_/.test(steps[1]) && /只显示一次/.test(steps[1]), '第 2 步：最下面点 Generate token，复制 ghp_ 开头的字符，只显示一次', steps[1])
       ok(/粘贴/.test(steps[2]) && /开启同步/.test(steps[2]) && /先检查令牌能不能用/.test(steps[2]) && /第一次同步/.test(steps[2]), '第 3 步：粘贴、点“开启同步”，先检查令牌再做第一次同步', steps[2])
       const link = d.page.locator('.sync-steps a')
@@ -164,6 +293,8 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       ok((await link.getAttribute('target')) === '_blank' && (await link.getAttribute('rel')) === 'noopener noreferrer', '链接在新标签页打开，rel=noopener noreferrer')
       const notes = await d.page.locator('.sync-notes').textContent()
       ok(/只勾 gist 权限，别的都不要勾/.test(notes) && /碰不到你的代码仓库/.test(notes), '说明：只勾 gist 权限，令牌泄露也碰不到代码仓库')
+      ok(/默认 30 天（以 GitHub 页面显示为准）/.test(notes), '说明：“默认 30 天”后面有“以 GitHub 页面显示为准”', notes)
+      ok(/把一章改回未完成，可能被另一台设备的已完成带回来/.test(notes), '说明：开启同步后把一章改回未完成，可能被另一台设备的已完成带回来', notes)
       ok(/过期/.test(notes) && /默认 30 天/.test(notes) && /同步会停/.test(notes) && /不过期/.test(notes), '说明：过期时间默认 30 天，过期后同步会停，可以选更长或不过期')
       ok(/在另一台设备上/.test(notes) && /重复第 3 步/.test(notes) && /同一个 GitHub 账号/.test(notes) && /hands-on-vue3-progress\.json/.test(notes) && /手动填 Gist/.test(notes), '说明：另一台设备重复第 3 步，同一账号，怎样找到同一份 Gist')
       ok(/Gists/.test(await d.page.textContent('.sync-fine')) && (await d.page.locator('.sync-fine a').getAttribute('href')).includes('gists=write'), '备选的细粒度令牌：写明官方权限表里有 Gists（只有写入），链接预填 gists=write')
@@ -240,6 +371,7 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       await A.page.click('#sync-pop a:has-text("同步设置")')
       await A.page.waitForURL(/roadmap.*#sync/)
       ok(await until(() => A.page.evaluate(() => document.querySelector('#sync')?.open)), '在章页点“同步设置”：跳到课程地图并展开面板')
+      ok(await until(() => A.page.evaluate(() => document.activeElement?.tagName === 'SUMMARY' && document.activeElement.parentElement.id === 'sync')), '点“同步设置”后焦点在面板标题上')
 
       // B 开启同步，看到第 1 章
       const msgB = await enable(B.page)
@@ -260,20 +392,17 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       const burst = gh.writes().length - w0
       ok(burst >= 1 && burst <= 3, '多次改动被防抖合并，没有逐次推送', String(burst))
       await A.page.goto(base + '/roadmap.html')
-      await foreground(A.page)
-      ok(await until(async () => (await doneIds(A.page)).join() === [ids[0], ids[1]].sort().join()), 'A 回到前台后拉取并合并，两章都完成')
+      ok(await until(async () => { await foreground(A.page); return (await doneIds(A.page)).join() === [ids[0], ids[1]].sort().join() }), 'A 回到前台后拉取并合并，两章都完成')
       ok(await until(async () => /已完成 2\//.test(await A.page.textContent('.np-txt'))), 'A 的顶栏进度随之更新')
       const n304 = gh.st.n304
-      await foreground(A.page)
-      await sleep(800)
-      ok(gh.st.n304 > n304, '远端没变时用 If-None-Match 得到 304，不重复下载')
+      ok(await until(async () => { await foreground(A.page); return gh.st.n304 > n304 }), '远端没变时用 If-None-Match 得到 304，不重复下载')
       ok(gh.st.log.some(r => r.ifNoneMatch), '请求带 If-None-Match')
       // 只读一章（只改阅读位置）不触发推送
       const w1 = gh.writes().length
       await A.page.goto(url(chap(ids[5])))
       await A.page.waitForSelector('.chapter-foot')
-      await sleep(1800)
-      ok((await prog(A.page)).__last?.path === chap(ids[5]).link, '读一章会记下阅读位置')
+      ok(await until(async () => (await prog(A.page)).__last?.path === chap(ids[5]).link), '读一章会记下阅读位置')
+      await sleep(1500 * K) // 没有事情发生的断言只能等一段时间：防抖 250ms，远超过它
       ok(gh.writes().length === w1, '只改阅读位置（读一章）不触发推送')
       // 弹层上的“进度已从另一台设备更新”
       await shot(A.page, 'sync-chapter-page', { clip: { x: 0, y: 0, width: 1440, height: 400 } })
@@ -284,13 +413,13 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       const A2 = await A.ctx.newPage()
       A2.on('pageerror', e => A.errs.push(e.message))
       await A2.goto(base + '/roadmap.html')
-      await sleep(800)
+      await A2.waitForSelector('.sync-badge')
       await A.page.bringToFront()
       const w0 = gh.writes().length
       await learn(A2, ids[2])
       const pushed2 = await until(() => gh.remote(FILE)?.progress[ids[2]]?.done === true)
       ok(pushed2, '多标签页：另一个标签页学的内容推送到了云端')
-      await sleep(1200)
+      await sleep(1200 * K)
       const w = gh.writes().length - w0
       ok(w >= 1 && w <= 3, '多标签页：没有两个标签页同时推送（写入次数合理）', String(w))
       ok(await until(async () => (await doneIds(A.page)).includes(ids[2])), '第一个标签页的本机进度里也有了这一章')
@@ -312,7 +441,12 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       gh2.st.mode = 'offline'
       await learn(X.page, ids[1])
       await learn(Y.page, ids[2])
-      // 同一张卡两边都复习过：Y 的更新、box 更高
+      // 同一张卡两边都复习过：Y 的更新、box 更高。直接改 localStorage 要在没有动过的页面上做：
+      // 章页在离开时（pagehide）会把内存里的进度存回去，会冲掉手改的内容；课程地图页没有这个保存
+      await X.page.goto(base + '/roadmap.html')
+      await Y.page.goto(base + '/roadmap.html')
+      await X.page.waitForSelector('.roadmap')
+      await Y.page.waitForSelector('.roadmap')
       const now = Date.now()
       const key = ids[0] + '#0'
       await X.page.evaluate(([k, c, t]) => { const p = JSON.parse(localStorage.getItem(k)); p.__srs[c] = { box: 1, n: 2, due: t + 864e5, last: t - 5000 }; localStorage.setItem(k, JSON.stringify(p)) }, [STORE_KEY, key, now])
@@ -322,29 +456,25 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       const noteY = 'Y 设备上写的：reactive 代理对象，解构会丢响应性，所以要用 toRefs 或者直接写 ref。'
       await X.page.goto(url(chap(ids[0])))
       await X.page.fill('#sx-' + ids[0], noteX)
-      await sleep(300)
+      await X.page.waitForFunction(([k, n]) => (JSON.parse(localStorage.getItem(k) || '{}')[n.id] || {}).note === n.text, [STORE_KEY, { id: ids[0], text: noteX }])
       await Y.page.goto(url(chap(ids[0])))
       await Y.page.fill('#sx-' + ids[0], noteY)
-      await sleep(1500)
-      ok(/pending/.test(await syncStatus(X.page)), '离线时状态是“有未同步的更改”')
+      ok(await until(async () => /pending/.test(await syncStatus(X.page))), '离线时状态是“有未同步的更改”')
       const noteTs = (await prog(Y.page))[ids[0]].ts
       ok(noteTs && typeof noteTs.note === 'number', '写笔记时存储层盖了改动时间戳 ts.note（没有开同步的存储层也会盖）', JSON.stringify(noteTs))
       gh2.st.mode = 'ok'
       await learn(X.page, ids[3])
       await learn(Y.page, ids[4])
       const want = [ids[0], ids[1], ids[2], ids[3], ids[4]].sort().join()
-      await sleep(1500)
-      await foreground(X.page)
-      await foreground(Y.page)
-      await sleep(1500)
-      await foreground(X.page)
-      ok(await until(async () => (await doneIds(X.page)).join() === want && (await doneIds(Y.page)).join() === want, 20000), '离线各学后上线，最终两边都包含所有章', `${await doneIds(X.page)} | ${await doneIds(Y.page)}`)
+      ok(await until(async () => { await foreground(X.page); await foreground(Y.page); if ((await doneIds(X.page)).join() !== want || (await doneIds(Y.page)).join() !== want) return false
+        const cx0 = await cards(X.page)
+        return canon(cx0) === canon(await cards(Y.page)) && cx0[key]?.box === 4 && !!cx0[ids[1] + '#0'] && !!cx0[ids[2] + '#0'] && !!cx0[ids[4] + '#0'] }, 45000), '离线各学后上线，最终两边都包含所有章，复习卡片也收敛', `${await doneIds(X.page)} | ${await doneIds(Y.page)}`)
       const cx = await cards(X.page)
       const cy = await cards(Y.page)
       ok(canon(cx) === canon(cy), '两边的复习卡片完全一致（并集）')
       ok(cx[ids[2] + '#0'] && cx[ids[1] + '#0'] && cx[ids[4] + '#0'], '复习卡片是并集：每台设备各自的卡都在')
       ok(cx[key].box === 4 && cx[key].n === 5, '同一张卡两边都复习过时保留较新的那条（整条取，不混拼）', JSON.stringify(cx[key]))
-      ok(await until(() => canon(gh2.remote(FILE)?.progress.__srs) === canon(cx)), '云端也是合并后的结果')
+      ok(await until(async () => canon(gh2.remote(FILE)?.progress.__srs) === canon(await cards(X.page))), '云端也是合并后的结果')
       const nx = (await prog(X.page))[ids[0]]
       const ny = (await prog(Y.page))[ids[0]]
       ok(nx.note === noteY && ny.note === noteY, '两边写了不同的笔记：较新的一份是正文', `${nx.note} | ${ny.note}`)
@@ -406,7 +536,7 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       ok((await E.page.locator('#sync-token2').count()) === 1, '401：出现“换一个新令牌”的输入')
       ok((await E.page.locator('.sync-form a[href="' + TOKEN_URL + '"]').count()) === 1, '401：面板里有“重新创建令牌”的同一个链接（scopes=gist）')
       const n401 = gh3.st.log.length
-      await sleep(1200)
+      await sleep(1200 * K)
       ok(gh3.st.log.length === n401, '401：停止自动同步，不再重试')
       await scrollTo(E.page, '.sync-status')
       await shot(E.page, 'sync-error-401')
@@ -425,7 +555,7 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
 
       // 4b. 403 限速：读 x-ratelimit-reset，到点自动再试
       gh3.st.mode = 'rate'
-      gh3.st.rateReset = Date.now() + 2500
+      gh3.st.rateReset = Date.now() + 2500 * K
       await E.page.click('.sync-actions button:has-text("立即同步")')
       ok(await until(async () => /限制了请求次数/.test(await stText()), 5000), '403 限速：提示稍后自动重试', await stText())
       ok(canon(await prog(E.page)) === base0, '限速之后本地进度不变')
@@ -570,7 +700,7 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       const gitReqs = () => A.reqs.filter(r => /github\.com/.test(r.url)).length
       const before = gitReqs()
       await learn(A.page, ids[6])
-      await sleep(1500)
+      await sleep(1500 * K)
       ok(gitReqs() === before, '断开后这个页面不再发任何到 github.com 的请求')
       // B 断开时保留云端
       await openPanel(B.page)
@@ -597,6 +727,9 @@ const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !A
       await A.ctx.close()
       await B.ctx.close()
     }
+
+    /* =============== 6b. 后台同步不能只靠一个事件源 =============== */
+    await leaseSection()
 
     /* =============== 7. 手机宽度与深色：开启后的面板和标记 =============== */
     {

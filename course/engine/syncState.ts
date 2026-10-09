@@ -90,5 +90,7 @@ export function bootSync(): void {
   window.addEventListener('storage', e => {
     if (e.key === SYNC_KEY) go()
   })
-  if (readConfig()) setTimeout(go, 600)
+  // 启动延迟只有测试用（e2e 里模拟慢设备：引擎晚加载，期间用户保存的进度也要被推送）
+  const t = (window as { __hovSyncTest?: { bootDelay?: number } }).__hovSyncTest
+  if (readConfig()) setTimeout(go, t?.bootDelay ?? 600)
 }

@@ -15,6 +15,7 @@ import {
   backoffDelay,
   classify,
   isAllowedUrl,
+  leaseFree,
   looksLikeToken,
   nextPage,
   parseGistId,
@@ -172,6 +173,9 @@ function applyLocal(next: Obj, o: { backup?: string }): void {
 let cfg: SyncConfig | null = null;
 let started = false;
 let isLeader = false;
+let nextAt = 0; // 已安排的下一次同步的时间（0 表示没有安排）
+const tabId = Math.random().toString(36).slice(2, 10);
+const LEASE_KEY = STORE_KEY + ':sync-lease';
 let running = false;
 let rerun = false;
 let stopped = false; // 出错需要人处理，或连续失败太多：不再自动重试
@@ -237,7 +241,18 @@ function markDirty(): void {
 }
 function schedule(ms: number): void {
   clearTimeout(timer);
-  timer = setTimeout(() => void cycle('timer'), ms);
+  nextAt = Date.now() + ms;
+  timer = setTimeout(() => {
+    nextAt = 0;
+    void cycle('timer');
+  }, ms);
+}
+/** 有没有没推送的改动：不依赖任何事件，只拿现在的进度签名和上次同步完成时存的比。引擎还没启动时、页面被冻结时、事件丢了时发生的改动都不会漏 */
+function refreshDirty(): void {
+  if (dirty || sigOf() === readStatus().sig) return;
+  dirty = true;
+  changeSeq++;
+  firstDirty = lastChange = Date.now();
 }
 
 function remoteChangedNotice(n: number): void {
@@ -381,6 +396,7 @@ async function cycle(reason: string, manual = false): Promise<{ ok: true; res: C
   setStatus({ state: 'syncing' });
   try {
     reconcile();
+    refreshDirty();
     const res = await core(cfg, manual && reason === 'force');
     attempts = 0;
     stopped = false;
@@ -420,9 +436,10 @@ export function start(): void {
   if (!cfg || started) return;
   started = true;
   // 页面刚加载、同步引擎还没起来（约 0.6 秒）时发生的改动没有 hov-saved 通知可听：拿现在的签名和上次同步完成时存的比，不同就是有没推送的改动
+  // （没有存过签名也算有没推送的改动：第一次同步完成时才会存）
   const st0 = readStatus();
-  cleanSig = st0.sig ?? sigOf();
-  dirty = !!st0.dirty || sigOf() !== cleanSig;
+  cleanSig = st0.sig ?? '';
+  dirty = !!st0.dirty || sigOf() !== st0.sig;
   if (dirty && !st0.dirty) setStatus({ dirty: true, state: 'pending' });
   firstDirty = lastChange = Date.now();
   setStatus({ remoteChanged: undefined });
@@ -447,34 +464,83 @@ export function start(): void {
       void cycle('online');
     }
   });
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') return flushKeepalive();
-    if (!isLeader || !cfg) return;
-    const st = readStatus();
-    if (stopped && st.state !== 'pending') return;
-    if (shouldPullOnForeground(st.pulledAt || 0, Date.now(), tune().pullAfter)) {
-      stopped = false;
-      attempts = 0;
-      void cycle('foreground');
+  const onVisible = () => {
+    if (document.visibilityState === 'hidden') {
+      tryLead() // 把“我现在不可见”写进租约，可见的标签页可以接管
+      return flushKeepalive()
     }
-  });
-  window.addEventListener('pagehide', flushKeepalive);
+    tryLead()
+    if (!isLeader || !cfg) return
+    const st = readStatus()
+    if (stopped && st.state !== 'pending') return
+    if (shouldPullOnForeground(st.pulledAt || 0, Date.now(), tune().pullAfter)) {
+      stopped = false
+      attempts = 0
+      void cycle('foreground')
+    }
+  }
+  document.addEventListener('visibilitychange', onVisible)
+  window.addEventListener('pageshow', onVisible)
+  window.addEventListener('focus', onVisible)
+  window.addEventListener('pagehide', () => {
+    flushKeepalive()
+    releaseLease()
+  })
+  // 兜底：不依赖任何事件的低频检查。租约心跳每 5 秒一次（持有者被冻结或关闭后，可见的标签页最多 15 秒内接管）；
+  // 每 60 秒看一次有没有没推送的更改，没有马上要到点的同步就立刻做；因网络问题暂停了自动重试的，也在这里恢复
+  setInterval(tryLead, tune().heartbeat ?? 5000)
+  setInterval(() => {
+    if (!cfg || !isLeader || running) return
+    const st = readStatus()
+    if (stopped && st.state === 'pending') {
+      stopped = false
+      attempts = 0
+    }
+    if (stopped) return
+    if (nextAt > Date.now() - 1000 && nextAt < Date.now() + 15_000) return // 已有马上要到点的同步
+    if (dirty || sigOf() !== st.sig || st.state === 'pending') void cycle('periodic')
+  }, tune().periodic ?? 60_000)
   try {
-    bc = new BroadcastChannel('hov-sync');
+    bc = new BroadcastChannel('hov-sync')
     bc.onmessage = e => {
-      if (e.data === 'sync-now' && isLeader) void cycle('manual', true);
-    };
+      if (e.data === 'sync-now' && isLeader) void cycle('manual', true)
+    }
   } catch {}
-  const lead = () => {
-    isLeader = true;
-    setTimeout(() => void cycle('load'), tune().initialDelay ?? 300);
-  };
-  if (navigator.locks?.request) {
-    navigator.locks.request('hov-sync-leader', () => {
-      lead();
-      return new Promise<void>(() => {});
-    });
-  } else lead();
+  tryLead()
+}
+
+/** 谁负责联网：租约（localStorage 里的 `:sync-lease`，持有者每 5 秒续约，超过 15 秒没续约就算失效；判断规则是 logic/syncPlan.ts 的 leaseFree）。
+ *  不用 Web Locks：后台标签页被冻结或丢弃时锁可能一直被占着，前台页面就没有人推送了。
+ *  可见的标签页可以接管不可见标签页的租约，所以任何时候，只要有可见页面，就有人在推送。两个页面偶尔同时联网是安全的（先读后合并，合并幂等） */
+let firstLead = true
+function tryLead(): void {
+  if (!cfg) return
+  const now = Date.now()
+  const vis = document.visibilityState !== 'hidden'
+  let l: { id: string; at: number; vis: boolean } | null = null
+  try {
+    l = JSON.parse(localStorage.getItem(LEASE_KEY) || 'null')
+  } catch {}
+  const free = leaseFree(l, tabId, now, vis, tune().leaseTtl)
+  const was = isLeader
+  isLeader = free
+  if (free) {
+    try {
+      localStorage.setItem(LEASE_KEY, JSON.stringify({ id: tabId, at: now, vis }))
+    } catch {}
+    if (!was) {
+      clearTimeout(timer)
+      timer = setTimeout(() => void cycle('lead'), firstLead ? (tune().initialDelay ?? 300) : 0)
+      firstLead = false
+    }
+  } else if (was) clearTimeout(timer)
+}
+function releaseLease(): void {
+  if (!isLeader) return
+  try {
+    const l = JSON.parse(localStorage.getItem(LEASE_KEY) || 'null')
+    if (l?.id === tabId) localStorage.removeItem(LEASE_KEY)
+  } catch {}
 }
 
 /* ---------- 给界面用的操作 ---------- */

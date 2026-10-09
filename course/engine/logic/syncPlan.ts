@@ -76,3 +76,9 @@ export function parseGistId(input: string): string | null {
   const m = /(?:^|\/)([0-9a-f]{20,40})(?:[/?#.]|$)/i.exec(s);
   return m ? m[1].toLowerCase() : null;
 }
+
+/** 联网负责人的租约（存在 localStorage 里：{ id 标签页, at 最近续约时间, vis 当时是否可见 }）。
+ *  这个标签页能不能当负责人：没有租约、租约是自己的、租约超过 ttl 没续约，或自己可见而持有者不可见（可见页面可以接管不可见页面） */
+export const LEASE_TTL = 15_000;
+export const leaseFree = (l: { id: string; at: number; vis: boolean } | null | undefined, me: string, now: number, visible: boolean, ttl = LEASE_TTL): boolean =>
+  !l || typeof l.id !== 'string' || l.id === me || now - Number(l.at) > ttl || (visible && !l.vis);

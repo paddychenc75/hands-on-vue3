@@ -23,7 +23,7 @@ course/
   writing-terms.mjs       首页“写作规则”表的数据（带“不使用的同义词”），也是术语表页“不这样说”一栏的数据（见第 7 节）
   content-parse.mjs       章节 Markdown 的纯文本解析（frontmatter、自测题、小结、术语块、阅读时间、术语汇总）。站点构建和 Node 脚本共用这一份，不再有副本
   engine/                 学习机制：types.ts（进度结构）、store.ts（单键存储、旧键迁移）、cards.ts（复习卡片）、logic/（纯逻辑，有单元测试，见 tests/unit/README.md）
-  exercises/NN-id.ts      该章的练习（自动汇总到 exercises/index.ts）；types.ts 是类型
+  exercises/NN-id.ts      该章的练习（`exercises/index.ts` 自动发现，按章懒加载）；types.ts 是类型
   card-keys.snapshot.json 复习卡片键快照，由脚本更新（规则见 AGENTS.md）
   AUTHORING.md            本文
   .vitepress/
@@ -279,7 +279,7 @@ export const counter: Exercise = {
 - 章完成标准：章内自测**全部答对** + 本章练习**全部通过**，达到后自动标记完成（没有手动按钮）。借助答案通过的练习也算通过，但章末的“掌握标准”条会单独标注。
 - **提示阶梯**（规则见第 10 节）：练习下面的按钮分三级，没解锁时是锁定状态并写明条件。`hints` 是**一整级**：第一级解锁后，多条提示用“下一级提示”逐条展开。参考答案是 `solTpl`/`solJs`（省略的那段用 `tpl`/`js`）。点参考答案时，编辑器里原来的代码会先存下来，可以点“找回我的代码”。
 - **半成品 `faded`（必填）**：参考答案的“半成品”，关键处挖空，让学习者补全，比直接看答案学得多。`check:content` 要求每道练习都写。
-  - 写法：`faded: { tpl?, js? }`，只写有改动的那一段，没写的那段用起始代码补上（和 `Exercise.vue` 一致：`faded.tpl || tpl`、`faded.js || js`）。
+  - 写法：`faded: { tpl?, js? }`，只写有改动的那一段，没写的那段用起始代码补上（和 `ExerciseRunner.vue` 一致：`faded.tpl || tpl`、`faded.js || js`）。
   - 挖空：一般挖 1 到 4 处。脚本里写 `/* ✏️ 说明 */`，模板里元素位置写 `<!-- ✏️ 说明 -->`；落在 `{{ }}` 或属性表达式里时只能用 `/* ✏️ 说明 */`。说明写“要做什么”，不写答案。其余照参考答案写。
   - 三条硬要求：**原样提交不能通过**；补全后能通过（就是参考答案）；**不能与参考答案完全相同**。另外不能含 `WRONG_SUB_FAILED`，至少有 1 个 `✏️` 占位。`check:content` 查静态的几条，`tests/site/exercises.test.js` 真的把半成品原样提交一次，确认不通过。
   - 阶梯里“没有半成品时只有提示和参考答案两级”的规则仍在引擎里，测试用练习根元素上的 `__setFaded(undefined)` 临时去掉它来验证，`__setFaded({ tpl, js })` 临时换一份（见 `tests/site/mechanics.test.js`）。
@@ -518,10 +518,10 @@ let count = 0
 
 复习卡片要用各章自测题的题干、选项、解析，自我解释要用各章的小结，进度功能要知道每章的阶段、有几道自测和它们的正确答案、哪些练习。这些信息只存在于各章 `.md`，所以在**构建时**抽取：
 
-- `.vitepress/course-data.mts` 是一个 Vite 插件，提供四个虚拟模块；抽取用的解析函数（自测题、小结、术语块、阅读时间、frontmatter）在 `course/content-parse.mjs`，**站点和 Node 脚本（`check:content`、`new-chapter`）共用这一份**，没有副本：
-  - `virtual:course-meta`：每章的元数据（id、文件名、标题、阶段（没有阶段的页面是 null）、章号、自测题数、自测正确答案 `scAnswers`、练习 id 列表、阶段测验专用题数 `checkCount`、阅读时间文字 `rt`）。很小，章页面都会载入（章完成判定、侧边栏标记、首页、复习题数用）。
-  - `virtual:course-selfchecks`：每道自测题的键（`章id:序号`）、正确选项、渲染成 HTML 的题干、选项、解析。很大，所以只在需要时动态载入（`composables/catalog.ts`：课前热身、复习页、阶段测验页），章页面平时不载入它。
-  - `virtual:course-summaries`：每章 `::: summary` 小结块的内容，渲染成 HTML（章 id → HTML）。自我解释写够字后在页面里显示它。
+- `.vitepress/course-data.mts` 是一个 Vite 插件，提供几个虚拟模块；抽取用的解析函数（自测题、小结、术语块、阅读时间、frontmatter）在 `course/content-parse.mjs`，**站点和 Node 脚本（`check:content`、`new-chapter`）共用这一份**，没有副本：
+  - `virtual:course-meta`：每章的元数据（id、文件名、标题、阶段（没有阶段的页面是 null）、章号、自测题数、自测正确答案 `scAnswers`、练习 id 列表、阶段测验专用题数 `checkCount`、阅读时间文字 `rt`、练习标题 `exTitles`）。很小，章页面都会载入（章完成判定、侧边栏标记、首页、复习题数用）。**练习标题**从 `exercises/<章>.ts` 的文本里读（`parseExerciseTitles`，不执行文件，要求 `title: '…'` 写成单行字面量），所以练习定义还没载入时，占位和章末“掌握标准”条也能显示练习名。
+  - `virtual:course-selfchecks`：全部章的自测题：键（`章id:序号`）、正确选项、渲染成 HTML 的题干、选项、解析。很大，只有复习页和阶段测验页动态载入（`composables/catalog.ts` 的 `loadCatalog`，连同阶段测验题库）。
+  - `virtual:course-loaders`：按章载入的入口表。`selfcheckLoaders[章id]()` 取这一章的自测题（课前热身先用卡片键和复习记录挑出 2 道，再只取这 2 道所在的章，见 `loadScCards`）；`summaryLoaders[章id]()` 取这一章 `::: summary` 小结块渲染成的 HTML（自我解释写够字后显示它）。数据在 `virtual:course-selfchecks/<章id>`、`virtual:course-summaries/<章id>`，每章一个小分块。
   - `virtual:course-glossary`：全站术语表（见下面“术语表和术语标注”）。
 
 ### 术语表和术语标注
@@ -628,11 +628,11 @@ module.exports = [
 | 12 小时内答过的不再出：只适用于热身 | `logic/srs.ts` 的 `warmupPool`；`Warmup.vue` | `srs.test.ts > 热身题库`；mechanics：热身（12 小时内答过的卡不出） |
 | 热身选 2 题：先到期、再上一章 | `logic/srs.ts` 的 `pickWarmup`；`Warmup.vue`；`config.mts` 自动插入 | `srs.test.ts > pickWarmup`；mechanics：课前热身 |
 | 章内自测和热身答错不亮正确答案，重试时隐藏上次选的项；只有第一次作答计入复习 | `Sc.vue`、`Question.vue`（retry）；`cards.ts` 的 `answerSelfCheck` | `progress.test.js`（自测答错）、`exercises.test.js`；mechanics：热身作答；`cards.test.ts > 章内自测作答` |
-| 提示阶梯三级：提示（失败 1 次）、半成品（2 次且 2 分钟）、参考答案（3 次且 5 分钟）；没有 `faded` 时跳过半成品 | `logic/ladder.ts` 的 `LADDER`、`ladderStatus`、`unlockNote`；`Exercise.vue` | `ladder.test.ts > 提示阶梯`、`exerciseState.test.ts > 阶梯状态和失败后的说明`；mechanics：提示阶梯、半成品示例 |
+| 提示阶梯三级：提示（失败 1 次）、半成品（2 次且 2 分钟）、参考答案（3 次且 5 分钟）；没有 `faded` 时跳过半成品 | `logic/ladder.ts` 的 `LADDER`、`ladderStatus`、`unlockNote`；`ExerciseRunner.vue` | `ladder.test.ts > 提示阶梯`、`exerciseState.test.ts > 阶梯状态和失败后的说明`；mechanics：提示阶梯、半成品示例 |
 | 只有代码真的改了才算一次失败（和起始代码、上一次失败都不同） | `logic/ladder.ts` 的 `isAttempt`；`logic/exerciseState.ts` 的 `recordFailure` | `ladder.test.ts > 代码是否真的改了`、`isAttempt`；mechanics：提示阶梯（没改代码、只加分号、来回切换） |
-| 粘贴参考答案原文不能通过，除非看过答案后按了“重置”；借助答案单独标记（`solution` / `rewrite`） | `logic/ladder.ts` 的 `isPastedSolution`；`logic/exerciseState.ts` 的 `recordPass`、`resetExercise`；`Exercise.vue`、`ChapterFoot.vue` | `ladder.test.ts > 粘贴参考答案原文不能通过`、`exerciseState.test.ts > 借助答案的标记`；mechanics：参考答案、看答案后点重置 |
+| 粘贴参考答案原文不能通过，除非看过答案后按了“重置”；借助答案单独标记（`solution` / `rewrite`） | `logic/ladder.ts` 的 `isPastedSolution`；`logic/exerciseState.ts` 的 `recordPass`、`resetExercise`；`ExerciseRunner.vue`、`ChapterFoot.vue` | `ladder.test.ts > 粘贴参考答案原文不能通过`、`exerciseState.test.ts > 借助答案的标记`；mechanics：参考答案、看答案后点重置 |
 | 填入半成品或答案前，自己的代码能找回 | `logic/exerciseState.ts` 的 `stashCode`、`restoreStash` | `exerciseState.test.ts > 填入半成品…先存下自己的代码`；mechanics：半成品示例 |
-| 自我解释至少 30 个有效字才展示参考要点（小结块默认隐藏） | `logic/selfExplain.ts`；`SelfExplain.vue`；`config.mts`（`sx-hidden`）；`course-data.mts`（`virtual:course-summaries`） | `selfExplain.test.ts`；mechanics：自我解释 |
+| 自我解释至少 30 个有效字才展示参考要点（小结块默认隐藏） | `logic/selfExplain.ts`；`SelfExplain.vue`；`config.mts`（`sx-hidden`）；`course-data.mts`（`virtual:course-loaders`） | `selfExplain.test.ts`；mechanics：自我解释 |
 | 阶段测验：12 题（8 新 + 4 常规）、交卷后才显示解析、80% 通过 | `logic/stageCheck.ts` 的 `pickStageQuestions`、`isPass`；`StageCheck.vue`、`Question.vue`（defer） | `stageCheck.test.ts > 抽题`、`及格判定`；`cards.test.ts > 阶段题池`；mechanics：阶段测验 12 题、各阶段测验页 |
 | 中途离开算未通过；未通过冷却 30 分钟；以最近一次为准；通过后清掉 `weak`；35 天后提示复测 | `logic/stageCheck.ts` 的 `settlePending`、`cooldownLeft`、`settleResult`、`needsRetest`、`stageStatus` | `stageCheck.test.ts`（中途离开、冷却、交卷后的记录、35 天、状态）；mechanics：中途离开、答对 10 题通过、答对 9 题不通过 |
 | 章完成 = 自测全部答对 + 练习全部通过，自动标记 | `logic/completion.ts`，`learn.ts` 的 `completeIfMet`；`ChapterFoot.vue` | `completion.test.ts`；`progress.test.js`（掌握标准条和自动完成） |

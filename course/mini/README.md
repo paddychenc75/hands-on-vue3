@@ -134,11 +134,11 @@ const g28 = note(PARTS.vnode, 'h', '这是你在第 28 章写的 h')
 ### 2.5 练习脚本里的命名规则
 
 - **迷你版的函数不加 `mini` 前缀**，名字就是真实 Vue 的名字：`reactive`、`ref`、`computed`、`watch`、`nextTick`、`h`、`createApp`、`onMounted`……。这样学习者学到的名字可以直接迁移到真实 Vue。
-- 练习环境（`Exercise.vue` 的 `API`）会把真实的 `reactive`、`ref`、`computed`、`watch`、`nextTick`、`onMounted`、`provide`、`inject`、`effectScope`、`onScopeDispose` 等作为 `new Function` 的**参数**注入。脚本里再用 `const reactive = …` 声明同名变量是语法错误。解决办法有两条，已经写成规则：
+- 练习环境（`ExerciseRunner.vue` 的 `API`）会把真实的 `reactive`、`ref`、`computed`、`watch`、`nextTick`、`onMounted`、`provide`、`inject`、`effectScope`、`onScopeDispose` 等作为 `new Function` 的**参数**注入。脚本里再用 `const reactive = …` 声明同名变量是语法错误。解决办法有两条，已经写成规则：
   1. 零件里**所有与注入名字同名的顶层声明都用 `function` 声明**（`function reactive(…)`）。`function` 声明会覆盖同名参数，所以脚本里的 `reactive` 就是迷你版的。已验证：在真实的练习运行环境里运行，同名的真实 API 被盖住。
   2. 需要真实 API 时写 `Vue.xxx`（例如演示代码里的 `Vue.onMounted(() => createApp(App).mount(…))`，因为演示代码要等练习自己的模板挂上才能找到 `#mm-host`）。
-- 注入的名字不含 `h`、`createApp`、`createRenderer`、`createSSRApp`、`onErrorCaptured`、`useModel`（`Exercise.vue` 注释写明：练习脚本里已有 `const { h } = Vue` 这样的写法）。所以这几个名字可以用任何方式声明，但同一份脚本里不能既用迷你版又写 `const { h } = Vue`。
-- `tests/unit/mini-source.test.ts` 会拦住：零件里用 `const/let/class` 声明了注入的名字；`Exercise.vue` 的 `API` 里新增了名字而 `EXERCISE_API_NAMES` 没跟上。
+- 注入的名字不含 `h`、`createApp`、`createRenderer`、`createSSRApp`、`onErrorCaptured`、`useModel`（`ExerciseRunner.vue` 注释写明：练习脚本里已有 `const { h } = Vue` 这样的写法）。所以这几个名字可以用任何方式声明，但同一份脚本里不能既用迷你版又写 `const { h } = Vue`。
+- `tests/unit/mini-source.test.ts` 会拦住：零件里用 `const/let/class` 声明了注入的名字；`ExerciseRunner.vue` 的 `API` 里新增了名字而 `EXERCISE_API_NAMES` 没跟上。
 
 ## 3. 零件清单
 
@@ -304,7 +304,7 @@ function patchKeyedChildren(c1, c2, container, parentAnchor, parentComponent) {
 
 ### 评估：需要「已有零件折叠、只读；要写的部分展开」
 
-需要。不做的话，第 30、31 章的体验比现在更差（现在第 31 章的清单也有 400+ 行，但至少「已经写好」的部分是学习者自己写过的、位置固定的）。这属于 `Exercise.vue` / `editor/entry.js` 的改动，**本次没有动**，下面是给主控的需求和数据格式。
+需要。不做的话，第 30、31 章的体验比现在更差（现在第 31 章的清单也有 400+ 行，但至少「已经写好」的部分是学习者自己写过的、位置固定的）。这属于 `ExerciseRunner.vue` / `editor/entry.js` 的改动，**本次没有动**，下面是给主控的需求和数据格式。
 
 ### 数据格式（零件侧已经支持）
 
@@ -329,7 +329,7 @@ function patchKeyedChildren(c1, c2, container, parentAnchor, parentComponent) {
 ### 另外两处需要（都很小）
 
 - **`check:content` / 练习测试**：目前不需要改。如果以后某一道练习的 `js` 超过某个长度被校验规则嫌弃，再说。
-- **`EXERCISE_API_NAMES` 与 `Exercise.vue` 的 `API` 同步**：`course/mini/index.ts` 里的 `EXERCISE_API_NAMES` 要和 `Exercise.vue` 里 `API = { … }` 的名字保持一致；`tests/unit/mini-source.test.ts` 会在 `Exercise.vue` 新增名字而这边没跟上时失败。另一个 agent 正在给 `Exercise.vue` 加 `libs`（Pinia / Router）注入的名字，注入这些名字的练习如果要和迷你版一起用，`libs` 名字也要避开零件里的顶层声明（目前零件里没有 `createPinia`、`useRouter` 等同名声明）。
+- **`EXERCISE_API_NAMES` 与 `ExerciseRunner.vue` 的 `API` 同步**：`course/mini/index.ts` 里的 `EXERCISE_API_NAMES` 要和 `ExerciseRunner.vue` 里 `API = { … }` 的名字保持一致；`tests/unit/mini-source.test.ts` 会在 `ExerciseRunner.vue` 新增名字而这边没跟上时失败。另一个 agent 正在给 `ExerciseRunner.vue` 加 `libs`（Pinia / Router）注入的名字，注入这些名字的练习如果要和迷你版一起用，`libs` 名字也要避开零件里的顶层声明（目前零件里没有 `createPinia`、`useRouter` 等同名声明）。
 
 ## 7. 术语和命名
 
@@ -420,7 +420,7 @@ const vue = runMini<any>(domSource(), {
 
 | 文件 | 测什么 | 与真实 Vue 的对照 |
 |---|---|---|
-| `mini-source.test.ts` | 每个零件是纯脚本、有「对应真实源码」和「差别」注释、区域标记成对；顶层声明不撞注入名；`EXERCISE_API_NAMES` 覆盖 `Exercise.vue`；每个前缀都能在注入同名参数的环境里 `new Function` 运行；每个区域都能单独挖空且仍是合法 JS；区域工具；代码行数预算 | — |
+| `mini-source.test.ts` | 每个零件是纯脚本、有「对应真实源码」和「差别」注释、区域标记成对；顶层声明不撞注入名；`EXERCISE_API_NAMES` 覆盖 `ExerciseRunner.vue`；每个前缀都能在注入同名参数的环境里 `new Function` 运行；每个区域都能单独挖空且仍是合法 JS；区域工具；代码行数预算 | — |
 | `mini-reactivity.test.ts` | effect 的运行次数和顺序：依赖收集、相同值不触发、分支切换清理、嵌套、自触发不循环、多订阅者顺序、`scheduler`、`lazy`、`stop`；`ref`；`computed` 的惰性和缓存、链、多读；`effectScope`（停止、dispose、嵌套、detached） | 同一段代码跑在迷你版和 `@vue/reactivity` 上，断言日志一致 |
 | `mini-scheduler.test.ts` | `queueJob` 去重、按 id、pre 排位、运行中再入队、`allowRecurse`、`disposed`、`nextTick` 与后置任务的先后、后置队列去重和排序；`watch` 的 (新值, 旧值)、合并、`immediate`、getter、deep、`onCleanup`、`stop`（含已排队的）、三种 flush、回调里改来源；`watchEffect` | 同一段代码跑在迷你版和 `@vue/runtime-core` 上（真实的 `queueJob` 不导出，用 `watch` 和 `queuePostFlushCb` 对照） |
 | `mini-render.test.ts` | 元素挂载/更新/卸载的**宿主操作序列**；keyed diff 的 12 个典型案例和 **200 组随机列表**（`insert/remove/create` 序列逐条一致，即移动、挂载、卸载的集合和顺序都相同）；无 key 列表；混合 key | 同一棵 vnode 树渲染到同一个会记录操作的宿主，比较两份操作记录 |
@@ -514,7 +514,7 @@ const vue = runMini<any>(domSource(), {
 - **代码量超出任务书的预算**：拼到第 31 章是 638 行代码（723 行含注释），任务书是 300–400 行。拼到第 30 章 490 行，其中 `element` 一段就是 171 行（keyed diff 的五个步骤加最长递增子序列本身就长，真实 Vue 的这一段是同样的结构）。要压到 400 行，得砍掉：`pre` 侦听器的排队与 `flushPreFlushCbs`、`runIfDirty`、`effectScope` 的嵌套、六个钩子里的四个、`emit`/`emits`、函数式组件、插槽标记位，每一项都是真实 Vue 的可观察行为。我选择保留行为的忠实度，靠折叠（第 6 节）解决「一次读很多」的问题：每一章的学习者只需要读自己那一段（最长 171 行），前面各章写过的部分折叠。`tests/unit/mini-source.test.ts` 里有行数预算，防止继续膨胀。如果主控希望更小，建议砍的顺序是：函数式组件 → `emit`/`emits` + `isEmitListener` → 嵌套 `effectScope` → `flushPreFlushCbs`。
 - **`depCleanup` 的挖空**：`effect` 里 `cleanup(e)` 的调用没有单独的区域。要做「起始代码里 `run` 不清理」，现在用 `sub(答案, '      cleanup(e)\n', '')` 在答案上替换。如果写作者觉得别扭，给零件 1 的 `effect` 里这一行加一个 `//#region runCleanup` 子区域（不影响别的，要同步测试里的区域数量断言）。
 - **`stringRenderer` 的判题**要用 `renderToString`：练习环境里没有 `@vue/server-renderer`。`Vue` 是带编译器的完整构建，没有 `renderToString`。建议判题用固定的期望字符串，或者保持这道题用真实 `createRenderer`（第 4 节已写）。
-- **`Exercise.vue` 折叠/只读**：没有做（不在范围）。
+- **`ExerciseRunner.vue` 折叠/只读**：没有做（不在范围）。
 - **`miniTrace.ts` 没有重写**（不在范围），见第 8 节的做法。
 - 单元测试里与真实 Vue 的对照用的是 `@vue/runtime-core` 的 cjs 开发构建；它的 `[Vue warn]` 会打到 stderr（卸载场景里一条），不影响结果。
 - 水合不支持组件；`KeepAlive` 没有接入；这两项都是有意的（第 4 节写了理由）。

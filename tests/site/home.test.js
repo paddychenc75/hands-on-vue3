@@ -155,7 +155,7 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
     }
     // ---------- 各种不自动播放的情形 ----------
     {
-      const g = R.group('不自动播放：回访者、带锚点、本会话放过、减少动画、先滚动过、标签页在后台')
+      const g = R.group('自动播放的边界：回访者和刷新后照常自动播放；带锚点、减少动画、先滚动过、标签页在后台不播')
       // 回访者
       const seedP = await (await site.browser.newContext()).newPage()
       const first = CH.find(c => c.stage === 1)
@@ -164,16 +164,19 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
       await seedP.context().close()
       {
         const p = await open(site, { storageState: { cookies: [], origins: [{ origin: new URL(site.base).origin, localStorage: [{ name: STORE_KEY, value: ls }] }] } })
-        await sleep(2500)
+        const s0 = await state(p)
+        g.ok(!s0.playing, '回访者：开场先停住')
+        await waitFor(p, async () => (await state(p)).playing, 4000)
         const s = await state(p)
-        g.ok(!s.playing, '回访者：不自动播放')
+        g.ok(s.playing, '回访者：约 1.2 秒后也自动播放')
+        await p.evaluate(() => scrollTo(0, 0)); await sleep(600)
         g.ok(await p.locator('.film-play').isVisible() || await p.locator('.player').isVisible(), '回访者：有“播放短片”入口')
         g.ok(/继续学习/.test(await p.locator('.s0 .btn.primary').innerText()), '回访者：主按钮是“继续学习”')
         g.ok((await p.locator('.s0 .btn.primary').getAttribute('href')).includes('/chapters/'), '回访者：主按钮指向上次读的章')
         await p.ctx.close()
       }
       { const p = await open(site, {}, { hash: '#scene-3' }); await sleep(2500); const s = await state(p); g.ok(!s.playing && s.scene === 3, '带 #scene-3：停在第 3 幕，不播放（scene=' + s.scene + '）'); await p.ctx.close() }
-      { const p = await open(site, {}, { played: true }); await sleep(2500); g.ok(!(await state(p)).playing, '本会话放过：不自动播放'); await p.ctx.close() }
+      { const p = await open(site, {}, { played: true }); await waitFor(p, async () => (await state(p)).playing, 4000); g.ok((await state(p)).playing, '同一标签页以前放过，刷新或重新打开后照常自动播放'); await p.ctx.close() }
       {
         const p = await open(site, { reducedMotion: 'reduce' }); await sleep(2000)
         const info = await p.evaluate(() => ({ pos: getComputedStyle(document.querySelector('.world')).position, player: !!document.querySelector('.player') && getComputedStyle(document.querySelector('.player')).display !== 'none', play: [...document.querySelectorAll('.film-play')].some(b => getComputedStyle(b).display !== 'none'), vis: [...document.querySelectorAll('.sc-copy')].every(c => getComputedStyle(c).visibility !== 'hidden'), sw: document.documentElement.scrollWidth <= innerWidth }))
@@ -398,7 +401,7 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
       await p.goBack(); await p.waitForSelector('.film.ready', { timeout: 10000 }); await sleep(800)
       const back = await state(p)
       g.ok(back.ready && back.dyn && (await p.locator('.player').count()) === 1, '回到首页：短片重新就绪，只有一个播放器')
-      g.ok(!back.playing, '回来不自动播放（本会话放过）')
+      g.ok(!back.playing, '站内跳走再回来不自动播放（这次页面加载里放过）')
       g.ok(p.errs.length === 0, '没有控制台报错：' + p.errs.join('|'))
       await p.ctx.close(); g.end()
     }

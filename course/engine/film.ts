@@ -11,6 +11,8 @@ import type { Engine } from './audio.ts';
 
 const DYN = 'film-dyn';
 const PLAYED = 'hands-on-vue3-film-played';
+/** 这次页面加载里放过没有（模块级，只在内存里）：站内跳走再回首页不重放，刷新或重新打开会再自动放 */
+let playedThisLoad = false;
 const SOUND_PREF = 'hands-on-vue3-film-sound'; // localStorage：用户开过声音（不是学习进度的键）
 const SOUND_TIP = 'hands-on-vue3-film-tip'; // localStorage：“开启配乐”的提示点过了
 /** 本地有没有学习进度（和 config.mts 里首屏前脚本用同一个键，结构见 course/engine/store.ts） */
@@ -377,6 +379,7 @@ export function attach(root: HTMLElement): () => void {
     playing = true;
     try {
       sessionStorage.setItem(PLAYED, '1');
+      playedThisLoad = true;
     } catch {
       /* 隐私模式：当作没记住 */
     }
@@ -716,15 +719,9 @@ export function attach(root: HTMLElement): () => void {
   });
 
   function maybeAutoplay() {
-    // 自动开始：第一次进首页（本会话没放过、没有学习进度、不是带锚点进来、没有减少动画、页面在最上面）
-    let seen = false;
-    try {
-      seen = !!sessionStorage.getItem(PLAYED);
-    } catch {
-      seen = false;
-    }
-    const visitorHasProgress = hasProgress();
-    if (isDyn() && !seen && !visitorHasProgress && !location.hash && scrollY < 80 && !document.hidden) {
+    // 自动开始：每次打开或刷新首页都放（新访客和回访者一样），除非带锚点进来、开了减少动画、页面不在最上面、标签页在后台，
+    // 或者这次页面加载里已经放过（站内跳走再回来）
+    if (isDyn() && !playedThisLoad && !location.hash && scrollY < 80 && !document.hidden) {
       autoTimer = window.setTimeout(() => {
         if (scrollY < 80 && !playing && !document.hidden) play();
       }, 1200);

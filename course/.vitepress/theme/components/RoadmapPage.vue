@@ -11,6 +11,7 @@ import { LEARNING_PATHS } from '../../../learning-paths.mjs'
 import { chapterRanges } from '../../../engine/logic/text'
 import { agoText, chapterById, chapterByPath, chapterState, chaptersOfStage, CHECK_LABEL, checkLink, dueCount, ensureReady, getLast, learnedCount, progressChapters, ready, stageCheckStatus, STAGES, STATE_LABEL } from '../composables/learn'
 import { stageTitle } from '../../../stages'
+import SyncPanel from './SyncPanel.vue'
 
 const cheat = chapters.find(c => c.id === 'cheat')
 
@@ -258,6 +259,13 @@ const rangeOf = (r: (typeof routes)[number]) => `${r.parts.length} 步 · 共 ${
           </details>
         </div>
       </div>
+    </section>
+
+    <section class="home-sec" aria-labelledby="sync-title">
+      <div class="sec-tag">SYNC</div>
+      <h2 class="section-title" id="sync-title">换设备也能接着学</h2>
+      <p class="path-sub">进度默认只存在这个浏览器里。想在手机和电脑之间接着学，可以开启同步，也可以用文件搬运。两种都是可选的。</p>
+      <SyncPanel />
     </section>
 
     <section class="home-sec" id="prereq" aria-labelledby="prereq-title">

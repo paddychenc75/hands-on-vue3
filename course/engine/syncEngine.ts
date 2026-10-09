@@ -180,7 +180,10 @@ let dirty = false;
 let cleanSig = '';
 const sigOf = (): string => {
   const { __last: _last, ...rest } = progress as Obj;
-  return canon(rest);
+  const str = canon(rest);
+  let h = 0x811c9dc5; // FNV-1a：只为存一个短签名，不求抗碰撞
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(16) + '-' + str.length;
 };
 let changeSeq = 0;
 let firstDirty = 0;
@@ -386,7 +389,7 @@ async function cycle(reason: string, manual = false): Promise<{ ok: true; res: C
       dirty = false;
       cleanSig = sigOf();
     }
-    setStatus({ state: more ? 'pending' : 'synced', at: Date.now(), dirty: more || undefined, msg: undefined, code: undefined, retryAt: undefined });
+    setStatus({ state: more ? 'pending' : 'synced', at: Date.now(), dirty: more || undefined, msg: undefined, code: undefined, retryAt: undefined, ...(more ? {} : { sig: cleanSig }) });
     if (more && isLeader) schedule(pushDelay(firstDirty, lastChange, Date.now(), tune().debounce, tune().maxWait));
     return { ok: true, res };
   } catch (e) {
@@ -416,8 +419,11 @@ export function start(): void {
   cfg = readConfig();
   if (!cfg || started) return;
   started = true;
-  dirty = !!readStatus().dirty;
-  cleanSig = dirty ? '' : sigOf();
+  // 页面刚加载、同步引擎还没起来（约 0.6 秒）时发生的改动没有 hov-saved 通知可听：拿现在的签名和上次同步完成时存的比，不同就是有没推送的改动
+  const st0 = readStatus();
+  cleanSig = st0.sig ?? sigOf();
+  dirty = !!st0.dirty || sigOf() !== cleanSig;
+  if (dirty && !st0.dirty) setStatus({ dirty: true, state: 'pending' });
   firstDirty = lastChange = Date.now();
   setStatus({ remoteChanged: undefined });
   window.addEventListener(SAVED_EVENT, markDirty);
@@ -429,7 +435,10 @@ export function start(): void {
     }
     if (e.key === SYNC_KEY) cfg = readConfig();
     if (e.key === STORE_KEY || e.key === null) {
-      if (reconcile() && isLeader) markDirty();
+      // 主题层的存储（store.ts）可能已经先把这个标签页的内存换成了 localStorage 的内容，所以不能只看 reconcile 有没有改内存：
+      // 负责联网的标签页拿签名和上次同步完成时比，不同就安排推送
+      reconcile();
+      if (isLeader) markDirty();
     }
   });
   window.addEventListener('online', () => {

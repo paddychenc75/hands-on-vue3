@@ -37,6 +37,8 @@ export interface SyncStatus {
   etag?: string
   /** 上次从云端拉取的时间 */
   pulledAt?: number
+  /** 上次同步完成时，本机进度（不含阅读位置）的短签名：页面重新加载后拿它判断有没有没推送的改动 */
+  sig?: string
 }
 
 const read = <T>(key: string): T | null => {

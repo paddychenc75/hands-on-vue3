@@ -39,6 +39,17 @@ async function loadSummary() {
   }
 }
 
+// 同步时被另一份覆盖掉的笔记（另一台设备的版本）：折叠显示，点“用这一版”换成它
+const alts = computed(() => (ready.value ? cpOf(id.value)?.noteAlts : undefined) || [])
+function useAlt(alt: string) {
+  mutate(() => {
+    const c = chapterOf(id.value)
+    c.noteAlts = [...(c.noteAlts || []).filter(x => x !== alt), c.note || ''].filter(Boolean)
+    c.note = alt
+  })
+  note.value = alt
+}
+
 function onInput() {
   mutate(() => { chapterOf(id.value).note = note.value }, { silent: true })
 }
@@ -69,6 +80,13 @@ watch(id, () => { if (ready.value) { load(); loadSummary() } })
       aria-label="用自己的话总结本章"
       @input="onInput"
     ></textarea>
+    <details v-if="alts.length" class="sx-alts">
+      <summary>另一台设备的版本（{{ alts.length }}）</summary>
+      <div v-for="(a, i) in alts" :key="i" class="sx-alt">
+        <p>{{ a }}</p>
+        <button type="button" class="b" @click="useAlt(a)">用这一版</button>
+      </div>
+    </details>
     <div class="sx-row">
       <button v-if="!revealed" type="button" class="b" data-a="sx-reveal" :disabled="state.remain > 0" @click="reveal">写好了，对照本章要点</button>
       <small v-if="!revealed && state.remain > 0" class="sx-count">再写 {{ state.remain }} 个字就能对照要点。</small>

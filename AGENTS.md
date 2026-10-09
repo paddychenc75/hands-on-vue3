@@ -74,7 +74,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `course/engine/logic/folds.ts` | 练习代码里 `//#fold` 折叠只读块的解析（纯函数）；编辑器接线在 `editor/folds.js`，浏览器测试 `tests/site/folds.test.js` | DOM |
 | `course/engine/logic/` | **纯函数**：不碰 DOM、localStorage，不读 `Date.now()`（时间由参数传入）。有单元测试，`tests/unit/purity.test.ts` 会挡住副作用；`tests/unit/cycles.test.ts` 检查没有循环依赖 | DOM、存储、`window` |
 | `course/engine/*.ts` | 进度结构和存储（`types.ts`、`store.ts`）、复习卡片（`cards.ts`），模块清单见下面「引擎模块」 | 业务规则（放进 `logic/` 并写测试） |
-| `course/.vitepress/` | `config.mts`（站点配置、base、自定义容器、章头和热身的自动注入、并行构建变量）、`sidebar.mts`、`course-data.mts`（构建时从各章抽数据，生成虚拟模块）、`markdown-cjk.mts`、`theme/`（`components/*.vue` 全局注册，`composables/learn.ts` 是界面读写进度的唯一入口，`composables/terms.ts` + `term-match.ts` 是术语标注，`style.css` 全部样式） | 学习机制的逻辑 |
+| `course/.vitepress/` | `config.mts`（站点配置、base、自定义容器、章头和热身的自动注入、并行构建变量）、`sidebar.mts`、`course-data.mts`（构建时从各章抽数据，生成虚拟模块）、`markdown-cjk.mts`、`theme/`（`components/*.vue` 全局注册，`composables/learn.ts` 是界面读写进度的唯一入口，`composables/terms.ts` + `term-match.ts` 是术语标注，`style.css` 全部样式，第一节是设计令牌，写法见 AUTHORING 4.15） | 学习机制的逻辑 |
 | `course/AUTHORING.md` | 内容写作细则：每种 Markdown 写法、练习字段、实验台、示意图、测试数据、踩过的坑 | — |
 | `editor/entry.js` | 练习编辑器（CodeMirror 6），被 `Exercise` 组件直接导入 | — |
 | `scripts/` | `check-content.mjs`（内容校验）、`check-docs.mjs`（文档数字核对）、`new-chapter.mjs`（加章脚手架）、`e2e.mjs`（浏览器测试入口）、`setup-hooks.mjs`（启用提交前钩子）、`shot.mjs`（截图）；`lib/` 是它们共用的（`validate.mjs` 是全部校验规则，`section-refs.mjs` 是小节引用的统一扫描（校验和改号共用），`known-issues.mjs` 是临时豁免，目前是空的；`ref-tense.mjs` 查引用的措辞和对象章的位置是否一致；`reorder.mjs` 和 `reorder-chapters.mjs` 一次重排所有章） | — |

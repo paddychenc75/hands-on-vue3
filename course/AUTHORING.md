@@ -237,7 +237,7 @@ let count = 0
 </Figure>
 ```
 
-- SVG 里的颜色用 `var(--muted)`、`var(--ink)`、`var(--accent)`、`var(--accent-soft)`、`var(--surface)`，浅色和深色模式都有定义，不要写死颜色。
+- SVG 里的颜色用 `var(--muted)`、`var(--ink)`、`var(--accent)`、`var(--accent-soft)`、`var(--surface)`（旧变量名，仍然可用，指向新令牌），浅色和深色模式都有定义，不要写死颜色。新图优先用 4.15 的令牌名。
 - **SVG 里的 `{{ }}` 会被 Vue 当成插值**：给那个 `<text>` 加 `v-pre`。
 - marker 的 `id` 在整页内不能重复，用 `章id-名字`，例如 `first-arr`。
 - 点击图可以放大（`Figure` 组件自带），不用另外处理。
@@ -434,7 +434,31 @@ let count = 0
 - **读 DOM 的实验台**（显示“渲染出的属性”“当前 HTML”）：用 `ref` 拿元素，在 `onMounted` 和 `watch(…, { flush: 'post' })` 里读 `getAttribute` 或 `innerHTML`。多行文字写成表达式 `{{ 'a' + '\n' + 'b' }}`，模板里直接换行会被压成一个空格。
 - **指令钩子、生命周期钩子的日志不能用响应式数据**：钩子在渲染中运行，里面改响应式数据会触发新渲染，形成死循环。用 `domLog` 往空的 `<div class="log" ref="logRef">` 里写。
 - 自定义指令在 `<script setup>` 里写成 `const vXxx = {…}`，模板里就是 `v-xxx`。
-- 手机上：触控目标不小于 32px 的规则已在 `style.css` 里统一处理（复选框、滑块、按钮）。新实验台用 `.b`、`label.ctl` 等已有类名即可。
+- 手机上：触控目标不小于 40px 的规则已在 `style.css` 里统一处理（复选框、滑块、按钮）。新实验台用 `.b`、`label.ctl` 等已有类名即可。
+- 实验台里的颜色用令牌，不写死：背景 `var(--c-surface)` `var(--c-subtle)` `var(--c-sunken)`，文字 `var(--text-1)` `var(--text-2)` `var(--text-3)`，边框 `var(--border)`，强调 `var(--brand-ink)` `var(--brand-soft)`，语义 `var(--warn)` `var(--bad)` `var(--info)`（各有 `-soft` 浅底），圆角 `var(--r-sm|md|lg)`，阴影 `var(--sh-1|2|3)`。旧名字 `--ink --muted --line --accent --surface --bg --sunken` 仍可用。
+
+### 4.15 样式约定（令牌）
+
+全部样式在 `course/.vitepress/theme/style.css`，第一节是设计令牌（浅色 `:root`、深色 `.dark` 各一套，深色是单独设计的），后面所有规则只引用令牌，不写死颜色，也不需要再写 `.dark` 规则。
+
+| 类别 | 令牌 |
+|---|---|
+| 背景 | `--c-page`（页面底）、`--c-subtle`（卡片里的浅底）、`--c-surface`（卡片）、`--c-raised`（浮层）、`--c-sunken`（凹陷） |
+| 文字 | `--text-1`（正文）、`--text-2`（说明段落，都 ≥ 7:1）、`--text-3`（次要信息，≥ 4.5:1） |
+| 边框 | `--border`、`--border-strong` |
+| 品牌 | `--brand`（实心填充，白字 ≥ 4.5:1）、`--brand-ink`（文字和线条）、`--brand-soft`、`--brand-line`、`--brand-glow`、`--on-brand`；辅色 `--teal*`；渐变 `--grad-brand` |
+| 语义 | `--warn` `--bad` `--info` `--violet` `--pink`，各带 `-soft`（浅底）和 `-line`（描边）；成功用 `--ok*`（等于品牌绿） |
+| 阶段色 | `--stage-1` 到 `--stage-6`（各带 `-soft`、`-line`） |
+| 形状 | 圆角 `--r-sm/md/lg/pill`，阴影 `--sh-1/2/3`，间距 `--sp-1` 到 `--sp-8` |
+| 动效 | `--t-fast`（150ms）、`--t-base`（200ms）、`--ease`；所有动画和过渡在 `prefers-reduced-motion: reduce` 下已统一关闭 |
+| 字体 | `--f-body` `--f-heading` `--f-mono`（系统字体栈，没有外部请求，没有字体文件） |
+| 代码 | `--code-bg` `--code-ink` `--code-k/s/c/n/f/p`；Shiki（css-variables 主题）和练习编辑器（`editor/entry.js`）共用 |
+
+旧变量名 `--page --bg --surface --sunken --ink --muted --line --accent --accent-soft --navy --violet --shadow --f-display` 是别名，指向上面的令牌。**新写的样式用新名字**。
+
+**新增容器样式**：在 `config.mts` 里照 `SIMPLE` 或 `note` 写出 HTML，再在 `style.css` 的“教学容器”一节：给它设 `--cb`（文字和图标色）、`--cb-soft`（底）、`--cb-line`（描边）、`--cb-icon`（`--i-*` 图标遮罩），加进 `:where(...)` 的容器列表，标题行沿用 `.t` 的写法。新增颜色先放进令牌，并跑对比度检查（正文 ≥ 7:1，标签、按钮 ≥ 4.5:1，浅色和深色都要）。
+
+**代码块跟随主题**（浅色下是浅底）：浅色页面里的深色大块像一块黑板，会压住周围的容器和图。
 
 ### 4.13 其他组件
 

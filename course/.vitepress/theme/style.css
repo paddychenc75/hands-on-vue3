@@ -894,8 +894,8 @@ abbr.term:focus-visible { outline: 2px solid var(--ring); border-radius: 3px; }
 .term-tip small { color: var(--text-3); font-size: 12px; }
 
 /* ---------- 11. 首页：大标题区（渐变关键词、柔和光晕）、操作区、统计行，下面每个区各自成块 ---------- */
-.home { position: relative; isolation: isolate; max-width: 1120px; margin: 0 auto; padding: 0 24px 96px; color: var(--text-1); }
-.home::before { content: ""; position: absolute; z-index: -1; inset: -140px -12% auto -12%; height: 640px; pointer-events: none;
+.home { position: relative; isolation: isolate; overflow-x: clip; max-width: 1120px; margin: 0 auto; padding: 0 24px 96px; color: var(--text-1); }
+.home::before { content: ""; position: absolute; z-index: -1; inset: -140px 0 auto 0; height: 640px; pointer-events: none;
   background: radial-gradient(520px 300px at 18% 18%, var(--glow-1), transparent 70%), radial-gradient(480px 280px at 82% 6%, var(--glow-2), transparent 70%), radial-gradient(360px 220px at 52% 40%, color-mix(in srgb, var(--glow-1) 60%, transparent), transparent 70%); }
 .home .hero { padding-block: 56px 8px; }
 .home .eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 5px 14px; border-radius: var(--r-pill); border: 1px solid var(--border); background: color-mix(in srgb, var(--c-surface) 70%, transparent); box-shadow: var(--sh-1); font: 600 12px/1.4 var(--f-mono); letter-spacing: .12em; color: var(--text-2); }

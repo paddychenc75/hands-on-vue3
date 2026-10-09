@@ -1,6 +1,6 @@
 // 首页“本课程的写作规则”里的固定用词表：这些概念在正文里只用左边的说法，不用“不使用的同义词”。
 // 它讲的是写作规范用词，和自动汇总的术语表（各章“本章术语”块）性质不同，所以数据单独放在这里，由三处使用：
-//   - 首页的写作规则表（CourseHome.vue）：label、meaning、avoid 三列
+//   - 课程地图页的写作规则表（RoadmapPage.vue）：label、meaning、avoid 三列
 //   - 术语表页（GlossaryPage.vue）：terms 里的术语如果也在术语表里，多显示一栏“不这样说”（avoid）
 //   - 术语标注（terms.ts）：terms 里的词也算“已知术语”，用来判断“子组件”这类复合词，不把里面的“组件”标出来
 // check:content 校验 terms 里的每个术语都能在术语表里找到（找不到的会列出来，见 scripts/lib/known-issues.mjs）。

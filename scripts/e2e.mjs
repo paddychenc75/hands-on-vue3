@@ -6,13 +6,13 @@
 //   npm run test:e2e -- mechanics progress    只跑这些套件
 //   COURSE_OUT_DIR=<已构建目录> npm run test:e2e -- progress   五个套件都支持用独立的已构建目录，不碰 dist
 //
-// 套件：exercises（逐章：练习、自测、实验台）、progress（跨章功能）、mechanics（学习机制）、glossary（术语表和术语标注）、folds（练习编辑器的折叠只读块）。
+// 套件：exercises（逐章：练习、自测、实验台）、progress（跨章功能）、mechanics（学习机制）、glossary（术语表和术语标注）、folds（练习编辑器的折叠只读块）、home（首页短片，约 3 分钟）。
 // 依次运行，遇到第一个失败就停。本机 shell 设了 HTTP 代理时，这里会自动给 localhost 加上 NO_PROXY。
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
-const SUITES = ['exercises', 'progress', 'mechanics', 'glossary', 'folds']
+const SUITES = ['exercises', 'progress', 'mechanics', 'glossary', 'folds', 'home']
 const args = process.argv.slice(2)
 const named = args.filter(a => SUITES.includes(a))
 const chapters = args.filter(a => !SUITES.includes(a))

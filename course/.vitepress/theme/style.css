@@ -363,6 +363,8 @@ body { background: var(--c-page); color: var(--text-1); font-family: var(--f-bod
 .nav-progress .np-txt { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 @media (max-width: 1100px) { .nav-progress .np-bar { width: 72px; } }
 @media (max-width: 767px) { .nav-progress { margin-left: auto; margin-right: 8px; gap: 6px; } .nav-progress .np-bar { width: 28px; } .nav-progress .np-txt { font-size: 12px; } }
+/* 400px 以下顶栏放不下进度条（360px 宽时会把菜单按钮挤出屏幕），只留文字 */
+@media (max-width: 400px) { .nav-progress .np-bar { display: none; } .nav-progress { margin-right: 4px; } }
 
 /* 正文栏 745px，右边是 190px 宽的本页目录；默认主题把版面限制在 1440px 并居中，这里取消，侧边栏贴左 */
 @media (min-width: 1280px) {

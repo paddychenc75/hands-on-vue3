@@ -128,3 +128,108 @@ export const TAGS: { key: string; text: string }[] = [
   { key: 't6b', text: 'Vue 3.5' },
   { key: 't7', text: '3.6 候选版' },
 ]
+
+/** 每一幕一个主色：背景光晕、年份下的色条、收束幕时间轴上各站的颜色（第 i 站用第 i+1 幕的颜色）。
+ *  颜色取自深色主题的语义色：品牌绿、青、琥珀、紫，外加粉、蓝、金。0 开场和 8 收束用品牌绿。 */
+export const ERA_COLORS = ['#46d196', '#f5b968', '#4fd3dc', '#bfacff', '#46d196', '#ff8fb8', '#6fa8ff', '#ffd36b', '#46d196']
+
+/** 第 5 幕“按功能聚合”：五个小块（三份数据 + 两个方法）先按选项类型散在三列里，再移动到各自的功能分组里。
+ *  (fx, fy) 是落点（数据层坐标，和真正的数据药丸重合），(sx, sy) 是散开时的位置。 */
+export interface Mover {
+  id: string
+  label: string
+  kind: 'ref' | 'computed' | 'fn'
+  group: 'todos' | 'title'
+  fx: number
+  fy: number
+  sx: number
+  sy: number
+}
+export const MOVERS: readonly Mover[] = [
+  { id: 'title', label: 'title', kind: 'ref', group: 'title', fx: 250, fy: 252, sx: 150, sy: 112 },
+  { id: 'todos', label: 'todos', kind: 'ref', group: 'todos', fx: 540, fy: 252, sx: 150, sy: 156 },
+  { id: 'remaining', label: 'remaining', kind: 'computed', group: 'todos', fx: 920, fy: 252, sx: 500, sy: 134 },
+  { id: 'addTodo', label: 'addTodo()', kind: 'fn', group: 'todos', fx: 730, fy: 252, sx: 840, sy: 112 },
+  { id: 'setTitle', label: 'setTitle()', kind: 'fn', group: 'title', fx: 250, fy: 300, sx: 840, sy: 156 },
+]
+/** 三列的标题（选项式 API 按“选项类型”分，不按功能分） */
+export const MOVER_COLUMNS = [
+  { id: 'data', label: 'data', x: 150 },
+  { id: 'computed', label: 'computed', x: 500 },
+  { id: 'methods', label: 'methods', x: 840 },
+] as const
+
+/** 第 6 幕 3.5 的内存条：官方博客写的是“内存占用降低 56%”，所以第二根条是第一根的 44% */
+export const MEM_DROP = 0.56
+
+const M = MARKS
+const COMP = ['App', 'Header', 'List', 'Footer']
+/** 音效和画面共用的关键时间点（秒）：filmTracks.ts 的关键帧和 audio.ts 的音效都从这里取，保证对得上 */
+export const CUE = {
+  /** 第 1 幕：手动改了两块（闪一下），漏掉的那一块红色闪烁 */
+  manual: [M[1] + 2.25, M[1] + 2.95],
+  miss: M[1] + 3.95,
+  /** 第 2 幕：四个绑定各冒出一个 watcher；todos 变了，三条光束依次落到 DOM */
+  watch: (i: number) => M[2] + 0.5 + i * 0.3,
+  wire2: [M[2] + 3.6, M[2] + 3.9, M[2] + 4.9],
+  /** 第 3 幕：四个组件各有一个 watcher；List、Footer 重新生成 vnode 子树；标出差别；提交 */
+  pw: (i: number) => M[3] + 1.0 + i * 0.22,
+  redo: [M[3] + 2.6, M[3] + 3.3],
+  flag3: M[3] + 5.5,
+  land3: M[3] + 6.0,
+  /** 第 4 幕：Proxy 环、静态盾、扁平的区块连线、差别标记、提交 */
+  proxy: (i: number) => M[4] + 0.8 + i * 0.25,
+  shield: M[4] + 1.7,
+  flat: M[4] + 3.0,
+  flag4: M[4] + 6.1,
+  land4: M[4] + 6.5,
+  /** 第 5 幕：五个小块从三列聚到两个功能分组 */
+  gather: M[5] + 1.4,
+  group: M[5] + 2.6,
+  /** 第 6 幕：computed 的值没变，下游收不到通知；3.5 的内存条缩短 */
+  hold: M[6] + 2.7,
+  mem: M[6] + 4.3,
+  /** 第 7 幕：Vapor 的 effect 标记，三条直连光束 */
+  vwatch: (i: number) => M[7] + 1.4 + i * 0.25,
+  vwire: [M[7] + 3.9, M[7] + 4.1, M[7] + 5.1],
+  /** 年份数字滚动：个位数变化的时刻 */
+  ticks: [M[2] + 0.3, M[3] + 0.3, M[4] + 0.3, M[5] + 0.3, M[6] + 0.3, M[6] + 3.5, M[7] + 0.3],
+  /** 换幕：前一幕文字退场的时间 */
+  whoosh: (i: number) => (i === 1 ? M[1] - 0.1 : M[i] - 0.05),
+  /** 收束：三层空间缩成一个点落到时间轴上 */
+  fin: M[8] + 1.5,
+}
+export { COMP as COMPONENTS }
+
+/** 音效的时间点和它对应的画面轨道（轨道名见 filmTracks.ts）：单元测试检查每个时间点 ±50ms 内轨道上有关键帧，e2e 检查离线渲染的配乐在这些点上有能量突起 */
+export interface CueRef {
+  name: string
+  t: number
+  track: string
+  /** 这个音效比较轻（whoosh 一类），能量突起的门槛放低 */
+  soft?: boolean
+}
+const BIND_IDS = ['Title', 'Item1', 'Item2', 'Counter']
+export function cueList(): CueRef[] {
+  const out: CueRef[] = [
+    { name: 'manual-0', t: CUE.manual[0], track: 'bl-Item1' },
+    { name: 'manual-1', t: CUE.manual[1], track: 'bl-Item2' },
+    { name: 'miss', t: CUE.miss, track: 'bx-Counter' },
+  ]
+  BIND_IDS.forEach((id, i) => out.push({ name: 'watch-' + id, t: CUE.watch(i), track: 'wt-' + id, soft: true }))
+  ;['Item1', 'Item2', 'Counter'].forEach((id, i) => out.push({ name: 'wire2-' + id, t: CUE.wire2[i], track: 'wr-' + id }))
+  COMP.forEach((id, i) => out.push({ name: 'pw-' + id, t: CUE.pw(i), track: 'pw-' + id, soft: true }))
+  out.push({ name: 'redo-List', t: CUE.redo[0], track: 'nl-List' }, { name: 'redo-Footer', t: CUE.redo[1], track: 'nl-Footer' })
+  out.push({ name: 'flag3', t: CUE.flag3, track: 'fl-Item1' }, { name: 'land3', t: CUE.land3, track: 'bm-Item1' })
+  DATA.forEach((d, i) => out.push({ name: 'proxy-' + d.id, t: CUE.proxy(i), track: 'px-' + d.id, soft: true }))
+  out.push({ name: 'shield', t: CUE.shield, track: 'sh-Logo' }, { name: 'flat', t: CUE.flat, track: 'fx-Title' })
+  out.push({ name: 'flag4', t: CUE.flag4, track: 'fl-Item1' }, { name: 'land4', t: CUE.land4, track: 'bm-Item1' })
+  out.push({ name: 'gather', t: CUE.gather, track: 'mv-todos' }, { name: 'group', t: CUE.group, track: 'gf-todos' })
+  out.push({ name: 'hold', t: CUE.hold, track: 'hold' }, { name: 'mem', t: CUE.mem, track: 'mem-b' })
+  BIND_IDS.slice(1).forEach((id, i) => out.push({ name: 'vwatch-' + id, t: CUE.vwatch(i + 1), track: 'wt-' + id, soft: true }))
+  ;['Item1', 'Item2', 'Counter'].forEach((id, i) => out.push({ name: 'vwire-' + id, t: CUE.vwire[i], track: 'wv-' + id }))
+  CUE.ticks.forEach((t, i) => out.push({ name: 'tick-' + i, t, track: 'yd-3', soft: true }))
+  for (let i = 1; i <= 8; i++) out.push({ name: 'whoosh-' + i, t: CUE.whoosh(i), track: 'cp-' + (i - 1), soft: true })
+  out.push({ name: 'fin', t: CUE.fin, track: 'fly-c' })
+  return out
+}

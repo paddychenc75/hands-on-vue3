@@ -463,7 +463,19 @@ let count = 0
 
 ### 首页短片
 
-（占位：首页 `course/index.md` 的短片由另一位实现者维护，写法在这里补。）
+首页 `course/index.md` 是一段约 54 秒的短片，讲“数据变了，屏幕怎样跟着变”：Vue 每一代怎样找到要改的那块 DOM（9 幕：开场、手动改 DOM、1.0 细粒度绑定、2.0 虚拟 DOM、3.0 编译期优化、组合式与 `<script setup>`、3.4/3.5 响应式系统、3.6 候选版 Vapor、收束）。可以自动放映，也可以手动滚动。同一个三层空间（响应式数据 / 虚拟 DOM 树 / DOM 与屏幕）贯穿始终，用带透视的 3D 变换画成，没有任何业务界面。做法移植自姊妹课程 hands-on-react 的首页短片（那边的说明见它的 `AGENTS.md`）。
+
+- **文件**：`theme/components/HomeFilm.vue`（静态结构和全部文案，服务端渲染进 HTML；不要用 `<ClientOnly>`；每一幕的史实依据写在文件顶部的注释里）、`theme/film.css`（类名全部限定在 `.film` 下）、`engine/film.ts`（浏览器端的播放器，首页自己的异步 chunk，不进主包）、`engine/logic/filmData.ts`（每幕时长、节点和色块坐标、`CUE` 音效时间点；**主包里的 `HomeFilm.vue` 也 import 它，只放数据**）、`engine/logic/filmTracks.ts`（每个元素一条关键帧轨道，纯函数；`flyerTracks` 是幕间的过渡元素）、`engine/audio.ts` 和 `engine/logic/scoreAnalysis.ts`（配乐，见下）。单元测试 `tests/unit/film.test.ts`、`tests/unit/score.test.ts`，浏览器测试 `tests/site/home.test.js`（`npm run test:e2e -- home`，约 5 分钟，其中有一次真实速度的整片放映；`HOME_SHOTS=1` 重拍 `tests/screenshots/home-film-*.png`，`SCORE_DIR=目录` 把离线渲染的配乐存成 `score.wav` 和 `stats.json`）。
+- **时间模型**：画面是“影片时间” f 的函数；f = 滚动位置 / 最大滚动位置 × 总时长。手动滚动、拖进度条、自动播放走同一条路：自动播放只是自己匀速滚动页面。每个元素的动画在 `filmTracks.ts` 里写成关键帧（时间单位秒，每一幕的起点是 `MARKS`），`film.ts` 把它们变成暂停的 `el.animate`，每帧只更新这一刻值在变化的轨道。**改时长改 `filmData.ts` 的 `DURATIONS`**，别处不用动；整片要保持在 45–60 秒（单元测试会拦）。元素用 `data-w` 标记；只动 `transform`、`opacity` 和 SVG 描边。
+- **默认是静态长文**：没有 JS、减少动画时，三层空间是文档流里的一张“结论帧”（CSS 里元素的默认样式），后面是分节的文字，收束幕是完整的时间轴列表。短片模式只在 `html.film-dyn` 且没有“减少动画”偏好时启用：`.world` 固定在顶栏下面，`.sc` 变成撑出滚动长度的空白段，文字 `.sc-copy` 固定在一侧。`film-dyn` 由 `index.md` frontmatter 的 `head` 里一小段脚本在首屏绘制前加上；动画脚本 6 秒内没起来（`.film` 上没出现 `.ready`）就自动去掉，页面退回静态长文。离开首页时 `film.ts` 的清理函数会去掉它，并清除所有定时器、监听和音频。
+- **自动播放的规则**：首次进入（同一会话没放过 `sessionStorage['hands-on-vue3-film-played']`、本地没有学习进度、没有 hash、没有减少动画、在页面最上面、标签页不在后台）开场停约 1.2 秒后开始；其余情况只显示“▶ 播放 N 秒短片”。用户的滚轮、触摸、键盘滚动、拖滚动条（滚动位置被别人改了）立刻暂停，监听全是被动的，不 `preventDefault`；键盘快捷键（空格、左右方向键）只在播放器获得焦点时生效。标签页转到后台就暂停，回来不自动续播。“跳过”和最后一个圆点去的是**放完之后**的收束幕（时间轴、数字、按钮都已就位）。播完停在收束幕，控制条缩到左下角，只留“重播”和“声音”。测试可以设 `window.__filmSpeed` 倍速。
+- **回访者**：主按钮的文字靠 `config.mts` 的 `head` 脚本在首次绘制前设的 `html[data-learner="returning"]` 切换（`.only-new` / `.only-ret`），挂载后才补上“第 N 章 章名”。不要用 `v-if` 按进度切换。
+- **幕间的过渡元素**（`flyerTracks`，起点终点由 `film.ts` 的 `buildDynamic` 在布局稳定后量出来、窗口尺寸变化时重算）：第 1→2 幕手动改的三块 DOM 各飞出一个光点，汇到 `todos` 那一次变化上；第 3→4 幕剩下的差别标记飞到静态节点 Logo 上，变成“跳过”的盾；收束幕三层空间缩成时间轴的最后一个点，其余各站依次从它拉出来。这些是绝对定位的独立节点，只动 `transform` 和 `opacity`。
+- **收束幕**：发光的时间轴（`STATIONS` 的 7 站，每站一个颜色、大号年份、名称、章链接，上下交错），三个统计数字（章数·阶段数、练习数、自测题数，都从章元数据算，进入本幕后从 0 滚动到真实值）。站的链接用章 id 取章名，不写死章号；`tests/unit/film.test.ts` 检查每个章 id 都存在。390px 宽度下曲线退化为竖线，各站一行。
+- **配乐和音效**（`engine/audio.ts`，自己的 chunk，**只在用户点开声音后才动态 import**）：用 Web Audio 现场合成，没有音频文件。`scheduleScore(ctx, out, from, to, when)` 把影片时间 [from, to) 的声音排到任何 `BaseAudioContext` 上，在线（前瞻调度）和离线（`renderOffline`）共用。调听感改 `audio.ts` 开头的 `CHORDS`、`LEVEL`、`ARP`。音效的时间点都取自 `filmData.ts` 的 `CUE`，`filmTracks.ts` 的关键帧用同一批数，`tests/unit/score.test.ts` 检查每个音效时间点 ±50ms 内画面轨道上有关键帧。默认静音；偏好记在 `localStorage['hands-on-vue3-film-sound']`、提示是否点过记在 `hands-on-vue3-film-tip`（都不是学习进度的键）；暂停、手动擦洗、后台标签页都直接静音。
+- **深色顶栏**：首页舞台始终是深色，所以 `film.css` 里 `html.film-dyn:has(.film.ready) .VPNav` 在首页短片就绪后把顶栏换成深色令牌（浅色模式也一样）；离开首页后选择器不再命中，顶栏自动恢复，不影响别的页面。
+- **禁忌**：不要用 `scroll-snap-type: mandatory`、不要拦截 wheel/touch/键盘；类名都限定在 `.film` 下，不要用 `.diff`、`.bar`、`.track`、`.fill` 这类容易撞上课文示例的名字；3D 画面里不用 `filter: blur` 和 `backdrop-filter`，发光用渐变和 `box-shadow`；不使用 Vue 官方标志。**史实**（年份、版本、机制说法）改动前要对照 Vue 官方博客、`vuejs/core` 与 `vuejs/vue` 的发布说明和官方文档；3.6 目前是候选版，正式发布后要改第 7 幕的说明。
+- **幕的 id** 放在每幕里不可见的 `.anchor` 元素上（不放在 `section` 上）：`AppEffects.vue` 的 `realign()` 会把 hash 目标拉到顶栏下面，短片模式下锚点放在幕开头往下一点，这样几方对齐后影片时间落在这一幕里。
 
 ### 课程地图页（`/roadmap`）
 

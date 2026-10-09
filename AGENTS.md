@@ -36,7 +36,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | **`npm run check`** | typecheck + check:content + check:docs + test:unit。**每次提交前跑** | 约 3 秒 |
 | `npm run test:e2e` | 浏览器测试（Playwright），读 `course/.vitepress/dist`（或 `COURSE_OUT_DIR` 指向的目录），**先 `npm run build`** | 全部约 9 分钟 |
 | `npm run test:e2e -- 03-refs 04-computed` | 只测指定章（exercises 套件）。它自己只构建这些章到临时目录，不用先 build | 每章几秒到十几秒 |
-| `npm run test:e2e -- mechanics progress glossary folds` | 只跑学习机制 / 跨章功能 / 术语表 / 折叠只读块套件 | 各约 1 到 3 分钟 |
+| `npm run test:e2e -- mechanics progress glossary folds home` | 只跑学习机制 / 跨章功能 / 术语表 / 折叠只读块 / 首页短片套件 | 各约 1 到 3 分钟 |
 | **`npm test`** | check + build + test:e2e，**完整验收**。改引擎、主题组件、样式后必跑 | 约 9 分钟 |
 | `npm run test:site` | build + test:e2e（旧名字，保留） | 约 9 分钟 |
 | `npm run new-chapter -- <章id> --stage <1-6> --after <已有章id> --title "标题"` | 加一章 | 即时 |
@@ -48,7 +48,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 - `npm run test:e2e` 的用法：`-- <套件> [章名 …]`，套件是 `exercises`（逐章：练习、半成品、自测、实验台）、`progress`（跨章功能）、`mechanics`（学习机制）、`glossary`（术语表和术语标注）、`folds`（练习里的折叠只读块）；写了章名就只跑 exercises；什么都不写就依次跑五个。
 - 单个测试文件也可以直接运行：`node tests/site/exercises.test.js 03-refs`。
 - 本机 shell 设了 HTTP 代理时，访问 localhost 的命令前加 `NO_PROXY=localhost,127.0.0.1`（`npm run test:e2e` 已自动加）。
-- 并行构建的环境变量：`COURSE_CHAPTERS`（只构建这些章）、`COURSE_OUT_DIR`、`COURSE_CACHE_DIR`（独立的输出和缓存目录）。多个 agent 同时工作时，用独立目录构建，不要都写默认的 `course/.vitepress/dist`。**五个浏览器测试套件都认 `COURSE_OUT_DIR`**：先 `COURSE_OUT_DIR=/tmp/x/dist COURSE_CACHE_DIR=/tmp/x/cache npx vitepress build course`，再 `COURSE_OUT_DIR=/tmp/x/dist npm run test:e2e -- progress`。
+- 并行构建的环境变量：`COURSE_CHAPTERS`（只构建这些章）、`COURSE_OUT_DIR`、`COURSE_CACHE_DIR`（独立的输出和缓存目录）。多个 agent 同时工作时，用独立目录构建，不要都写默认的 `course/.vitepress/dist`。**六个浏览器测试套件都认 `COURSE_OUT_DIR`**：先 `COURSE_OUT_DIR=/tmp/x/dist COURSE_CACHE_DIR=/tmp/x/cache npx vitepress build course`，再 `COURSE_OUT_DIR=/tmp/x/dist npm run test:e2e -- progress`。
 - Node 版本：`.nvmrc` 是 24，`engines` 要求 `>=24`。`package.json` 没有 `"type": "module"`（测试用 CommonJS，VitePress 配置是 `.mts`），所以脚本都是 `.mjs`，不要给 `package.json` 加 `type`。
 - **提交前钩子**：`npm install` 的 `prepare` 会把 `core.hooksPath` 设为 `.githooks/`（手动启用：`node scripts/setup-hooks.mjs`），每次提交前自动跑 `check:content` 和 `check:docs`（2 秒内）。CI 里和没有 `.git` 的环境不会启用。紧急跳过：`git commit --no-verify`。
 - 本仓库没有 Biome：现有代码风格不统一（有的文件写分号，有的不写），强行格式化会改动大量文件。以后要加，先统一风格再启用。
@@ -69,6 +69,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `course/figures/NN-id/*.vue` | 示意图（按内容命名，只含 `<template>`） | — |
 | `course/checks/questions.ts` | 阶段测验专用题库（卡片键 `章id#cN` 靠它的出现顺序编号，只能在末尾追加） | — |
 | `course/roadmap.md` | 课程地图页（`/roadmap`，原首页的内容；组件 `RoadmapPage.vue`）。首页 `course/index.md` 是全屏短片，见 AUTHORING 的“首页短片” | — |
+| `course/index.md`、`theme/components/HomeFilm.vue`、`theme/film.css`、`engine/film.ts`、`engine/audio.ts`、`engine/logic/film*.ts` | 首页短片（9 幕讲数据变化怎样走到屏幕，可自动放映、可滚动、带配乐）。写法、时间模型、自动播放规则和禁忌见 `course/AUTHORING.md` 的“首页短片” | 把它的 JS 放进主包、用 `<ClientOnly>` 包住它 |
 | `course/review.md`、`course/glossary.md`、`course/check/N.md` | 今日复习页、术语表页（自动汇总各章术语块）、各阶段测验页（内容是组件 `ReviewPage`、`GlossaryPage`、`StageCheck`） | — |
 | `course/card-keys.snapshot.json` | 复习卡片键快照，**提交进仓库**，由脚本更新（见「卡片键快照」） | 手改 |
 | `course/.vitepress/theme/composables/exerciseLibs.ts` | 练习声明 `libs: ['pinia' | 'vue-router']` 时，运行器载入真实的 Pinia 和 Vue Router 并装进练习应用（写法见 `AUTHORING.md` 4.10） | 其他练习的运行逻辑 |
@@ -80,7 +81,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `editor/entry.js` | 练习编辑器（CodeMirror 6），被 `Exercise` 组件直接导入 | — |
 | `scripts/` | `check-content.mjs`（内容校验）、`check-docs.mjs`（文档数字核对）、`new-chapter.mjs`（加章脚手架）、`e2e.mjs`（浏览器测试入口）、`setup-hooks.mjs`（启用提交前钩子）、`shot.mjs`（截图）；`lib/` 是它们共用的（`validate.mjs` 是全部校验规则，`section-refs.mjs` 是小节引用的统一扫描（校验和改号共用），`known-issues.mjs` 是临时豁免，目前是空的；`ref-tense.mjs` 查引用的措辞和对象章的位置是否一致；`reorder.mjs` 和 `reorder-chapters.mjs` 一次重排所有章） | — |
 | `tests/unit/` | Vitest 单元测试（`*.test.ts`）；规则对照表见 `tests/unit/README.md` | 需要浏览器的测试 |
-| `tests/site/` | Playwright 测试：`exercises.test.js`、`progress.test.js`、`mechanics.test.js`、`glossary.test.js`、`folds.test.js`，`helpers.js` 是共用的；`labs/NN-id.js` 是各章实验台的测试数据 | — |
+| `tests/site/` | Playwright 测试：`exercises.test.js`、`progress.test.js`、`mechanics.test.js`、`glossary.test.js`、`folds.test.js`、`home.test.js`（首页短片，约 5 分钟），`helpers.js` 是共用的；`labs/NN-id.js` 是各章实验台的测试数据 | — |
 | `tests/expected.cjs` | 测试里**锁定**的章数、选读章 id 和每阶段题数，集中在这一个文件；其余数字都从元数据算 | 别处再写死数字 |
 | `docs/` | 三份旧审查报告和教学设计调研。**它们针对的是第 14 版单文件课程**（`vue3-course.html`，已删除，取回见提交 `a2fe105`），只作背景参考，不检查 | — |
 | `.github/` | `workflows/ci.yml`（check + e2e）、`deploy.yml`（CI 通过后部署）、`dependabot.yml` | — |

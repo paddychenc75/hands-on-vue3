@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DATA, DURATIONS, MARKS, NODES, SCENE_COUNT, SECONDS_PER_SCREEN, STATIONS, TOTAL, depthOf, subtree } from '../../course/engine/logic/filmData.ts'
+import { DATA, DURATIONS, ERA_COLORS, MARKS, MEM_DROP, MOVERS, NODES, SCENE_COUNT, SECONDS_PER_SCREEN, STATIONS, TOTAL, depthOf, subtree } from '../../course/engine/logic/filmData.ts'
 import { buildTracks } from '../../course/engine/logic/filmTracks.ts'
 import { changeSpans, sceneOf, scrollOfTime, timeOfScroll } from '../../course/engine/film.ts'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -127,5 +127,32 @@ describe('buildTracks', () => {
       [2, 3],
       [5, 7]
     ])
+  })
+})
+
+describe('第二轮：时代主色、功能聚合、内存条', () => {
+  it('每一幕一个主色；收束幕的第 i 站用第 i+1 幕的颜色，所以站数 = 讲解幕数', () => {
+    expect(ERA_COLORS.length).toBe(SCENE_COUNT)
+    expect(STATIONS.length).toBe(SCENE_COUNT - 2)
+    expect(new Set(ERA_COLORS.slice(1, SCENE_COUNT - 1)).size).toBeGreaterThanOrEqual(6)
+  })
+  it('第 5 幕：五个小块（三份数据 + 两个方法），落点分属两个功能分组，数据的落点就是真正药丸的位置', () => {
+    expect(MOVERS.map(m => m.id)).toEqual(['title', 'todos', 'remaining', 'addTodo', 'setTitle'])
+    expect(MOVERS.filter(m => m.group === 'todos').length).toBe(3)
+    for (const d of DATA) {
+      const m = MOVERS.find(x => x.id === d.id)!
+      expect([m.fx, m.fy]).toEqual([d.x, d.y])
+    }
+  })
+  it('第 6 幕：内存条只用官方博客的数字（降低 56%），第二根条缩到 44%', () => {
+    expect(MEM_DROP).toBe(0.56)
+    const t = buildTracks(false)['mem-b']
+    expect(t.some(k => k.transform === 'scaleX(0.44)')).toBe(true)
+  })
+  it('收束幕的时间轴、数字、按钮、页脚都有出现轨道；三层空间在收束时淡出', () => {
+    const t = buildTracks(false)
+    for (const sel of ['.fin-eyebrow', '.mk-in', '.fin-head .desc', '.stats3', '.fin-actions', '.foot']) expect(t[`css:[data-w=cp-8] ${sel}`], sel).toBeTruthy()
+    expect(t['tl-draw']).toBeTruthy()
+    for (const n of ['pl1', 'pl3', 'pl4']) expect(t[n].some(k => k.opacity === 0 && k.t > MARKS[8]), n).toBe(true)
   })
 })

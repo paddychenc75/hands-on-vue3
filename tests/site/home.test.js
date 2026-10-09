@@ -28,7 +28,13 @@ async function open(site, ctxOpts = {}, { speed = 1, played = false, hash = '' }
   p.msgs = []
   p.on('pageerror', e => p.errs.push(e.message))
   p.on('console', m => { p.msgs.push(m.type() + ': ' + m.text()); if (['error', 'warning'].includes(m.type())) p.errs.push(m.text()) })
-  await p.addInitScript(([s, pl]) => { window.__filmSpeed = s; if (pl) sessionStorage.setItem('hands-on-vue3-film-played', '1') }, [speed, played])
+  await p.addInitScript(([s, pl]) => {
+    window.__filmSpeed = s; window.__filmTest = true
+    if (pl) sessionStorage.setItem('hands-on-vue3-film-played', '1')
+    // 记下创建过的 AudioContext，测试“默认静音、离开页面关闭”
+    const AC = window.AudioContext
+    if (AC) { window.__ctxs = []; window.AudioContext = class extends AC { constructor(...a) { super(...a); window.__ctxs.push(this) } } }
+  }, [speed, played])
   p.ctx = ctx
   await p.goto(site.base + '/' + hash)
   if (!ctxOpts.reducedMotion && ctxOpts.javaScriptEnabled !== false) await p.waitForSelector('.film.ready', { timeout: 15000 })
@@ -86,7 +92,7 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
       const s = await state(p)
       g.ok(!s.playing && s.scene === SCENE_COUNT - 1, '放完停在收束幕')
       g.ok(await p.locator('.player .play').getAttribute('aria-label') === '重播短片', '播放按钮变成“重播短片”')
-      g.ok(await p.locator('.s9 .btn.primary').isVisible(), '收束幕的主按钮可见')
+      g.ok(await p.locator('.fin-actions .btn.big').isVisible(), '收束幕的主按钮可见')
       g.ok(p.errs.length === 0, '没有控制台报错或警告（含水合警告）：' + p.errs.join('|'))
       g.end()
       await p.ctx.close()
@@ -212,21 +218,18 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
     {
       const g = R.group('手机 390、360 和横屏 844×390：每一幕都没有横向滚动')
       for (const [w, h] of [[390, 844], [360, 740], [844, 390]]) {
-        // 基线：同一宽度下一个章页的 scrollWidth（顶栏本身在很窄的屏幕上可能就超宽，那不是首页的问题；首页不能比它更宽）
-        const bp = await open(site, { viewport: { width: w, height: h } }, { played: true }); await bp.goto(site.base + '/chapters/01-first.html'); await sleep(500)
-        const baseSW = await bp.evaluate(() => document.documentElement.scrollWidth); await bp.ctx.close()
         const p = await open(site, { viewport: { width: w, height: h } }, { played: true })
         const bad = []
-        for (const t of [0.5, 7, 13, 20, 27, 33, 39, 45, 52]) {
+        for (const t of [0.5, 7, 13, 20, 27, 33, 39, 45, 52, 54]) {
           await scrollToTime(p, t); await sleep(250)
           const o = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: innerWidth }))
-          if (o.sw > Math.max(o.iw, baseSW)) bad.push(`${t}s:${o.sw}>${Math.max(o.iw, baseSW)}`)
+          if (o.sw > o.iw) bad.push(`${t}s:${o.sw}>${o.iw}`)
           if (SHOTS && w === 390) await p.screenshot({ path: path.join(ROOT, `tests/screenshots/home-film-mobile-${Math.round(t)}.png`) })
         }
-        g.ok(bad.length === 0, `${w}×${h}：` + (bad.join(',') || `没有比章页（${baseSW}）更宽`))
+        g.ok(bad.length === 0, `${w}×${h}：` + (bad.join(',') || '没有横向滚动'))
         const pl = await p.locator('.player').boundingBox()
         g.ok(pl && pl.x >= 0 && pl.x + pl.width <= w + 1, `${w}×${h}：控制条在屏幕内`)
-        const btns = await p.locator('.player button, .player a').evaluateAll(els => els.map(e => { const r = e.getBoundingClientRect(); return Math.min(r.width, r.height) }))
+        const btns = await p.locator('.player button, .player a').evaluateAll(els => els.filter(e => e.getBoundingClientRect().width > 0).map(e => { const r = e.getBoundingClientRect(); return Math.min(r.width, r.height) }))
         g.ok(btns.every(v => v >= 36), `${w}×${h}：控制条按钮不小于 36px（` + btns.map(Math.round).join(',') + '）')
         await p.ctx.close()
       }
@@ -259,11 +262,116 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
       const bad = []
       for (const h of hrefs) { const r = await fetch(new URL(h + (h.endsWith('.html') ? '' : '.html'), site.origin)); if (!r.ok) bad.push(h + ' ' + r.status) }
       g.ok(bad.length === 0, '章链接都能打开 ' + bad.join(','))
-      const map = await p.locator('.st-links a').first().getAttribute('href')
+      const map = await p.locator('.fin-actions .btn.ghost').getAttribute('href')
       g.ok(/\/roadmap$/.test(map) && (await fetch(new URL(map + '.html', site.origin))).ok, '课程地图链接：' + map)
       g.ok((await p.locator('.s0 .btn.primary').getAttribute('href')).includes('/chapters/01'), '新访客的主按钮指向第 1 章')
       await p.ctx.close(); g.end()
     }
+    // ---------- 收束幕：时间轴、数字滚动、深色顶栏 ----------
+    {
+      const g = R.group('收束幕：发光时间轴上 7 站、数字从 0 滚动到真实值、浅色模式下顶栏也是深色（对比度达标），离开首页恢复')
+      const real = [CH.filter(c => c.stage != null).length, CH.reduce((a, c) => a + c.ex.length, 0), CH.filter(c => c.stage != null).reduce((a, c) => a + c.scCount, 0)]
+      const p = await open(site, { colorScheme: 'light' }, { played: true })
+      await scrollToTime(p, 48.5 + 0.5); await sleep(400)
+      const zero = await p.evaluate(() => [...document.querySelectorAll('.stats3 dt')].map(e => e.textContent.trim()))
+      g.ok(zero.every(v => v === '0'), '进入收束幕时三个数字是 0：' + zero)
+      await scrollToTime(p, 54.4); await sleep(500)
+      const end = await p.evaluate(() => [...document.querySelectorAll('.stats3 dt')].map(e => +e.textContent))
+      g.ok(JSON.stringify(end) === JSON.stringify(real), `数字滚动到真实值 ${real}（实际 ${end}）`)
+      g.ok((await p.locator('.eras li').count()) === 7 && (await p.locator('.eras li a.era-main').count()) === 7, '时间轴上 7 站，每站有章链接')
+      g.ok(await p.locator('.tl-curve').isVisible() && await p.locator('.fin-actions .btn.big').isVisible() && await p.locator('.fin-actions .btn.ghost').isVisible(), '曲线、实心主按钮、描边的“查看课程地图”都可见')
+      const nav = await p.evaluate(() => {
+        const lum = c => { const [r, g, b] = c.map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4 }); return .2126 * r + .7152 * g + .0722 * b }
+        const rgb = el => (getComputedStyle(el).color.match(/[\d.]+/g) || []).slice(0, 3).map(Number)
+        const bgc = (getComputedStyle(document.querySelector('.VPNavBar')).backgroundColor.match(/[\d.]+/g) || []).map(Number)
+        const base = [5, 11, 15], a = bgc.length > 3 ? bgc[3] : 1
+        const bg = [0, 1, 2].map(i => bgc[i] * a + base[i] * (1 - a))
+        const cr = el => { const L1 = lum(rgb(el)), L2 = lum(bg); return (Math.max(L1, L2) + .05) / (Math.min(L1, L2) + .05) }
+        const pick = sel => document.querySelector(sel)
+        return { bgLum: lum(bg), title: cr(pick('.VPNavBarTitle .title')), np: cr(pick('.nav-progress .np-txt')), menu: cr(pick('.VPNavBarMenuLink')), search: cr(pick('.VPNavBarSearch .DocSearch-Button-Placeholder') || pick('.VPNavBarSearch')) }
+      })
+      g.ok(nav.bgLum < 0.05, '浅色模式下首页顶栏是深色（亮度 ' + nav.bgLum.toFixed(3) + '）')
+      g.ok(nav.title >= 4.5 && nav.np >= 4.5 && nav.menu >= 4.5 && nav.search >= 4.5, '顶栏文字对比度 ≥ 4.5：' + JSON.stringify(nav))
+      const bar = await p.locator('.nav-progress .np-bar').boundingBox()
+      g.ok(!bar || bar.width > 20, '顶栏进度条可见')
+      await p.locator('.eras a.era-main').first().click(); await p.waitForURL(/chapters/); await sleep(600)
+      const lightNav = await p.evaluate(() => { const c = (getComputedStyle(document.querySelector('.VPNavBar')).backgroundColor.match(/[\d.]+/g) || []).map(Number); return c[0] + c[1] + c[2] })
+      g.ok(lightNav > 600, '离开首页后顶栏恢复为浅色（亮度和 ' + lightNav + '）')
+      await p.ctx.close(); g.end()
+    }
+    // ---------- 配乐：默认静音、点开才创建 AudioContext 和加载音频 chunk ----------
+    {
+      const g = R.group('配乐：默认静音；点开声音才创建上下文并加载音频 chunk；暂停/关掉/离开页面都会静音或关闭；偏好记在单独的键里')
+      const dir = path.join(dist, 'assets/chunks')
+      const audioChunk = fs.readdirSync(dir).find(f => !/^(theme|framework)/.test(f) && fs.readFileSync(path.join(dir, f), 'utf8').includes('createDynamicsCompressor'))
+      g.ok(!!audioChunk, '音频代码在自己的 chunk 里：' + audioChunk)
+      const p = await open(site, {}, { speed: 1 })
+      const reqs = []
+      p.on('request', r => reqs.push(r.url()))
+      await waitFor(p, async () => (await state(p)).playing, 4000)
+      const hook = () => p.evaluate(() => window.__filmHook.audio())
+      const a0 = await p.evaluate(() => ({ ctxs: (window.__ctxs || []).length, hook: window.__filmHook.audio() }))
+      g.ok(a0.ctxs === 0 && !a0.hook.created && !reqs.some(u => audioChunk && u.includes(audioChunk)), '默认静音：没有创建 AudioContext，也没有加载音频 chunk')
+      g.ok((await p.getAttribute('.snd', 'aria-pressed')) === 'false', '声音开关 aria-pressed=false')
+      g.ok(await p.locator('.snd-tip').isVisible(), '首次自动播放开始时出现“开启配乐”提示')
+      await p.click('.snd'); await sleep(1800)
+      const a1 = await hook()
+      g.ok(a1.on && a1.created && a1.state === 'running' && a1.level > 0.003 && reqs.some(u => audioChunk && u.includes(audioChunk)), '点开声音：上下文 running、有电平、此时才加载音频 chunk ' + JSON.stringify(a1))
+      const lsv = await p.evaluate(() => [localStorage.getItem('hands-on-vue3-film-sound'), localStorage.getItem('hands-on-vue3-film-tip'), localStorage.getItem('hands-on-vue3-v1')])
+      g.ok(lsv[0] === 'on' && lsv[1] === '1' && !/film/.test(lsv[2] || ''), '偏好记在单独的 localStorage 键里，不写进学习进度的键')
+      const f0 = a1.info.anchorF
+      await p.click('.player .next'); await sleep(1500)
+      const a2 = await hook()
+      g.ok(a2.info.anchorF >= f0 + 2 && a2.playing, '换幕后重新排程：调度位置随影片时间改变 ' + JSON.stringify([f0, a2.info.anchorF]))
+      await p.click('.player .play'); await sleep(550)
+      const a3 = await hook(); await sleep(500); const a4 = await hook()
+      g.ok(a3.level < 0.0008 && a4.state === 'suspended', '暂停：0.5 秒内输出静音，随后上下文 suspend ' + JSON.stringify([a3.level, a4.state]))
+      await p.click('.player .play'); await sleep(1800)
+      const a5 = await hook()
+      g.ok(a5.state === 'running' && a5.level > 0.003, '继续播放：声音淡入回来')
+      await p.click('.snd'); await sleep(900)
+      const a6 = await hook()
+      g.ok(!a6.on && a6.state === 'suspended' && (await p.getAttribute('.snd', 'aria-pressed')) === 'false', '关掉声音：上下文 suspend，aria-pressed=false')
+      await p.click('.snd'); await sleep(1200)
+      await p.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')) }); await sleep(900)
+      const a7 = await hook()
+      g.ok(a7.level < 0.0008, '标签页转到后台：声音静音')
+      await p.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }) })
+      await p.goto(site.base + '/glossary.html').catch(() => {}); await sleep(1500)
+      const gone = await p.evaluate(() => ({ states: (window.__ctxs || []).map(c => c.state), hook: !!window.__filmHook }))
+      g.ok(!gone.hook && gone.states.every(s2 => s2 === 'closed'), '离开首页：关闭 AudioContext、清掉测试钩子 ' + JSON.stringify(gone))
+      await p.ctx.close()
+      const q = await open(site, {}, { played: true })
+      await q.evaluate(() => localStorage.setItem('hands-on-vue3-film-sound', 'on'))
+      await q.click('.film-play'); await sleep(2200)
+      const b1 = await q.evaluate(() => window.__filmHook.audio())
+      g.ok(b1.on && b1.state === 'running' && b1.level > 0.003, '偏好开过声音：点“播放短片”直接带声音')
+      await q.ctx.close()
+      const r2 = await open(site, {}, { played: true })
+      await r2.click('.film-play'); await sleep(1200)
+      const b2 = await r2.evaluate(() => ({ h: window.__filmHook.audio(), tip: !document.querySelector('.snd-tip').hidden, ctxs: (window.__ctxs || []).length }))
+      g.ok(!b2.h.on && b2.ctxs === 0 && b2.tip, '没有偏好：点播放仍然静音，并显示“开启配乐”提示')
+      await r2.ctx.close(); g.end()
+    }
+    // ---------- 离线渲染整段配乐并检查 ----------
+    {
+      const g = R.group('配乐离线检查：无 NaN 无削波、峰值 ≤ -3 dBFS、响度适中、没有意外静音、立体声、频谱不刺耳、每个音效点有能量突起')
+      const p = await open(site, {}, { played: true })
+      const r = await p.evaluate(() => window.__filmHook.render())
+      const st = r.stats
+      if (process.env.SCORE_DIR) { fs.mkdirSync(process.env.SCORE_DIR, { recursive: true }); fs.writeFileSync(path.join(process.env.SCORE_DIR, 'score.wav'), Buffer.from(r.wav, 'base64')); fs.writeFileSync(path.join(process.env.SCORE_DIR, 'stats.json'), JSON.stringify(st, null, 1)) }
+      console.log('  [数字] 配乐：' + JSON.stringify({ ...st, cues: undefined, perScene: undefined }))
+      g.ok(st.nan === 0 && st.clipped === 0, '没有 NaN、没有削波 ' + [st.nan, st.clipped])
+      g.ok(st.peakDb <= -3 && st.rmsDb > -26 && st.rmsDb < -14, `峰值 ${st.peakDb} dBFS ≤ -3，整体 RMS ${st.rmsDb} dBFS 适中`)
+      g.ok(st.perScene.every(x => x.peakDb <= -3 && x.rmsDb > -32), '每一幕峰值 ≤ -3 dBFS、响度不低于 -32 dBFS ' + JSON.stringify(st.perScene))
+      g.ok(st.longestQuiet <= 1.5, `没有超过 1.5 秒的意外静音（最长 ${st.longestQuiet}）`)
+      g.ok(st.stereoDiff > 0.02, '左右声道不同 ' + st.stereoDiff)
+      g.ok(st.bands['2k-5k'] + st.bands.gt5k < 0.2, '频谱不集中在刺耳的 2–5 kHz ' + JSON.stringify(st.bands))
+      const bad = st.cues.filter(c => !c.ok)
+      g.ok(bad.length === 0, `每个音效点都有能量突起（${st.cues.length - bad.length}/${st.cues.length}）` + bad.map(c => `${c.name}@${c.t.toFixed(2)}×${c.ratio}`).join(' '))
+      await p.ctx.close(); g.end()
+    }
+
     // ---------- 站内跳转和清理 ----------
     {
       const g = R.group('从首页点进章再回来：离开时清理（film-dyn 去掉、播放器移除），回来正常')

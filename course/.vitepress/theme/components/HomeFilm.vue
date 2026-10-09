@@ -22,7 +22,7 @@ import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { withBase } from 'vitepress'
 import '../film.css'
 import {
-  BLOCK_HUE, BLOCK_SIZE, DATA, DURATIONS, H, NODES, RAIL_LABELS, SECONDS_PER_SCREEN, STATIONS, TAGS, TOTAL, W, DYNAMIC, STATIC_LEAVES,
+  BLOCK_HUE, BLOCK_SIZE, DATA, DURATIONS, ERA_COLORS, H, MOVERS, MOVER_COLUMNS, NODES, RAIL_LABELS, SECONDS_PER_SCREEN, STATIONS, TAGS, TOTAL, W, DYNAMIC, STATIC_LEAVES,
 } from '../../../engine/logic/filmData'
 import { STAGE_COUNT, chapterByPath, chapterById, ensureReady, getLast, progressChapters, ready } from '../composables/learn'
 
@@ -125,6 +125,8 @@ const CALLOUTS: [string, string, string?][] = [
 const exTotal = progressChapters.reduce((a, c) => a + c.ex.length, 0)
 const scTotal = progressChapters.reduce((a, c) => a + c.scCount, 0)
 const first = progressChapters[0]
+/** 收束幕的三个数字（构建时从章节数据算出，进入收束幕后从 0 滚动到这个值） */
+const STATS: [number, string][] = [[progressChapters.length, `章 · ${STAGE_COUNT} 个阶段`], [exTotal, '道自动判题练习'], [scTotal, '道自测题进入间隔复习']]
 const chapterLabel = (id: string) => chapterById(id)?.title || id
 const chapterHref = (id: string) => withBase(chapterById(id)?.link || first.link)
 
@@ -135,6 +137,21 @@ const resume = computed(() => {
   return c ? { href: withBase(c.link) + (last.anchor ? '#' + encodeURIComponent(last.anchor) : ''), label: `第 ${c.chapter} 章 ${c.title}` } : null
 })
 const startHref = computed(() => resume.value?.href || withBase(first.link))
+/** 收束幕的时间轴：各站在一条平缓上升的曲线上（x、y 是 1000×200 视窗里的坐标），曲线用 Catmull-Rom 过这些点 */
+const XS = STATIONS.map((_s, i) => ((i + 0.5) * 1000) / STATIONS.length)
+const YS = [118, 91, 109, 80, 98, 70, 88]
+const CURVE = (() => {
+  const pts = [{ x: 0, y: 128 }, ...XS.map((x, i) => ({ x, y: YS[i] })), { x: 1000, y: 56 }]
+  let d = `M${pts[0].x} ${pts[0].y}`
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[Math.min(pts.length - 1, i + 2)]
+    d += ` C${(p1.x + (p2.x - p0.x) / 6).toFixed(1)} ${(p1.y + (p2.y - p0.y) / 6).toFixed(1)} ${(p2.x - (p3.x - p1.x) / 6).toFixed(1)} ${(p2.y - (p3.y - p1.y) / 6).toFixed(1)} ${p2.x} ${p2.y}`
+  }
+  return d
+})()
 const rail = [{ id: 'scene-0', name: '开场' }, ...SCENES.map(s => ({ id: s.id, name: s.eyebrow.join(' ') })), { id: 'scene-8', name: '收束' }]
 const mapHref = withBase('/roadmap')
 
@@ -171,6 +188,9 @@ onBeforeUnmount(() => {
 
     <!-- 三层空间：响应式数据 / 虚拟 DOM 树 / DOM 与屏幕。没有 JS 时它是一张静态的结论帧 -->
     <div class="world" aria-hidden="true">
+      <div class="eraglow">
+        <i v-for="(c, i) in ERA_COLORS" :key="i" :data-w="'eg-' + i" :style="{ '--c': c }" />
+      </div>
       <div class="w3d">
         <div class="cam" data-w="cam">
           <div class="u" :style="{ width: px(W), height: px(H) }">
@@ -232,8 +252,13 @@ onBeforeUnmount(() => {
                 <path class="dep" data-w="dep" :d="`M${pill('todos').x + 56} ${pill('todos').y} L${pill('remaining').x - 56} ${pill('remaining').y}`" pathLength="1" />
                 <path v-for="l in LINKS" :key="l.id" class="dl" :data-w="'dl-' + l.id" :d="linkPath(pill(l.from), node(l.to))" pathLength="1" />
               </svg>
-              <div class="gf gf-todos" data-w="gf-todos" :style="at(466, 218, 526, 68)"><b>useTodos()</b></div>
-              <div class="gf gf-title" data-w="gf-title" :style="at(184, 218, 132, 68)"><b>useTitle()</b></div>
+              <div class="gf gf-todos" data-w="gf-todos" :style="at(466, 214, 526, 76)"><b>useTodos()</b></div>
+              <div class="gf gf-title" data-w="gf-title" :style="at(176, 214, 148, 120)"><b>useTitle()</b></div>
+              <i v-for="c in MOVER_COLUMNS" :key="c.id" class="col" :data-w="'col-' + c.id" :style="at(c.x - 52, 64, 104, 22)">{{ c.label }}</i>
+              <div v-for="m in MOVERS" :key="m.id" class="card pill mv" :class="[m.kind, 'g-' + m.group]" :data-w="'mv-' + m.id" :style="at(m.fx - 58, m.fy - 14, 116, 28)">
+                <code>{{ m.label }}</code>
+                <em class="kd">{{ m.kind === 'fn' ? 'fn' : m.kind }}</em>
+              </div>
               <div v-for="d in DATA" :key="d.id" class="card pill" :class="d.kind" :data-w="'d-' + d.id" :style="at(d.x - 58, d.y - 14, 116, 28)">
                 <code>{{ d.label }}</code>
                 <em class="kd">{{ d.kind }}</em>
@@ -248,12 +273,32 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <!-- 画面角落：年份、图例、一句话说明 -->
+      <div class="finbg" data-w="finbg" aria-hidden="true" />
       <div class="hud">
+        <!-- 幕间的过渡元素：起点终点由 film.ts 在布局稳定后量出来 -->
+        <i class="fly fa" data-w="fly-a-0" />
+        <i class="fly fa" data-w="fly-a-1" />
+        <i class="fly fa" data-w="fly-a-2" />
+        <i class="fly fb" data-w="fly-b">≠</i>
+        <i class="fly fb-ring" data-w="fly-b-ring" />
+        <svg class="fly fc" data-w="fly-c" viewBox="-30 -30 60 60" aria-hidden="true">
+          <rect x="-22" y="6" width="44" height="14" rx="3" class="l3" />
+          <rect x="-22" y="-7" width="44" height="14" rx="3" class="l2" />
+          <rect x="-22" y="-20" width="44" height="14" rx="3" class="l1" />
+        </svg>
+        <div class="mem" data-w="mem">
+          <p>内存占用</p>
+          <div class="mem-row"><b>3.4</b><span class="mem-bar"><i class="a" data-w="mem-a" /></span></div>
+          <div class="mem-row"><b>3.5</b><span class="mem-bar"><i class="b" data-w="mem-b" /></span><u class="mem-n" data-w="mem-n">−56%</u></div>
+        </div>
         <div class="year" data-w="year">
           <div class="digits">
             <span v-for="d in [0, 1, 2, 3]" :key="d" class="dg">
               <span class="strip" :data-w="'yd-' + d"><i v-for="i in 10" :key="i">{{ i - 1 }}</i></span>
             </span>
+          </div>
+          <div class="ybars" aria-hidden="true">
+            <i v-for="i in [2, 3, 4, 5, 6, 7]" :key="i" :data-w="'yb-' + i" :style="{ background: ERA_COLORS[i] }" />
           </div>
           <div class="ytags">
             <span v-for="t in TAGS" :key="t.key" :data-w="'yt-' + t.key">{{ t.text }}</span>
@@ -301,31 +346,54 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <!-- 8 收束 -->
+    <!-- 8 收束：发光的时间轴是视觉主体，上标题、下行动。没有 JS 时它是一张完整可读的列表 -->
     <section class="sc s9" :style="{ '--d': DURATIONS[8] }" aria-labelledby="h-8">
       <span id="scene-8" class="anchor" />
       <div class="sc-copy" data-w="cp-8">
-        <div class="s9-head">
-          <h2 id="h-8"><span class="mk"><span class="mk-in"><span v-for="p in parts('每一代，都在解决上一代留下的问题')" :key="p" class="ph">{{ p }}</span></span></span></h2>
-          <p class="desc">这门课让你先预测，再运行，最后自己写练习。</p>
+        <div class="fin">
+          <header class="fin-head">
+            <p class="fin-eyebrow">2015 → 2026</p>
+            <h2 id="h-8">
+              <span class="mk"><span class="mk-in"><span class="ph">每一代，</span><span class="ph">都在解决<em>上一代留下的问题</em></span></span></span>
+            </h2>
+            <p class="desc">这门课让你先预测，再运行，最后自己写练习。</p>
+          </header>
+          <div class="tl">
+            <svg class="tl-curve" viewBox="0 0 1000 200" preserveAspectRatio="none" aria-hidden="true">
+              <path class="tl-base" :d="CURVE" />
+              <path class="tl-draw" data-w="tl-draw" :d="CURVE" pathLength="1" />
+              <path class="tl-flow" :d="CURVE" pathLength="1" />
+            </svg>
+            <i class="tl-line" data-w="tl-line" aria-hidden="true" />
+            <ol class="eras">
+              <li v-for="(st, i) in STATIONS" :key="st.name + st.year" class="era" :class="i % 2 ? 'up' : 'down'" :style="{ '--c': ERA_COLORS[i + 1], '--x': XS[i] / 10 + '%', '--y': (YS[i] / 200) * 100 + '%' }">
+                <span class="dt" aria-hidden="true" />
+                <div class="era-box">
+                  <a class="era-main" :href="chapterHref(st.chapters[0])" :aria-label="`${st.year} ${st.name}：${chapterLabel(st.chapters[0])}`">
+                    <span class="yr">{{ st.year }}</span>
+                    <b>{{ st.name }}</b>
+                    <span class="ln">{{ chapterLabel(st.chapters[0]) }}</span>
+                    <span class="tip" aria-hidden="true">{{ SCENES[i].title }}</span>
+                  </a>
+                  <a v-for="id in st.chapters.slice(1)" :key="id" class="era-more" :href="chapterHref(id)">{{ chapterLabel(id) }}</a>
+                </div>
+              </li>
+            </ol>
+          </div>
+          <div class="fin-act">
+            <dl class="stats3">
+              <div v-for="[n, label] in STATS" :key="label">
+                <dt :data-count="n">{{ n }}</dt>
+                <dd>{{ label }}</dd>
+              </div>
+            </dl>
+            <div class="fin-actions">
+              <a class="btn primary big" :href="startHref"><span class="only-new">从第 1 章开始 →</span><span class="only-ret">继续学习<template v-if="resume">：{{ resume.label }}</template> →</span></a>
+              <a class="btn ghost" :href="mapHref">查看课程地图</a>
+            </div>
+          </div>
+          <p class="foot">本课程不是 Vue 官方项目。</p>
         </div>
-        <ol class="eras">
-          <li v-for="s in STATIONS" :key="s.name + s.year">
-            <span class="yr">{{ s.year }}<small v-if="s.note"> · {{ s.note }}</small></span>
-            <b>{{ s.name }}</b>
-            <a v-for="id in s.chapters" :key="id" :href="chapterHref(id)">{{ chapterLabel(id) }}</a>
-          </li>
-        </ol>
-        <ul class="nums">
-          <li>{{ progressChapters.length }} 章 · {{ STAGE_COUNT }} 个阶段</li>
-          <li>{{ exTotal }} 道自动判题练习</li>
-          <li>{{ scTotal }} 道自测题进入间隔复习</li>
-        </ul>
-        <div class="st-actions big">
-          <a class="btn primary" :href="startHref"><span class="only-new">从第 1 章开始 →</span><span class="only-ret">继续学习<template v-if="resume">：{{ resume.label }}</template> →</span></a>
-        </div>
-        <p class="st-links"><a :href="mapHref">查看课程地图</a></p>
-        <p class="foot">本课程不是 Vue 官方项目。</p>
       </div>
     </section>
   </div>

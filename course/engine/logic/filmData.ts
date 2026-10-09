@@ -8,7 +8,7 @@ export const H = 620
 
 /** 每一幕的时长（秒）。0 开场、1 手动改 DOM、2 Vue 1.0 细粒度绑定、3 Vue 2.0 虚拟 DOM、4 Vue 3.0 编译期优化、
  *  5 组合式 API 与 script setup、6 3.4/3.5 响应式系统、7 3.6 候选版 Vapor、8 收束。 */
-export const DURATIONS = [5, 5, 6, 7, 7.5, 5, 6.5, 6.5, 6] as const
+export const DURATIONS = [5, 5, 6, 7, 7.5, 6, 6.5, 6.5, 6] as const
 export const SCENE_COUNT = DURATIONS.length
 export const LAST = SCENE_COUNT - 1
 export const MARKS: number[] = DURATIONS.reduce<number[]>((a, _d, i) => {
@@ -101,9 +101,9 @@ export const STATIONS: { year: string; name: string; chapters: string[]; note?: 
   { year: '2015', name: '细粒度绑定', chapters: ['reactivity'], note: 'Vue 1.0' },
   { year: '2016', name: '虚拟 DOM', chapters: ['render'], note: 'Vue 2.0' },
   { year: '2020', name: '编译期优化', chapters: ['compiler'], note: 'Vue 3.0' },
-  { year: '2020–21', name: '组合式与 script setup', chapters: ['composables'], note: 'Vue 3.0 / 3.2' },
-  { year: '2023–24', name: '响应式系统', chapters: ['computed', 'reactivity'], note: 'Vue 3.4 / 3.5' },
-  { year: '2026', name: 'Vapor', chapters: ['compiler'], note: '3.6 候选版' },
+  { year: '2020–21', name: '组合式 API', chapters: ['composables'], note: 'Vue 3.0 / 3.2' },
+  { year: '2023–24', name: '响应式系统', chapters: ['computed'], note: 'Vue 3.4 / 3.5' },
+  { year: '2026', name: 'Vapor', chapters: ['perf'], note: '3.6 候选版' }, // 性能优化一章（第 21 章）有“Vapor Mode”深入块，比第 29 章（已被 2020 那一站用了）更贴切且不重复
 ]
 /** 每一幕的名字（进度条提示、读屏播报）和右侧幕进度圆点的标签 */
 export const SCENE_NAMES = [
@@ -117,7 +117,7 @@ export const SCENE_NAMES = [
   '2026 · Vue 3.6 候选版 Vapor',
   '收束',
 ] as const
-export const RAIL_LABELS = ['开场', '之前', '2015', '2016', '2020', '2021', '2023', '2026', '收束'] as const
+export const RAIL_LABELS = ['开场', '之前', '2015', '2016', '2020', '2020–21', '2023–24', '2026', '收束'] as const
 /** 大号年份下面的版本小标签：key 对应 filmTracks 里的出现时段 */
 export const TAGS: { key: string; text: string }[] = [
   { key: 't2', text: 'Vue 1.0' },
@@ -175,25 +175,25 @@ export const CUE = {
   /** 第 3 幕：四个组件各有一个 watcher；List、Footer 重新生成 vnode 子树；标出差别；提交 */
   pw: (i: number) => M[3] + 1.0 + i * 0.22,
   redo: [M[3] + 2.6, M[3] + 3.3],
-  flag3: M[3] + 5.5,
-  land3: M[3] + 6.0,
+  flag3: M[3] + 5.0,
+  land3: M[3] + 5.5,
   /** 第 4 幕：Proxy 环、静态盾、扁平的区块连线、差别标记、提交 */
   proxy: (i: number) => M[4] + 0.8 + i * 0.25,
   shield: M[4] + 1.7,
   flat: M[4] + 3.0,
-  flag4: M[4] + 6.1,
-  land4: M[4] + 6.5,
+  flag4: M[4] + 5.6,
+  land4: M[4] + 6.0,
   /** 第 5 幕：五个小块从三列聚到两个功能分组 */
-  gather: M[5] + 1.4,
-  group: M[5] + 2.6,
+  gather: M[5] + 2.2,
+  group: M[5] + 3.4,
   /** 第 6 幕：computed 的值没变，下游收不到通知；3.5 的内存条缩短 */
   hold: M[6] + 2.7,
   mem: M[6] + 4.3,
   /** 第 7 幕：Vapor 的 effect 标记，三条直连光束 */
-  vwatch: (i: number) => M[7] + 1.4 + i * 0.25,
+  vwatch: (i: number) => M[7] + 2.2 + i * 0.25,
   vwire: [M[7] + 3.9, M[7] + 4.1, M[7] + 5.1],
   /** 年份数字滚动：个位数变化的时刻 */
-  ticks: [M[2] + 0.3, M[3] + 0.3, M[4] + 0.3, M[5] + 0.3, M[6] + 0.3, M[6] + 3.5, M[7] + 0.3],
+  ticks: [M[2] + 0.3, M[3] + 0.3, M[4] + 0.3, M[5] + 2.6, M[6] + 0.3, M[6] + 3.5, M[7] + 0.3],
   /** 换幕：前一幕文字退场的时间 */
   whoosh: (i: number) => (i === 1 ? M[1] - 0.1 : M[i] - 0.05),
   /** 收束：三层空间缩成一个点落到时间轴上 */

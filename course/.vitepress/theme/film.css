@@ -99,7 +99,7 @@ html[data-learner="returning"] .film .only-new { display: none; }
 .film .nd .nl { inset: -3px; border-radius: 13px; border: 2px solid var(--w-render); background: rgba(79, 211, 220, .22); box-shadow: 0 0 18px var(--w-render), 0 0 40px rgba(79, 211, 220, .45); }
 .film .nd .cm { inset: -3px; border-radius: 13px; border: 2px solid var(--w-commit); box-shadow: 0 0 18px var(--w-commit); }
 .film .nd .fl { right: -10px; top: -12px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 800 13px var(--mono); color: #1b1204; background: var(--w-diff); box-shadow: 0 0 14px var(--w-diff); }
-.film .nd .sh { left: -8px; right: -8px; top: -14px; height: 12px; border-radius: 99px 99px 4px 4px; background: linear-gradient(var(--w-skip), rgba(191, 172, 255, .3)); box-shadow: 0 0 16px var(--w-skip); }
+.film .nd .sh { left: -8px; right: -8px; top: -18px; height: 16px; border-radius: 99px 99px 4px 4px; background: linear-gradient(var(--w-skip), rgba(191, 172, 255, .3)); box-shadow: 0 0 16px var(--w-skip); }
 .film .nd .pw, .film .bk + .wt { opacity: 0; }
 .film .nd .pw { left: -11px; top: -11px; width: 22px; height: 22px; border-radius: 50%; background: #0a2a30; border: 2px solid var(--w-render); box-shadow: 0 0 12px rgba(79, 211, 220, .6); }
 .film .nd .pw::before { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--w-render); }
@@ -254,7 +254,7 @@ html[data-learner="returning"] .film .only-new { display: none; }
 .film .ybars { position: relative; width: min(250px, 40vw); height: 4px; margin-top: 2px; }
 .film .ybars i { position: absolute; inset: 0; border-radius: 2px; opacity: 0; transform-origin: left; box-shadow: 0 0 14px currentColor; }
 /* 第 5 幕：五个小块和三列标题 */
-.film .col { position: absolute; display: grid; place-items: center; font: 700 12px/22px var(--mono); font-style: normal; letter-spacing: .08em; color: var(--w-ink2); border-bottom: 1px dashed rgba(150, 200, 220, .35); opacity: 0; }
+.film .col { position: absolute; display: grid; place-items: center; font: 700 15px/22px var(--mono); font-style: normal; letter-spacing: .08em; color: var(--w-ink); border-bottom: 1px dashed rgba(150, 200, 220, .35); opacity: 0; }
 .film .card.mv { opacity: 0; --c: #bfacff; border-color: var(--c); box-shadow: 0 6px 18px rgba(0, 0, 0, .45), 0 0 16px color-mix(in srgb, var(--c) 40%, transparent); }
 .film .card.mv.g-title { --c: #f5b968; }
 .film .card.mv code { color: #f4f0e6; }
@@ -268,7 +268,7 @@ html[data-learner="returning"] .film .only-new { display: none; }
 .film .mem-bar { position: relative; flex: 1; height: 12px; border-radius: 6px; background: rgba(255, 255, 255, .1); overflow: hidden; }
 .film .mem-bar i { position: absolute; inset: 0; border-radius: 6px; transform-origin: left; background: linear-gradient(90deg, var(--w-diff), #d98c2f); }
 .film .mem-bar i.b { background: linear-gradient(90deg, var(--w-commit), #1d8a57); }
-.film .mem-n { position: absolute; right: 0; top: -17px; text-decoration: none; font: 800 13px var(--mono); color: var(--w-commit); opacity: 0; }
+.film .mem-n { position: absolute; right: 8px; top: -1px; text-decoration: none; font: 800 12px/16px var(--mono); color: var(--w-commit); opacity: 0; }
 /* 幕间过渡元素 */
 .film .fly, .film .finbg { display: none; }
 .film .fly { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; }
@@ -280,18 +280,26 @@ html[data-learner="returning"] .film .only-new { display: none; }
 .film .fly.fc .l1 { fill: rgba(245, 185, 104, .4); stroke: var(--w-diff); }
 .film .fly.fc .l2 { fill: rgba(79, 211, 220, .4); stroke: var(--w-render); }
 .film .fly.fc .l3 { fill: rgba(255, 255, 255, .2); stroke: #a9bcc5; }
+/* 左侧说明文字压住 3D 层的字：在 3D 层之上、文字之下画一道整高的横向渐变（不靠右移相机）；开场和收束幕不需要 */
+@media (prefers-reduced-motion: no-preference) and (min-width: 900px) {
+  html.film-dyn .film .w3d::after { content: ""; position: absolute; inset: 0 auto 0 0; width: calc(max(28px, 5vw) + min(440px, 36vw) + 70px); background: linear-gradient(90deg, #050b0f 0%, rgba(5, 11, 15, .93) 68%, rgba(5, 11, 15, 0) 100%); pointer-events: none; transition: opacity .5s; }
+  html.film-dyn .film[data-active="0"] .w3d::after, html.film-dyn .film[data-active="8"] .w3d::after { opacity: 0; }
+  html.film-dyn .film .sc-copy::before { display: none; }
+}
+/* 窄于 1365px 时，当前幕的圆点标签默认隐藏（左上角已经有大号年份，标签还会压在舞台节点上）；悬停、聚焦时才显示 */
+@media (max-width: 1365px) { .film .rail a[aria-current] .lbl { opacity: 0; } .film .rail a:hover .lbl, .film .rail a:focus-visible .lbl { opacity: 1; } }
 @media (prefers-reduced-motion: no-preference) {
   html.film-dyn .film .fly { display: block; }
   html.film-dyn .film .fly.fb { display: grid; }
   html.film-dyn .film .mem { display: block; }
-  @media (max-width: 899px) { html.film-dyn .film .mem { right: 12px; bottom: 6px; width: 190px; padding: 6px 10px 8px; } html.film-dyn .film .mem p { margin-bottom: 2px; } html.film-dyn .film .mem-row { margin-top: 3px; } }
+  @media (max-width: 899px) { html.film-dyn .film .callouts { bottom: 30px; } html.film-dyn .film .cl { left: 14px; right: 40px; font-size: 13px; padding: 4px 10px; } html.film-dyn .film .mem { right: 34px; top: 6px; bottom: auto; width: 168px; padding: 6px 10px 8px; } html.film-dyn .film .mem p { margin-bottom: 2px; } html.film-dyn .film .mem-row { margin-top: 3px; } }
 }
 .film .mem { display: none; }
 /* 首页的舞台是深色的：顶栏也跟着深色（只在首页短片就绪之后；离开首页后这个选择器不再命中，顶栏自动恢复，不影响别的页面） */
 @media (prefers-reduced-motion: no-preference) {
-  html.film-dyn:has(.film.ready) .VPNav {
+  html.film-dyn:has(.film.ready) .VPNav, html.film-dyn:has(.film.ready) .VPLocalNav {
     color-scheme: dark;
-    --c-page: #060d11; --nav-bg: rgba(6, 13, 17, .88); --c-subtle: #0f1b1f; --c-surface: #122024; --c-raised: #182a30; --c-sunken: #070e10;
+    --c-page: #060d11; --nav-bg: #060d11; --c-subtle: #0f1b1f; --c-surface: #122024; --c-raised: #182a30; --c-sunken: #070e10;
     --border: #223439; --border-strong: #32494f; --text-1: #e8f0ed; --text-2: #bdccc7; --text-3: #93a7a0;
     --brand: #46d196; --teal: #4fd3dc; --brand-glow: rgba(70, 209, 150, .38); --ring: #62dca7; --sh-1: none;
     --vp-c-bg: #060d11; --vp-c-bg-alt: #0f1b1f; --vp-c-bg-elv: #182a30; --vp-c-bg-soft: #0f1b1f; --vp-c-text-1: #e8f0ed; --vp-c-text-2: #bdccc7; --vp-c-text-3: #93a7a0;
@@ -378,7 +386,7 @@ html[data-learner="returning"] .film .only-new { display: none; }
   html.film-dyn .film .s9 .sc-copy::-webkit-scrollbar { display: none; }
   html.film-dyn .film .s9 .sc-copy::before { display: none; }
   html.film-dyn .film .fin { min-height: var(--V); padding-bottom: 66px; }
-  @media (max-height: 780px) and (min-width: 900px) { .film .fin .desc { display: none; } .film .fin-actions .btn.big { padding: 14px 32px; font-size: 18px; } }
+  @media (max-height: 780px) and (min-width: 900px) { .film .fin .desc { display: none; } .film .fin-actions .btn.big { padding: 14px 32px; font-size: 18px; } .film .fin { padding-top: 24px; } .film .fin h2 { font-size: clamp(28px, 3.6vw, 46px); } }
   html.film-dyn .film .finbg { display: block; position: absolute; inset: 0; opacity: 0; pointer-events: none; background: radial-gradient(46% 42% at 50% 52%, rgba(70, 209, 150, .2), transparent 72%), radial-gradient(28% 30% at 18% 82%, rgba(191, 172, 255, .1), transparent 70%), radial-gradient(26% 28% at 86% 20%, rgba(255, 211, 107, .07), transparent 70%), #040a0e; }
   html.film-dyn .film .finbg::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(150, 200, 220, .16) 1px, transparent 1px); background-size: 30px 30px; -webkit-mask-image: radial-gradient(60% 60% at 50% 55%, #000, transparent 85%); mask-image: radial-gradient(60% 60% at 50% 55%, #000, transparent 85%); }
   html.film-dyn .film .tl-flow { animation: film-tl-flow 12s linear infinite; }

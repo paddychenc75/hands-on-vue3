@@ -158,7 +158,7 @@ export function attach(root: HTMLElement): () => void {
       a: ['Item1', 'Item2', 'Counter'].map(id => center(`[data-w="b-${id}"]`, M[1] + 3.5)) as Measure['a'],
       aEnd: center('[data-w="d-todos"]', M[2] + 2.6),
       bStart: center('[data-w="fl-Item1"]', M[3] + 5.9),
-      bEnd: center('[data-w="n-Logo"]', M[4] + 2.0),
+      bEnd: center('[data-w="n-Hint"]', M[4] + 2.0),
       cStart: { x: w.width / 2, y: w.height / 2 },
       li: Array.from(root.querySelectorAll('[data-w="cp-8"] .eras li .dt'), (_e, j) => center('[data-w="cp-8"] .eras li .dt', TOTAL, j)),
     };

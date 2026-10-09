@@ -162,8 +162,8 @@ export function buildTracks(mobile = false): Tracks {
   k('pl2', M[5] + 0.8, { opacity: 0.4, transform: `${U}(0px)` })
   k('pl2', M[6] + 0.1, { opacity: 0.4, transform: `${U}(0px)` }, EASE.inout)
   k('pl2', M[6] + 0.8, { opacity: 1, transform: `${U}(0px)` })
-  k('pl2', M[7] + 0.1, { opacity: 1, transform: `${U}(0px)` }, EASE.inout)
-  k('pl2', M[7] + 1.0, { opacity: 0, transform: `${U}(-90px)` })
+  k('pl2', M[7] + 1.3, { opacity: 1, transform: `${U}(0px)` }, EASE.inout)
+  k('pl2', M[7] + 2.3, { opacity: 0, transform: `${U}(-160px)` })
   // 收束：三层空间整体缩成一个点（见 flyerTracks 的 fly-c），自己淡出；背景换成干净的深色
   for (const n of ['pl1', 'pl3', 'pl4']) {
     k(n, M[8] + 0.9, { opacity: 1 }, EASE.inout)
@@ -293,26 +293,26 @@ export function buildTracks(mobile = false): Tracks {
   k('p2b', 0, { opacity: 0, transform: `${U}(50px)` }, EASE.inout)
   k('p2b', M[3] + 2.6, { opacity: 0, transform: `${U}(50px)` }, EASE.inout)
   k('p2b', M[3] + 3.1, { opacity: 1, transform: `${U}(50px)` })
-  callout('cl-3', M[3] + 3.0, M[4] - 0.3)
+  callout('cl-3', M[3] + 3.0, M[4] - 0.05)
   // 叠合比对：没变的变暗，只有 Item1 和 Counter 有差别
   const DIFF3 = ['Item1', 'Counter']
-  k('p2b', M[3] + 4.4, { opacity: 1, transform: `${U}(50px)` }, EASE.inout)
-  k('p2b', M[3] + 5.0, { opacity: 1, transform: `${U}(8px)` }, EASE.inout)
+  k('p2b', M[3] + 3.9, { opacity: 1, transform: `${U}(50px)` }, EASE.inout)
+  k('p2b', M[3] + 4.5, { opacity: 1, transform: `${U}(8px)` }, EASE.inout)
   for (const id of redone) {
     const same = !DIFF3.includes(id)
-    k('n-' + id, M[3] + 4.9, { opacity: 1 }, EASE.inout)
-    k('n-' + id, M[3] + 5.4, { opacity: same ? 0.3 : 1 })
-    k('gn-' + id, M[3] + 4.9, { opacity: 1 }, EASE.inout)
-    k('gn-' + id, M[3] + 5.4, { opacity: same ? 0 : 1 })
+    k('n-' + id, M[3] + 4.4, { opacity: 1 }, EASE.inout)
+    k('n-' + id, M[3] + 4.9, { opacity: same ? 0.3 : 1 })
+    k('gn-' + id, M[3] + 4.4, { opacity: 1 }, EASE.inout)
+    k('gn-' + id, M[3] + 4.9, { opacity: same ? 0 : 1 })
     k('n-' + id, M[4] - 0.2, { opacity: same ? 0.3 : 1 }, EASE.inout)
     k('n-' + id, M[4] + 0.6, { opacity: 1 })
   }
   for (const id of DIFF3) {
-    pop('fl-' + id, M[3] + 5.5, 0.4)
+    pop('fl-' + id, CUE.flag3, 0.4)
     k('fl-' + id, M[4] - 0.1, { opacity: 1, transform: 'scale(1)' }, EASE.inout)
     k('fl-' + id, M[4] + 0.5, { opacity: 0, transform: 'scale(1)' })
-    commitBeam(id, M[3] + 5.9)
-    blockUpdate(id, M[3] + 6.4, M[4] + 0.2)
+    commitBeam(id, CUE.land3 - 0.1)
+    blockUpdate(id, M[3] + 5.9, M[4] + 0.2)
   }
   k('p2b', M[4] - 0.1, { opacity: 1, transform: `${U}(8px)` }, EASE.inout)
   k('p2b', M[4] + 0.5, { opacity: 0, transform: `${U}(-4px) rotateX(-80deg)` })
@@ -327,7 +327,8 @@ export function buildTracks(mobile = false): Tracks {
     k('sh-' + id, M[5] + 0.1, { opacity: 0.95, transform: 'scale(1)' }, EASE.inout)
     k('sh-' + id, M[5] + 0.6, { opacity: 0, transform: 'scale(.6)' })
   }
-  for (const id of ['App', 'Header', 'List', 'Footer', ...STATIC_LEAVES]) {
+  // 容器变暗；静态叶子（Logo、Hint）保持亮度，带着“跳过”的盾
+  for (const id of ['App', 'Header', 'List', 'Footer']) {
     k('n-' + id, M[4] + 1.0, { opacity: 1 }, EASE.inout) // 与上一幕结尾衔接
     k('n-' + id, M[4] + 2.6, { opacity: id === 'App' ? 0.75 : 0.3 })
     k('n-' + id, M[5] + 0.1, { opacity: id === 'App' ? 0.75 : 0.3 }, EASE.inout)
@@ -348,11 +349,11 @@ export function buildTracks(mobile = false): Tracks {
   k('blk', M[5] + 0.6, { opacity: 0, transform: 'translateY(-4px)' })
   callout('cl-4b', M[4] + 3.3, M[5] - 0.05)
   // 更新：todos 变，只有绑定了它的动态节点被重新比对
-  setPill('todos', M[4] + 4.4, 1.4)
-  draw('dl-List', M[4] + 4.7, M[4] + 5.2, C.render, M[4] + 6.4)
+  setPill('todos', M[4] + 3.9, 1.4)
+  draw('dl-List', M[4] + 4.2, M[4] + 4.7, C.render, M[4] + 5.9)
   const UPD4 = ['Item1', 'Item2', 'Counter']
   UPD4.forEach((id, i) => {
-    const t = M[4] + 5.3 + i * 0.15
+    const t = M[4] + 4.8 + i * 0.15
     comet(id, t, 0.5)
     k('nl-' + id, 0, { opacity: 0 }, EASE.out)
     k('nl-' + id, t + 0.4, { opacity: 0 }, EASE.out)
@@ -361,11 +362,11 @@ export function buildTracks(mobile = false): Tracks {
     k('nl-' + id, M[5] + 0.6, { opacity: 0 })
   })
   for (const id of ['Item1', 'Counter']) {
-    pop('fl-' + id, M[4] + 6.1, 0.4)
+    pop('fl-' + id, CUE.flag4, 0.4)
     k('fl-' + id, M[5] - 0.1, { opacity: 1, transform: 'scale(1)' }, EASE.inout)
     k('fl-' + id, M[5] + 0.5, { opacity: 0, transform: 'scale(1)' })
-    commitBeam(id, M[4] + 6.4)
-    blockUpdate(id, M[4] + 6.9, M[5] + 0.3)
+    commitBeam(id, CUE.land4 - 0.1)
+    blockUpdate(id, M[4] + 6.4, M[5] + 0.3)
   }
 
   /* ===== 5 组合式 API 与 <script setup>：同一功能的状态和逻辑，从按“选项类型”分散，聚到一起 ===== */
@@ -375,8 +376,8 @@ export function buildTracks(mobile = false): Tracks {
     const n = 'd-' + d.id
     k(n, M[5] + 0.1, { opacity: 1, transform: 'translateY(0px)' }, EASE.inout)
     k(n, M[5] + 0.7, { opacity: 0.15, transform: 'translateY(0px)' })
-    k(n, M[5] + 3.9, { opacity: 0.15, transform: 'translateY(0px)' }, EASE.inout)
-    k(n, M[5] + 4.4, { opacity: 1, transform: 'translateY(0px)' })
+    k(n, M[5] + 4.7, { opacity: 0.15, transform: 'translateY(0px)' }, EASE.inout)
+    k(n, M[5] + 5.2, { opacity: 1, transform: 'translateY(0px)' })
   }
   for (const c of MOVER_COLUMNS) {
     const n = 'col-' + c.id
@@ -398,7 +399,7 @@ export function buildTracks(mobile = false): Tracks {
     k(n, M[5] + 0.9 + i * 0.1, { opacity: 1, transform: from }, EASE.out)
     k(n, t0, { opacity: 1, transform: from }, EASE.inout)
     k(n, t0 + 1.2, { opacity: 1, transform: 'translate(0px, 0px) scale(1)' })
-    const end = mv.kind === 'fn' ? M[6] + 0.1 : M[5] + 3.9
+    const end = mv.kind === 'fn' ? M[6] + 0.1 : M[5] + 4.7
     k(n, end, { opacity: 1, transform: 'translate(0px, 0px) scale(1)' }, EASE.inout)
     k(n, end + 0.5, { opacity: 0, transform: 'translate(0px, 0px) scale(1)' })
   }
@@ -448,14 +449,14 @@ export function buildTracks(mobile = false): Tracks {
 
   /* ===== 7 Vue 3.6 候选版 Vapor：不经过虚拟 DOM，编译器生成的代码直接更新 DOM ===== */
   WT.forEach((id, i) => {
-    const t = M[7] + 1.4 + i * 0.25
+    const t = CUE.vwatch(i)
     k('wt-' + id, M[7] + 0.5, { opacity: 0, transform: 'scale(.3)' }, EASE.back)
     k('wt-' + id, t, { opacity: 0, transform: 'scale(.3)' }, EASE.back)
     k('wt-' + id, t + 0.4, { opacity: 1, transform: 'scale(1)' })
     k('wt-' + id, M[8] + 0.1, { opacity: 1, transform: 'scale(1)' }, EASE.inout)
     k('wt-' + id, M[8] + 0.6, { opacity: 0, transform: 'scale(.3)' })
   })
-  callout('cl-7', M[7] + 1.0, M[8] - 0.05)
+  callout('cl-7', M[7] + 1.3, M[8] - 0.05)
   setPill('todos', M[7] + 2.8, 1.4)
   for (const [id, t] of [['Item1', 3.3], ['Item2', 3.5]] as const) {
     draw('dl-' + id, M[7] + t, M[7] + t + 0.4, C.commit, M[8] - 0.3)
@@ -491,7 +492,7 @@ export function buildTracks(mobile = false): Tracks {
   }
 
   /* ===== 年份、版本标签、图例 ===== */
-  const yrs: [number, string][] = [[M[2] + 0.3, '2015'], [M[3] + 0.3, '2016'], [M[4] + 0.3, '2020'], [M[5] + 0.3, '2021'], [M[6] + 0.3, '2023'], [M[6] + 3.5, '2024'], [M[7] + 0.3, '2026']]
+  const yrs: [number, string][] = [[M[2] + 0.3, '2015'], [M[3] + 0.3, '2016'], [M[4] + 0.3, '2020'], [M[5] + 2.6, '2021'], [M[6] + 0.3, '2023'], [M[6] + 3.5, '2024'], [M[7] + 0.3, '2026']]
   for (let d = 0; d < 4; d++) {
     k('yd-' + d, 0, { transform: 'translateY(0em)' }, EASE.inout)
     k('yd-' + d, M[2] + 0.2, { transform: 'translateY(0em)' }, EASE.inout)
@@ -509,7 +510,7 @@ export function buildTracks(mobile = false): Tracks {
   k('year', M[8] + 0.1, { opacity: 1 }, EASE.inout)
   k('year', M[8] + 0.7, { opacity: 0 })
   const tagWin: Record<string, [number, number]> = {
-    t2: [M[2] + 0.5, M[3] + 0.1], t3: [M[3] + 0.5, M[4] + 0.1], t4: [M[4] + 0.5, M[5] + 0.1], t5: [M[5] + 0.5, M[6] + 0.1],
+    t2: [M[2] + 0.5, M[3] + 0.1], t3: [M[3] + 0.5, M[4] + 0.1], t4: [M[4] + 0.5, M[5] + 0.1], t5: [M[5] + 2.8, M[6] + 0.1],
     t6a: [M[6] + 0.5, M[6] + 3.5], t6b: [M[6] + 3.9, M[7] + 0.1], t7: [M[7] + 0.5, M[8] + 0.1],
   }
   for (const [key, [a, b]] of Object.entries(tagWin)) {
@@ -613,7 +614,7 @@ export interface Measure {
   aEnd: Pt
   /** 第 3 幕里 Item1 上的差别标记 */
   bStart: Pt
-  /** 第 4 幕里静态节点 Logo */
+  /** 第 4 幕里静态节点 Hint（Logo 在说明文字下面，看不见） */
   bEnd: Pt
   /** 收束：三层空间的中心 */
   cStart: Pt
@@ -663,7 +664,7 @@ export function flyerTracks(m: Measure): Tracks {
     k(name, t1, { opacity: 1 })
     k(name, t1 + 0.25, { opacity: 0, transform: tf(m.aEnd, 0.3) })
   })
-  // (b) 第 3 幕剩下的那一处差别标记，飞到第 4 幕里静态节点 Logo 上，变成“跳过”的盾：Vue 3 的编译器事先知道哪些节点不会变
+  // (b) 第 3 幕剩下的那一处差别标记，飞到第 4 幕里静态节点 Hint 上，变成“跳过”的盾：Vue 3 的编译器事先知道哪些节点不会变
   const bT0 = MARKS[3] + 6.3
   const bT1 = CUE.shield
   k('fly-b', 0, { opacity: 0, transform: tf(m.bStart, 1) })

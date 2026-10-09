@@ -126,7 +126,7 @@ const exTotal = progressChapters.reduce((a, c) => a + c.ex.length, 0)
 const scTotal = progressChapters.reduce((a, c) => a + c.scCount, 0)
 const first = progressChapters[0]
 /** 收束幕的三个数字（构建时从章节数据算出，进入收束幕后从 0 滚动到这个值） */
-const STATS: [number, string][] = [[progressChapters.length, `章 · ${STAGE_COUNT} 个阶段`], [exTotal, '道自动判题练习'], [scTotal, '道自测题进入间隔复习']]
+const STATS: [number, string][] = [[progressChapters.length, `章（含 ${progressChapters.filter(c => c.optional).length} 章选读）· ${STAGE_COUNT} 个阶段`], [exTotal, '道自动判题练习'], [scTotal, '道自测题进入间隔复习']]
 const chapterLabel = (id: string) => chapterById(id)?.title || id
 const chapterHref = (id: string) => withBase(chapterById(id)?.link || first.link)
 
@@ -139,9 +139,9 @@ const resume = computed(() => {
 const startHref = computed(() => resume.value?.href || withBase(first.link))
 /** 收束幕的时间轴：各站在一条平缓上升的曲线上（x、y 是 1000×200 视窗里的坐标），曲线用 Catmull-Rom 过这些点 */
 const XS = STATIONS.map((_s, i) => ((i + 0.5) * 1000) / STATIONS.length)
-const YS = [118, 91, 109, 80, 98, 70, 88]
+const YS = [118, 91, 109, 80, 98, 74, 66]
 const CURVE = (() => {
-  const pts = [{ x: 0, y: 128 }, ...XS.map((x, i) => ({ x, y: YS[i] })), { x: 1000, y: 56 }]
+  const pts = [{ x: 0, y: 128 }, ...XS.map((x, i) => ({ x, y: YS[i] })), { x: 1000, y: 60 }]
   let d = `M${pts[0].x} ${pts[0].y}`
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[Math.max(0, i - 1)]

@@ -13,7 +13,7 @@ const SHOTS = process.env.HOME_SHOTS === '1'
 const SCENE_COUNT = 9
 // 每一幕的标题（静态 HTML 里必须有）。和 course/.vitepress/theme/components/HomeFilm.vue 里的文案一致
 const TITLES = ['动手学 Vue 3', '数据变了，界面靠人去同步', '每个绑定一个 watcher', '虚拟 DOM：先重新生成，再比对', 'Proxy 响应式，编译器标出动态部分', '状态和逻辑按功能聚到一起', '值没变，就不再通知', 'Vapor：不经过虚拟 DOM', '每一代，都在解决上一代留下的问题']
-const MARKS = [0, 5, 10, 16, 23, 30.5, 35.5, 42, 48.5]
+const MARKS = [0, 5, 10, 16, 23, 30.5, 36.5, 43, 49.5]
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const state = p => p.evaluate(() => {
@@ -220,7 +220,7 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
       for (const [w, h] of [[390, 844], [360, 740], [844, 390]]) {
         const p = await open(site, { viewport: { width: w, height: h } }, { played: true })
         const bad = []
-        for (const t of [0.5, 7, 13, 20, 27, 33, 39, 45, 52, 54]) {
+        for (const t of [0.5, 7, 13, 20, 27, 33, 39, 45, 52, 55]) {
           await scrollToTime(p, t); await sleep(250)
           const o = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: innerWidth }))
           if (o.sw > o.iw) bad.push(`${t}s:${o.sw}>${o.iw}`)
@@ -272,10 +272,10 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
       const g = R.group('收束幕：发光时间轴上 7 站、数字从 0 滚动到真实值、浅色模式下顶栏也是深色（对比度达标），离开首页恢复')
       const real = [CH.filter(c => c.stage != null).length, CH.reduce((a, c) => a + c.ex.length, 0), CH.filter(c => c.stage != null).reduce((a, c) => a + c.scCount, 0)]
       const p = await open(site, { colorScheme: 'light' }, { played: true })
-      await scrollToTime(p, 48.5 + 0.5); await sleep(400)
+      await scrollToTime(p, 49.5 + 0.5); await sleep(400)
       const zero = await p.evaluate(() => [...document.querySelectorAll('.stats3 dt')].map(e => e.textContent.trim()))
       g.ok(zero.every(v => v === '0'), '进入收束幕时三个数字是 0：' + zero)
-      await scrollToTime(p, 54.4); await sleep(500)
+      await scrollToTime(p, 55.4); await sleep(500)
       const end = await p.evaluate(() => [...document.querySelectorAll('.stats3 dt')].map(e => +e.textContent))
       g.ok(JSON.stringify(end) === JSON.stringify(real), `数字滚动到真实值 ${real}（实际 ${end}）`)
       g.ok((await p.locator('.eras li').count()) === 7 && (await p.locator('.eras li a.era-main').count()) === 7, '时间轴上 7 站，每站有章链接')
@@ -294,6 +294,20 @@ function gz(file) { return zlib.gzipSync(fs.readFileSync(file)).length }
       g.ok(nav.title >= 4.5 && nav.np >= 4.5 && nav.menu >= 4.5 && nav.search >= 4.5, '顶栏文字对比度 ≥ 4.5：' + JSON.stringify(nav))
       const bar = await p.locator('.nav-progress .np-bar').boundingBox()
       g.ok(!bar || bar.width > 20, '顶栏进度条可见')
+      // 复审修的几处：1280×720 下收束幕标题不被站压住；浅色外壳首屏（滚动位置 0）顶栏是不透明的深色；第 6 幕的“−56%”不压在上一根条上
+      {
+        const q = await open(site, { colorScheme: 'light', viewport: { width: 1280, height: 720 } }, { played: true })
+        await scrollToTime(q, 0.3); await sleep(300)
+        const top = await q.evaluate(() => getComputedStyle(document.querySelector('.VPNavBar')).backgroundColor)
+        g.ok(/rgb\(6, 13, 17\)/.test(top), '浅色外壳首屏顶栏是不透明的深色：' + top)
+        await scrollToTime(q, 55.4); await sleep(500)
+        const gap = await q.evaluate(() => { const h = document.querySelector('.fin h2').getBoundingClientRect(); const tops = [...document.querySelectorAll('.era-box')].map(e => e.getBoundingClientRect().top); return Math.min(...tops) - h.bottom })
+        g.ok(gap >= 6, '1280×720：收束幕标题与最近一站的间距 ' + Math.round(gap) + 'px')
+        await scrollToTime(q, 36.5 + 5.6); await sleep(500)
+        const mem = await q.evaluate(() => { const n = document.querySelector('.mem-n').getBoundingClientRect(); const a = document.querySelector('.mem .mem-bar i.a').getBoundingClientRect(); return n.top - a.bottom })
+        g.ok(mem >= 0, '第 6 幕“−56%”在 3.4 的条下面（间距 ' + Math.round(mem) + 'px）')
+        await q.ctx.close()
+      }
       await p.locator('.eras a.era-main').first().click(); await p.waitForURL(/chapters/); await sleep(600)
       const lightNav = await p.evaluate(() => { const c = (getComputedStyle(document.querySelector('.VPNavBar')).backgroundColor.match(/[\d.]+/g) || []).map(Number); return c[0] + c[1] + c[2] })
       g.ok(lightNav > 600, '离开首页后顶栏恢复为浅色（亮度和 ' + lightNav + '）')

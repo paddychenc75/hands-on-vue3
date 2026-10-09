@@ -36,7 +36,7 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | **`npm run check`** | typecheck + check:content + check:docs + test:unit。**每次提交前跑** | 约 3 秒 |
 | `npm run test:e2e` | 浏览器测试（Playwright），读 `course/.vitepress/dist`（或 `COURSE_OUT_DIR` 指向的目录），**先 `npm run build`** | 全部约 9 分钟 |
 | `npm run test:e2e -- 03-refs 04-computed` | 只测指定章（exercises 套件）。它自己只构建这些章到临时目录，不用先 build | 每章几秒到十几秒 |
-| `npm run test:e2e -- mechanics progress glossary folds home` | 只跑学习机制 / 跨章功能 / 术语表 / 折叠只读块 / 首页短片套件 | 各约 1 到 3 分钟 |
+| `npm run test:e2e -- mechanics progress glossary folds sync home` | 只跑学习机制 / 跨章功能 / 术语表 / 折叠只读块 / 跨设备同步（全用假 GitHub 接口，见「进度同步」）/ 首页短片套件 | 各约 1 到 3 分钟 |
 | **`npm test`** | check + build + test:e2e，**完整验收**。改引擎、主题组件、样式后必跑 | 约 9 分钟 |
 | `npm run test:site` | build + test:e2e（旧名字，保留） | 约 9 分钟 |
 | `npm run new-chapter -- <章id> --stage <1-6> --after <已有章id> --title "标题"` | 加一章 | 即时 |
@@ -75,13 +75,15 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `course/.vitepress/theme/composables/exerciseLibs.ts` | 练习声明 `libs: ['pinia' | 'vue-router']` 时，运行器载入真实的 Pinia 和 Vue Router 并装进练习应用（写法见 `AUTHORING.md` 4.10） | 其他练习的运行逻辑 |
 | `course/engine/logic/folds.ts` | 练习代码里 `//#fold` 折叠只读块的解析（纯函数）；编辑器接线在 `editor/folds.js`，浏览器测试 `tests/site/folds.test.js` | DOM |
 | `course/engine/logic/` | **纯函数**：不碰 DOM、localStorage，不读 `Date.now()`（时间由参数传入）。有单元测试，`tests/unit/purity.test.ts` 会挡住副作用；`tests/unit/cycles.test.ts` 检查没有循环依赖 | DOM、存储、`window` |
+| `course/engine/syncState.ts`、`syncEngine.ts` | 跨设备同步。`syncState.ts` 在主包（配置键、状态键、`bootSync()`），`syncEngine.ts` 是独立异步 chunk，只有开启同步的人才加载；见「进度同步」 | 在主包里 import `syncEngine.ts`（用 `loadSyncEngine()`） |
+| `course/.vitepress/theme/components/SyncPanel.vue`、`SyncBadge.vue`、`theme/sync/*.vue`、`composables/sync.ts` | 课程地图页的同步面板（默认收起）、顶栏同步标记。面板内容和标记内容放在 `theme/sync/`（异步 chunk）：**不能放进 `components/`**，那里的文件会被全局注册打进主包 | 往首页（短片）加同步入口 |
 | `course/engine/*.ts` | 进度结构和存储（`types.ts`、`store.ts`）、复习卡片（`cards.ts`），模块清单见下面「引擎模块」 | 业务规则（放进 `logic/` 并写测试） |
 | `course/.vitepress/` | `config.mts`（站点配置、base、自定义容器、章头和热身的自动注入、并行构建变量）、`sidebar.mts`、`course-data.mts`（构建时从各章抽数据，生成虚拟模块）、`markdown-cjk.mts`、`theme/`（`components/*.vue` 全局注册，`composables/learn.ts` 是界面读写进度的唯一入口，`composables/terms.ts` + `term-match.ts` 是术语标注，`style.css` 全部样式，第一节是设计令牌，写法见 AUTHORING 4.15） | 学习机制的逻辑 |
 | `course/AUTHORING.md` | 内容写作细则：每种 Markdown 写法、练习字段、实验台、示意图、测试数据、踩过的坑 | — |
 | `editor/entry.js` | 练习编辑器（CodeMirror 6），被 `Exercise` 组件直接导入 | — |
 | `scripts/` | `check-content.mjs`（内容校验）、`check-docs.mjs`（文档数字核对）、`new-chapter.mjs`（加章脚手架）、`e2e.mjs`（浏览器测试入口）、`setup-hooks.mjs`（启用提交前钩子）、`shot.mjs`（截图）；`lib/` 是它们共用的（`validate.mjs` 是全部校验规则，`section-refs.mjs` 是小节引用的统一扫描（校验和改号共用），`known-issues.mjs` 是临时豁免，目前是空的；`ref-tense.mjs` 查引用的措辞和对象章的位置是否一致；`reorder.mjs` 和 `reorder-chapters.mjs` 一次重排所有章） | — |
 | `tests/unit/` | Vitest 单元测试（`*.test.ts`）；规则对照表见 `tests/unit/README.md` | 需要浏览器的测试 |
-| `tests/site/` | Playwright 测试：`exercises.test.js`、`progress.test.js`、`mechanics.test.js`、`glossary.test.js`、`folds.test.js`、`home.test.js`（首页短片，约 5 分钟），`helpers.js` 是共用的；`labs/NN-id.js` 是各章实验台的测试数据 | — |
+| `tests/site/` | Playwright 测试：`exercises.test.js`、`progress.test.js`、`mechanics.test.js`、`glossary.test.js`、`folds.test.js`、`home.test.js`（首页短片，约 5 分钟）、`sync.test.js`（跨设备同步，配 `_fakegithub.mjs` 假接口；设 `SYNC_SHOTS=<目录>` 才保存截图），`helpers.js` 是共用的；`labs/NN-id.js` 是各章实验台的测试数据 | — |
 | `tests/expected.cjs` | 测试里**锁定**的章数、选读章 id 和每阶段题数，集中在这一个文件；其余数字都从元数据算 | 别处再写死数字 |
 | `docs/` | 三份旧审查报告和教学设计调研。**它们针对的是第 14 版单文件课程**（`vue3-course.html`，已删除，取回见提交 `a2fe105`），只作背景参考，不检查 | — |
 | `.github/` | `workflows/ci.yml`（check + e2e）、`deploy.yml`（CI 通过后部署）、`dependabot.yml` | — |
@@ -104,6 +106,9 @@ npx playwright install chromium    # 第一次（浏览器测试用）
 | `logic/completion.ts` | 一章的完成判定和“掌握标准” |
 | `logic/migrate.ts` | 旧版零散进度键的迁移 |
 | `logic/random.ts` / `text.ts` | 洗牌和种子随机 / 文字小工具 |
+| `logic/merge.ts` | 两份进度的合并（`mergeProgress`）。幂等、可交换、可结合，见「进度同步」 |
+| `logic/stamp.ts` | 保存时给改动的记录盖时间戳（`ex[练习id].t`、`ts.note`、`__stage[阶段].t`）。在主包里，所以不 import `merge.ts` |
+| `logic/syncFormat.ts` / `syncPlan.ts` / `syncView.ts` | 同步文件格式与校验 / 防抖、退避、限速等待、地址白名单、响应分类 / 顶栏显示用的小函数（相对时间、令牌末四位、创建令牌的链接） |
 
 界面组件（`course/.vitepress/theme/components/`）只调用 `engine/logic/` 里的纯函数，不在组件里重写规则。
 
@@ -211,13 +216,88 @@ npm run new-chapter -- hooks-recap --stage 2 --after composables --title "组合
 
 改引擎或这些组件后，跑 `npm run test:unit` 和 `npm run test:e2e -- mechanics`（后者要先 `npm run build`）。它用 Playwright 的 `page.clock.setFixedTime` 控制时间，覆盖上面每一条（提示阶梯三级的解锁条件、代码没改不计失败、粘贴答案不通过、半成品、自我解释 30 字门槛、热身出题和记录、复习页、阶段测验、390px 无横向滚动）。
 
+## 进度同步（跨设备，可选）
+
+没有后端，也不引入任何第三方库或服务：学习者自己开启后，进度存进**他自己 GitHub 账号下的一个私密 Gist**（接口 `https://api.github.com`，CORS 可以直接从浏览器调用）。另有**不需要账号**的导出 / 导入文件。不开启就一个请求也不发，同步引擎也不加载：未开启时主包里只多一个小状态文件 `syncState.ts` 和两个很小的界面外壳（面板外壳、标记外壳），面板内容、标记内容、引擎都是异步 chunk（`SyncPanelBody`、`SyncBadgeBody`、`syncEngine`、`syncFormat`）。
+
+### 进度结构里和同步有关的字段
+
+结构见 `course/engine/types.ts`。同步新增的字段都是**可选**的，旧进度没有它们时一切照常；学习机制的代码（到期判断、提示阶梯、完成判定）不读它们；没有升级 `PROGRESS_SCHEMA`，也没有碰 `course/card-keys.snapshot.json`。
+
+| 位置 | 内容 | 谁写 |
+|---|---|---|
+| `<章id>.ex[练习id].t`（新增） | 草稿与提示阶梯那一组字段最后一次变化的时间 | `store.ts` 保存时盖章 |
+| `<章id>.ts.note`（新增） | 自我解释笔记最后一次变化的时间 | 同上 |
+| `<章id>.noteAlts`（新增） | 同步时被覆盖的另一份笔记，界面叫“另一台设备的版本” | 合并函数 |
+| `__stage[阶段].t`（新增） | 阶段测验记录的盖章时间（交卷失败、通过、答到一半的时间 `failedAt`、`passedAt`、`pending.at` 原来就有） | 同上 |
+
+不放进进度键的同步数据有三个**同步自己的键**：`hands-on-vue3-v1:sync`（令牌、Gist 编号、账号名、设备 id）、`hands-on-vue3-v1:sync-status`（状态，不含令牌）、`hands-on-vue3-v1:backup`（覆盖本机进度之前的备份，最多 2 份）。进度键里的 `__last`（阅读位置）**会同步**（取较新的），但只改了阅读位置不会触发推送。
+
+**时间戳怎么来**：`store.ts` 的 `save()` 在写入前调用 `logic/stamp.ts`：为每组字段算一个指纹，和上次保存时的指纹不同就盖上 `Date.now()`。所以练习、自测、自我解释等十几处写进度的代码一行都不用改。读进来的旧数据不盖章，没有时间戳的数据合并时按“更旧”（时间 0）处理。同步引擎整体替换本机进度后调用 `resyncStamps()`，避免把别人的内容盖成本机刚改的。
+
+文件格式（`logic/syncFormat.ts`）：`{ schema, app: 'hands-on-vue3', updatedAt, device, progress }`，文件名 `hands-on-vue3-progress.json`，Gist 描述固定。`schema`（`PROGRESS_SCHEMA`，现在是 1）读到比自己新的：只读合并，**不覆盖云端**，提示“另一台设备的站点版本更新，请刷新”。
+
+### 逐字段合并规则（`logic/merge.ts` 的 `mergeProgress(a, b, ctx)`）
+
+原则：两台设备各学各的，合并后谁的进度都不丢；同一条记录以更新的为准。每个字段都是“取并集 / 取或 / 取最大”，需要二选一的地方只用一个全序（时间、进度、规范化文本）比大小，不看参数顺序。
+
+| 字段 | 规则 |
+|---|---|
+| `done`（章完成） | 取“或” |
+| `doneAt`（第一次完成的时间） | 两边都有取较早的，只有一边有取它 |
+| `sx`（点过“对照本章要点”） | 取“或” |
+| `tried`（自测答过） | 按题取“或” |
+| `first`（自测首答是否正确） | 按题取“与”：一边首答错就算错（保守，答错的题会回来复习） |
+| `sc[题号]`（自测选中的选项） | 按题合并；两边答案不同时优先取**正确的**（`ctx.scAnswers` 由界面层登记，来自章元数据），都对或都错取较大的下标 |
+| `ex[练习id].passed` | 取“或” |
+| 练习草稿与阶梯整组（`code firstFail fails lastFail sawSol rewrite stash`） | **整组**取更新的一边，不拼接：先比这组有没有字段，再比 `t`，没有时间戳比失败次数（进度更靠后），再比 `sawSol`，最后比规范化文本。没有任何这组字段的一边（只有 `passed`）不参与竞争 |
+| `ex[练习id].help`（借助答案的标记） | 跟着“通过发生的那一边”：只有一边通过取它的；**两边都通过取最轻的**（没借助 < `rewrite` < `solution`，因为两边都是各自通过的，有一边没借助就是真的没借助）；都没通过跟着胜出的一组 |
+| `note` / `noteAlts` | 正文取 `ts.note` 更新的（没有时间戳取更长的）；**另一份不丢**，进 `noteAlts`（所有出现过的文字减去正文，所以合并顺序不影响结果），自我解释区折叠显示，可“用这一版” |
+| `__srs[卡片键]` | 按键并集；同一张卡**整条**取 `last` 更晚的（再比 `n`、规范化文本），不混拼字段。卡片键 `章id#N`、`章id#cN` 都一样 |
+| `__stage[阶段]` | 按阶段取最近一次作答（`max(t, failedAt, passedAt, pending.at)`）的整条记录，“以最近一次为准”的现有语义不变；`best` 是历史最高分，取最大 |
+| `__pred[实验台id]`（先猜） | 按实验台并集；同一台两边不同时点过“核对”的优先，再比选项序号 |
+| `__last`（阅读位置） | 取 `t` 更晚的整条，相同取规范化文本较大者 |
+| 不认识的字段（章里、练习记录里或顶层） | 原样保留；两边都有且不同时逐键递归，标量取规范化文本较大者（向前兼容） |
+
+性质由 `tests/unit/merge.test.ts` 用手写用例 + 随机生成的进度固定：幂等 `merge(a,a)=a`、可交换、可结合（默认 600 组随机三元组，改合并规则后可临时调到 3 万组）、合并结果包含两边、任何一边已完成的章 / 练习 / 自测答案 / 卡片 / 先猜 / 阶段 / 阅读位置都不会消失、旧数据合并不报错、未知字段保留、不改参数。`stamp` 的字段表和 `merge` 的字段表一致由测试核对。
+
+**已知取舍**：因为完成取“或”，开启同步后一章不能再“取消完成”（本课程本来也没有手动取消按钮）；一道练习的 `passed` 同理。时间取“较新”依赖设备时钟：两台设备时钟差几分钟，只影响草稿 / 笔记 / 阶段测验这几类二选一的记录谁赢（输的笔记仍保留在 `noteAlts`，草稿在合并前的备份里），不影响完成状态和复习卡片的并集。
+
+### 同步时机与引擎（`syncEngine.ts`，按需加载）
+
+- **启动**：`learn.ts` 的 `ensureReady()` 登记合并用的课程信息（`setMergeContext`）并调用 `bootSync()`；本机存了配置才在约 0.6 秒后加载引擎。别的标签页开启同步时（`storage` 事件）这个页面也跟着启动。
+- **开启**：校验令牌（`GET /user`；经典令牌看 `x-oauth-scopes` 有没有 `gist`；细粒度令牌没有这个头，权限留到读写时才知道）→ 在账号里列出 gist（分页，`Link` 头）找同名文件，没有才创建（`public: false`）→ 保存配置 → 立即同步一次，显示“从云端合并了 N 章 / 已把本机进度上传”。个别令牌列不出私密 Gist 时，面板里可以手动填 Gist 链接或编号。**第二台设备就靠这一步找到同一份 Gist**：开启时按文件名在账号里找，找到就用，不会再建。
+- **一次同步** = 读云端（`If-None-Match` 条件请求，304 不计入限额）→ 和本机合并 → 合并结果写回本机和云端（内容有差别才写）。所以推送前总是先拉，不会覆盖另一台设备刚写的内容；两台设备写之间的极小空隙里 PATCH 可能覆盖对方，但对方的本机进度还在，下次拉取发现云端缺内容时会合并后再推，自愈。
+- **时机**：页面加载后拉取；本机进度变化（`save()` 发 `hov-saved`）后防抖 6 秒、最长 10 秒推送；页面隐藏 / 关闭时有未推送的改动，用 `fetch(..., { keepalive: true })` 尽力推一次（请求体上限 64 KB，超过就放弃，下次打开页面再同步）；回到前台且距上次拉取超过 5 分钟再拉；`online` 事件触发重试。**判断有没有改动**靠“不含阅读位置的进度签名”（每次同步完成时存进状态键的 `sig`）：页面刚加载、引擎还没起来时发生的改动，和只改了阅读位置，都靠它判断。
+- **多标签页**：`navigator.locks`（Web Locks）选出一个标签页负责联网（没有这个 API 时每个标签页都联网，靠“先读后合并”保证正确）。其他标签页写进 localStorage 的进度，靠 `storage` 事件通知负责的标签页去合并并推送（注意 `store.ts` 自己的 `storage` 监听可能已经先把内存换成了 localStorage 的内容，所以负责的标签页用签名而不是“内存有没有变”判断）；“立即同步”用 `BroadcastChannel` 转给负责的标签页。
+- **界面不被冲掉**：用合并结果更新内存时**就地**写（保持页面里组件拿着的对象身份），只发 `hov-progress` 让侧栏、顶栏、地图页刷新；章页 / 复习 / 阶段测验页打开时画好的内容不重绘（可能正在答题），只在状态里记 `remoteChanged`，顶栏标记的弹层和面板提示“进度已从另一台设备更新”并给“刷新页面”按钮。
+- **绝不丢本地数据**：用合并结果覆盖本机进度前先备份（`:backup`，最近 2 份；写不进去就不覆盖）；先写 localStorage，成功了才改内存；任何错误都不动本地进度。面板里可以“恢复同步前的本地进度”（恢复后下次同步仍会把云端的合并回来，想彻底回到那时先断开同步）。
+- **错误**（`syncEngine.ts` 的 `MSG`）：断网 / 5xx → 状态“有未同步的更改”，指数退避（5 秒起、翻倍、最多 5 分钟、抖动 ±20%、连续 8 次后暂停自动重试，回到前台或点“立即同步”再试）；401 → 停止同步，提示重新创建令牌，面板和顶栏弹层里都有“重新创建令牌”的同一个链接；403 且 `x-ratelimit-remaining: 0` 或带 `retry-after`（每小时 5000 次）→ 等到 `x-ratelimit-reset` 再试；其他 403 → 令牌没有 gist 写权限；404 → Gist 被删，可一键重新创建；文件被截断（`truncated`，走 `raw_url`）读不全 / 内容不是合法进度 → **不覆盖**，另存原文件的备份文件到 Gist，提示并可“用本机进度重建”；schema 比本站新 → 只读合并、不覆盖、提示刷新；存储空间不足 → 不动本机进度并提示。
+- 测试用的时间调节：`window.__hovSyncTest = { debounce, maxWait, pullAfter, initialDelay, backoff }`（只在 e2e 里由 `addInitScript` 设置）。
+
+### 令牌与安全约定（硬性）
+
+- 令牌只存在本机 `localStorage['hands-on-vue3-v1:sync']`，只用于请求 `https://api.github.com`（`syncEngine.ts` 的 `request()` 里用 `isAllowedUrl` 白名单校验：https、主机 `api.github.com`、无账号密码、无端口；读 Gist 原文的 `raw_url` 只允许 `gist.githubusercontent.com` / `gist.github.com`，且**不带令牌**）。`fetch` 一律 `referrerPolicy: 'no-referrer'`、`credentials: 'omit'`、`redirect: 'error'`、`cache: 'no-store'`。
+- 令牌不进 URL、不写日志（引擎里没有任何 `console` 调用）、不出现在错误提示和状态里（提示都是固定的中文，不回显服务器内容；状态键不含令牌；界面只显示末四位）、不进导出文件和 Gist 内容（`progress` 里没有令牌，配置在另一个键里）。输入框 `type="password"`、`autocomplete="off"`，开启后立即清空。
+- 界面上用平实的话写明：令牌存在这台设备的浏览器里；任何能在这个网站上运行脚本的东西都能读到它，所以**只给它 gist 权限**；公用电脑上用完请断开。“断开同步”删除本机的令牌和 Gist 编号，云端 Gist 是否一并删除由用户选（默认保留）。
+- 令牌类型（2026-10 对照 GitHub 官方文档核实）：面板主推**经典令牌**，只勾 `gist`：创建链接 `https://github.com/settings/tokens/new?scopes=gist&description=hands-on-vue3-sync`（`TOKEN_URL`，定义在 `logic/syncView.ts`，面板、顶栏弹层、401 提示共用）。`scopes` 预填参数是长期可用的写法，但官方文档没有写它。**细粒度令牌**官方文档的权限表（<https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens>）里有账号权限 `Gists`，只有写入一档，创建页支持用地址参数预填（`gists=write`、`expires_in`，见 <https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens>）；但权限表里 Gists 一节没有列“列出 / 读取 Gist”的接口，本站没法用真实令牌验证它能不能列出私密 Gist，所以作备选并写明，不作主推。GitHub 创建页默认过期时间是 30 天（细粒度用地址参数时 `expires_in` 缺省也是 30 天），面板里告诉用户过期后同步会停、可以选更长或不过期。
+- 开发和测试里**不用任何真实令牌、不创建真实 Gist**：`tests/site/sync.test.js` 用 Playwright 的 `route` 拦截 `api.github.com`，接内存里的假 Gist 服务（`tests/site/_fakegithub.mjs`）；没接假服务的浏览器上下文里，发往 github 的请求一律中止并记下来（断言一个都没有）。令牌是带标记的假字符串，全程搜索它有没有出现在 DOM、控制台、请求地址、Referer、导出文件、Gist 内容、断开后的 localStorage。
+
+### 改进度结构时怎样保持合并兼容
+
+1. **加字段**：只加**可选**字段，不改旧字段的含义和类型，旧数据没有它时一切照常（学习机制代码不要读新增的时间戳字段）。不升 `PROGRESS_SCHEMA`，**不碰卡片键快照**。
+2. 在 `logic/merge.ts` 给它定规则：能“取或 / 取并集 / 取最大”就这样做；必须二选一的，选一个全序（时间戳 > 进度 > 规范化文本），整组取，不拼接。**不写规则也不会丢**：不认识的字段走 `mergeAny`（并集、递归、标量取规范化文本较大者），但要想清楚这个默认是不是你要的。
+3. 如果新字段属于一道练习的“草稿与阶梯”那一组，同时改 `merge.ts` 的 `EX_KEYS` 和 `logic/stamp.ts` 的 `STAMP_EX`（单元测试会核对两处一致）。需要时间戳的新分组：在 `stamp.ts` 的 `fingerprints` / `stamp` 里加一类指纹，在 `merge.ts` 里按它比较。
+4. 补测试：`tests/unit/merge.test.ts` 加该字段的规则用例，并把它加进随机生成器 `genProgress`（性质测试会自动检查幂等、可交换、可结合、不丢）；有用户可见的行为再在 `tests/site/sync.test.js` 加一条。
+5. **改了含义或类型**才升 `PROGRESS_SCHEMA`：旧版站点读到新 schema 只读合并、不覆盖云端；同时写迁移（读旧 schema 的数据）并补单元测试。
+
 ## 写作规范
 
 写作规则（句子长度、术语、类比、学习目标、自测题、技术版本）在 [`course/AUTHORING.md`](course/AUTHORING.md) 第 3 节，用户明确要求按它写。改章文字前先读一遍。
 
 ## 架构要点
 
-- **进度**只存在浏览器 `localStorage['hands-on-vue3-v1']`（单个键，结构见 `course/engine/types.ts` 的 `Progress`，细则见 `course/AUTHORING.md` 第 6 节）；服务端渲染时为空。界面读写只经过 `theme/composables/learn.ts`，它封装 `course/engine/`。旧版零散的进度键由引擎第一次读取时一次性迁移，之后不再读写。依赖进度的组件挂载后才显示真实数字（`ensureReady()`），避免水合不一致；引擎的进度对象是原地修改的，**不要把 `cpOf()` 的结果缓存在 `computed` 里**（引用不变，下游不会重算），要在每个 `computed` 里直接调用。存进去的页面路径（`__last.path`）不带 base。
+- **进度**默认只存在浏览器 `localStorage['hands-on-vue3-v1']`（可选的跨设备同步见「进度同步」；单个键，结构见 `course/engine/types.ts` 的 `Progress`，细则见 `course/AUTHORING.md` 第 6 节）；服务端渲染时为空。界面读写只经过 `theme/composables/learn.ts`，它封装 `course/engine/`。旧版零散的进度键由引擎第一次读取时一次性迁移，之后不再读写。依赖进度的组件挂载后才显示真实数字（`ensureReady()`），避免水合不一致；引擎的进度对象是原地修改的，**不要把 `cpOf()` 的结果缓存在 `computed` 里**（引用不变，下游不会重算），要在每个 `computed` 里直接调用。存进去的页面路径（`__last.path`）不带 base。
 - **章数据在构建时抽取**：`course/.vitepress/course-data.mts` 是一个 Vite 插件，用 `content-parse.mjs` 从各章 Markdown 抽出元数据、自测题、小结、术语，生成虚拟模块（`virtual:course-meta`、`-selfchecks`、`-loaders`、`-glossary`，说明见 `course/AUTHORING.md` 第 7 节）。
 - **数据怎样加载（首屏只带轻量元数据）**：每个页面首屏只有 `framework` 和 `theme`；`theme` 里只有站点自己的组件、元数据（含每章练习 id 和练习标题 `exTitles`）和术语数据，没有练习定义、题库、自测题内容。其余都按需载入：① **练习定义按章懒加载**（`exercises/index.ts` 的 `loadChapterExercises(章文件名)`，每章一个分块）：章里的 `<Exercise>`（`Exercise.vue`）挂载后才取本章那一块，再交给 `ExerciseRunner.vue`；目标勾选、章完成判定、掌握标准条、侧边栏和首页统计只用元数据，不载入练习定义；载入失败时显示可见提示和“刷新页面”按钮（浏览器会记住失败的动态 import，同页重试没用）。迷你 Vue 零件（`course/mini/`）随原理章的练习分块走。② **全部自测题和阶段测验题库**只有复习页、阶段测验页载入（`composables/catalog.ts` 的 `loadCatalog`）。③ **课前热身**用卡片键和复习记录挑 2 道题，再只取这 2 道所在章的自测题分块（`loadScCards`）；失败时给一行提示。④ **自我解释的参考要点**按章取（`virtual:course-loaders` 的 `summaryLoaders`）。⑤ 术语数据（约 38 kB，章页面标注术语要用）保持在 `theme` 里，没有拆。新增练习、自测题、小结不用登记任何东西；练习标题必须写成单行字面量 `title: '…'`（`parseExerciseTitles` 按文本读，单元测试会和真正执行的结果对照）。术语表页和术语标注（章里术语的虚线下划线）也由它供数据。
 - **实验台直接用的 Vue 编译器和开发构建**：第 29 章的实验台动态载入 `@vue/compiler-dom` 和 `@vue/compiler-sfc` 的浏览器构建；第 27、40、41 章的实验台动态载入 `vue/dist/vue.esm-browser.js`（开发构建，因为 `onRenderTracked`、`onRenderTriggered` 等钩子只有开发构建才有；第 41 章还把它当作“库自带的第二份 Vue”）。它们都是按需加载的独立分块（第 27、40、41 章共用同一个 `vue.esm-browser.js` 分块），只在用到它们的章页面预加载，不在站点入口里；页面上因此有两份 Vue（站点自己的生产构建和实验台里的开发构建，各有各的响应式和调度队列，实验台的应用挂在自己新建的 div 里）。两份 Vue 之间断开的是响应式（“当前正在运行的副作用”各记各的），**当前组件实例不会断开**：runtime-core 把设置当前实例的函数登记在 `globalThis.__VUE_INSTANCE_SETTERS__`，每份 Vue 设置当前实例时通知所有副本，所以 `provide/inject` 和生命周期钩子跨副本仍然能用。后果是响应式悄悄失效而没有任何报错（第 41 章实测）。`@vue/compiler-dom`、`@vue/compiler-sfc` 在 `devDependencies` 里固定为和 `vue` 相同的版本，升级 `vue` 时三个一起升（Dependabot 已把 `@vue/*` 和 `vue` 分在同一组）。

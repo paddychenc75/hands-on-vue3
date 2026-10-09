@@ -38,12 +38,12 @@ describe('每个零件的源码', () => {
     })
   }
 
-  it('EXERCISE_API_NAMES 覆盖 Exercise.vue 里注入的 API（那边加了名字，这里要同步）', () => {
-    const vue = fs.readFileSync(path.resolve(import.meta.dirname, '../../course/.vitepress/theme/components/Exercise.vue'), 'utf8')
+  it('EXERCISE_API_NAMES 覆盖 ExerciseRunner.vue 里注入的 API（那边加了名字，这里要同步）', () => {
+    const vue = fs.readFileSync(path.resolve(import.meta.dirname, '../../course/.vitepress/theme/components/ExerciseRunner.vue'), 'utf8')
     const block = vue.slice(vue.indexOf('API = {'), vue.indexOf('RUN = {'))
     const used = [...block.matchAll(/\bV\.(\w+)/g)].map(m => m[1])
     expect(used.length).toBeGreaterThan(20)
-    for (const n of used) expect(EXERCISE_API_NAMES, n + ' 是 Exercise.vue 注入的，要加进 EXERCISE_API_NAMES').toContain(n)
+    for (const n of used) expect(EXERCISE_API_NAMES, n + ' 是 ExerciseRunner.vue 注入的，要加进 EXERCISE_API_NAMES').toContain(n)
   })
 })
 

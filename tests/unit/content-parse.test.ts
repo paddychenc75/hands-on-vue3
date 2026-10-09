@@ -3,9 +3,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { collectGlossary, maskInlineCode, scanSc, parseReadingTime, parseSelfChecks, parseSummary, parseTerms, parseTermsBlock, readFrontmatter } from '../../course/content-parse.mjs'
+import { collectGlossary, maskInlineCode, parseExerciseTitles, scanSc, parseReadingTime, parseSelfChecks, parseSummary, parseTerms, parseTermsBlock, readFrontmatter } from '../../course/content-parse.mjs'
 import { readChapters } from '../../course/.vitepress/course-data.mts'
 import { readFrontmatterFile } from '../../course/.vitepress/sidebar.mts'
+import { loadTs } from '../../scripts/lib/load-ts.mjs'
 
 const root = path.resolve(__dirname, '../..')
 const dir = path.join(root, 'course/chapters')
@@ -126,6 +127,23 @@ describe('全部真实章节', () => {
       expect(meta.scAnswers, meta.file).toEqual(sc.map((s: any) => s.a))
       expect(meta.rt, meta.file).toBe(parseReadingTime(src) || undefined)
     }
+  })
+  it('章元数据里的练习标题（exTitles，从练习文件的文本里读）和真正执行练习文件得到的标题一致，且每道练习都有', async () => {
+    const exDir = path.join(root, 'course/exercises')
+    let n = 0
+    for (const { meta } of readChapters(dir)) {
+      if (!meta.ex.length) continue
+      const real = await loadTs(path.join(exDir, meta.file + '.ts'))
+      for (const id of meta.ex) {
+        expect(meta.exTitles[id], `${meta.file} 的练习 ${id} 没读到标题`).toBe(real[id].title)
+        n++
+      }
+    }
+    expect(n).toBeGreaterThan(100)
+  })
+  it('parseExerciseTitles：只认 export const 之后的第一个 title，处理转义', () => {
+    const src = "export const a: Exercise = {\n  title: 'It\\'s 甲',\n  ch: 1,\n  task: `x`,\n}\nexport const b: Exercise = {\n  title: \"乙\", ch: 1,\n}\n"
+    expect(parseExerciseTitles(src)).toEqual({ a: "It's 甲", b: '乙' })
   })
   it('每个带阶段的章都有阅读时间块和恰好一个小结块', () => {
     for (const { meta, src } of readChapters(dir).filter(c => c.meta.stage != null)) {

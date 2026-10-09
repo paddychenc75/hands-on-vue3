@@ -165,7 +165,7 @@ async function runLabs(browser, base, ch) {
       }
 
       // ---- 半成品（faded）：原样提交必须不通过；不能和参考答案相同；不能含 WRONG_SUB_FAILED；至少 1 个 ✏️ 占位 ----
-      // 取法与 Exercise.vue 一致：没写的那一段用起始代码。补全后能通过，由上面的“答案通过”覆盖
+      // 取法与 ExerciseRunner.vue 一致：没写的那一段用起始代码。补全后能通过，由上面的“答案通过”覆盖
       for (const id of ids) {
         const e = EX[id]
         if (!e) continue

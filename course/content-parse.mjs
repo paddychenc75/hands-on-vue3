@@ -261,3 +261,17 @@ export function importsOf(src) {
 
 /** 复习卡片键用的题干指纹所需的哈希在 cards.mjs；这里只放文字规范化 */
 export const normTitle = s => s.replace(/[\s“”"'‘’「」『』《》：:，,。！!？?（）()·\-—]/g, '').toLowerCase();
+
+/** 练习文件（course/exercises/NN-id.ts）里每道练习的标题：{ 练习 id: 标题 }。
+ *  只做文本匹配，不执行文件：每个 `export const 名字 … = {` 之后第一个 `title: '…'`（单引号或双引号的单行字面量）就是它的标题。
+ *  站点把标题放进章元数据（virtual:course-meta），练习还没载入时占位和章末“掌握标准”条就能显示练习名，不必为此载入练习定义。 */
+export function parseExerciseTitles(src) {
+  const out = {};
+  const heads = [...src.matchAll(/^export const (\w+)\b[^=\n]*=\s*\{/gm)];
+  heads.forEach((m, i) => {
+    const body = src.slice(m.index, i + 1 < heads.length ? heads[i + 1].index : src.length);
+    const t = /^\s*title:\s*(?:'((?:\\.|[^'\\\n])*)'|"((?:\\.|[^"\\\n])*)")/m.exec(body);
+    if (t) out[m[1]] = (t[1] ?? t[2]).replace(/\\(.)/g, (_, c) => (c === 'n' ? '\n' : c));
+  });
+  return out;
+}

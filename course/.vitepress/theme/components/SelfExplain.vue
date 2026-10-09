@@ -1,12 +1,13 @@
 <script setup lang="ts">
 // 自我解释：每章末尾、掌握标准条之前。用自己的话写本章要点，至少 30 个有效字（logic/selfExplain.ts）才能点“对照本章要点”。
 //   写的内容存在这一章进度的 note，点过对照记 sx。它不是章完成的必要条件。
-//   参考要点 = 本章“小结”块（::: summary）的内容。构建时抽出来（virtual:course-summaries），章里的小结块本身默认隐藏
+//   参考要点 = 本章“小结”块（::: summary）的内容。构建时抽出来（virtual:course-loaders 按章载入，只取本章那一块），章里的小结块本身默认隐藏
 //   （config.mts 给它加了 sx-hidden 类），写够字点了对照之后才在这里显示。没有“跳过”出口（hands-on-react 也没有）。
 //   由主题布局的 doc-footer-before 插槽自动放置，章的 Markdown 里不用写。
 import { computed, onMounted, ref, watch } from 'vue'
 import { useData } from 'vitepress'
 import { selfExplainState } from '../../../engine/logic/selfExplain'
+import { summaryLoaders } from 'virtual:course-loaders'
 import { chapterById, chapterOf, cpOf, ensureReady, mutate, ready } from '../composables/learn'
 
 const { frontmatter } = useData()
@@ -26,8 +27,16 @@ function load() {
 async function loadSummary() {
   summary.value = ''
   if (!show.value) return
-  const mod = await import('virtual:course-summaries')
-  summary.value = mod.summaries[id.value] || ''
+  const want = id.value
+  const load = summaryLoaders[want]
+  if (!load) return
+  try {
+    const html = (await load()).summary
+    if (want === id.value) summary.value = html // 载入期间换了章就丢掉
+  } catch {
+    // 载入失败只影响“对照要点”里的参考要点：自我解释的输入和字数门槛照常工作
+    if (want === id.value) summary.value = ''
+  }
 }
 
 function onInput() {

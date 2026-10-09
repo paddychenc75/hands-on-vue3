@@ -299,7 +299,7 @@ export function validate(inp, opts = {}) {
         }
         if (String(f.tpl).startsWith('WRONG_SUB_FAILED') || String(f.js).startsWith('WRONG_SUB_FAILED')) fail(k('faded'), where, 'faded 构造失败（WRONG_SUB_FAILED）');
         else if (keys.every(key => key === 'tpl' || key === 'js') && keys.length) {
-          // 取法和 Exercise.vue 一致：没写的那一段用起始代码
+          // 取法和 ExerciseRunner.vue 一致：没写的那一段用起始代码
           const fTpl = f.tpl || ex.tpl;
           const fJs = f.js || ex.js;
           if (fTpl === solTpl && fJs === solJs) fail(k('faded'), where, 'faded 和参考答案完全相同，它没有留任何空给学习者', '挖掉关键处，换成 /* ✏️ 说明 */');

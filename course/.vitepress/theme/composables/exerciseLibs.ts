@@ -1,4 +1,4 @@
-// 练习运行环境里的真实库：练习声明 libs: ['pinia', 'vue-router'] 时，Exercise.vue 用这里的函数
+// 练习运行环境里的真实库：练习声明 libs: ['pinia', 'vue-router'] 时，ExerciseRunner.vue 用这里的函数
 //   1. 按需动态加载库（import() 各自成独立分块，没声明的练习不加载）；
 //   2. 给学习者的脚本造一份"可直接使用的名字"（和真实项目里的 import 同名）；
 //   3. 每次运行造一个全新的 pinia、检查 router 的 history，把它们装到这次运行的 app 上；

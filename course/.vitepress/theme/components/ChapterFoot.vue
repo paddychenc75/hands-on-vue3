@@ -4,7 +4,6 @@
 // 达到标准后自动标记完成，没有手动按钮。条里列出还差什么；借助答案完成的练习单独标注。
 import { computed, onMounted } from 'vue'
 import { useData } from 'vitepress'
-import { exercises } from '../../../exercises'
 import { completionNeeds, exMissing, helpedExercises, scMissing } from '../../../engine/logic/completion'
 import { chapterById, chapterState, cpOf, ensureReady, ready, specOf, STATE_LABEL } from '../composables/learn'
 
@@ -20,7 +19,8 @@ const cp = () => (live.value ? cpOf(id.value) : undefined)
 const state = computed(() => (live.value ? chapterState(id.value) : 'todo'))
 const done = computed(() => state.value === 'done')
 
-const exTitle = (x: string) => exercises[x]?.title ?? x
+// 练习名来自章元数据：判断还差什么、显示进度都不用载入练习定义
+const exTitle = (x: string) => meta.value?.exTitles?.[x] ?? x
 const needs = computed(() => (live.value ? completionNeeds(cp(), spec.value) : { sc: 0, ex: 0 }))
 /** 还差什么：每条一行 */
 const todo = computed(() => {

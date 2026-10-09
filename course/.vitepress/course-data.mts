@@ -2,9 +2,10 @@
 //
 //   virtual:course-meta         每章的元数据：id、文件名、标题、阶段、章号、自测题数、练习 id 列表。很小，章页面都会载入。
 //                               用途：自动标记完成、首页进度、间隔复习、侧边栏的完成标记。
-//   virtual:course-selfchecks   每章自测题的题干、选项、解析（已渲染成 HTML）。很大，只有复习页、阶段测验页和课前热身用动态 import 载入。
-//                               用途：今日复习、混合练习、阶段测验、课前热身从各章自测题里出题。
-//   virtual:course-summaries    每章“小结”块（::: summary）的内容，渲染成 HTML。自我解释写够字后在页面里展示它（章里的小结块本身默认隐藏）。
+//   virtual:course-selfchecks   全部章自测题的题干、选项、解析（已渲染成 HTML）。很大，只有复习页和阶段测验页用动态 import 载入（经 composables/catalog.ts）。
+//                               用途：今日复习、混合练习、阶段测验从各章自测题里出题。
+//   virtual:course-loaders      按章载入的入口表：selfcheckLoaders[章id]() 取这一章的自测题（课前热身只取要出的那几章），summaryLoaders[章id]() 取这一章“小结”块（::: summary）渲染成的 HTML
+//                               （自我解释写够字后在页面里展示它，章里的小结块本身默认隐藏）。数据在虚拟模块 virtual:course-selfchecks/<章id>、virtual:course-summaries/<章id> 里，每章一个分块。
 //   virtual:course-glossary     全站术语表：各章“本章术语”块合并去重，带不使用的同义词（course/writing-terms.mjs）。
 //
 // 为什么在构建时抽取：自测题的题干、选项、解析都是 Markdown 文字，只存在于各章的 .md 里。
@@ -16,7 +17,7 @@ import path from 'node:path'
 import type { Plugin } from 'vite'
 import { createMarkdownRenderer } from 'vitepress'
 import { readFrontmatterFile } from './sidebar.mts'
-import { collectGlossary, parseReadingTime, parseSelfChecks, parseSummary } from '../content-parse.mjs'
+import { collectGlossary, parseExerciseTitles, parseReadingTime, parseSelfChecks, parseSummary } from '../content-parse.mjs'
 import { WRITING_TERMS } from '../writing-terms.mjs'
 import { STAGE_COUNT } from '../stages.ts'
 import { cjkFriendlyEmphasis } from './markdown-cjk.mts'
@@ -35,6 +36,7 @@ export interface ChapterMeta {
   scCount: number // 本章自测题数（不含先猜）
   scAnswers: number[] // 本章自测的正确选项序号，按题号排列（长度 = scCount）
   ex: string[] // 本章练习 id
+  exTitles: Record<string, string> // 练习 id → 标题（从 exercises/<章>.ts 的文本里读，不执行文件）。练习定义还没载入时，占位和章末“掌握标准”条用它显示练习名
   rt?: string // 本章“阅读时间”块（::: rt）里的文字，没写是 undefined。章头直接显示它，正文里不再单独渲染这个块
   checkCount: number // 本章的阶段测验专用题数（题库 checks/questions.ts 里属于这一章的题）。卡片键 `章id#cN` 的 N 小于它才有效
 }
@@ -50,8 +52,9 @@ export interface SelfCheckItem {
 
 const META_ID = 'virtual:course-meta'
 const SC_ID = 'virtual:course-selfchecks'
-const SUM_ID = 'virtual:course-summaries'
+const SUM_ID = 'virtual:course-summaries' // 只有按章的 virtual:course-summaries/<章id>，没有全量模块
 const GLOSS_ID = 'virtual:course-glossary'
+const LOADERS_ID = 'virtual:course-loaders'
 
 /** 术语表里的一个条目：同一个术语在多章出现时合并成一条 */
 export interface GlossaryEntry {
@@ -89,6 +92,9 @@ export function readChapters(chaptersDir: string): { meta: ChapterMeta; src: str
     // 有章号的正文章必须指定阶段，否则它不会计入进度
     if (stage == null && fm.chapter) throw new Error(`${f}：有 chapter 的章必须写 stage（1 到 ${STAGE_COUNT}）`)
     const selfChecks = parseSelfChecks(src)
+    const exFile = path.join(chaptersDir, '..', 'exercises', file + '.ts')
+    const exTitles = fs.existsSync(exFile) ? parseExerciseTitles(fs.readFileSync(exFile, 'utf8')) : {}
+    const ex = [...src.matchAll(/<Exercise\s+id="([^"]+)"/g)].map(m => m[1])
     out.push({
       src,
       meta: {
@@ -102,7 +108,8 @@ export function readChapters(chaptersDir: string): { meta: ChapterMeta; src: str
         optional: fm.optional === 'true',
         scCount: selfChecks.length,
         scAnswers: selfChecks.map(x => x.a),
-        ex: [...src.matchAll(/<Exercise\s+id="([^"]+)"/g)].map(m => m[1]),
+        ex,
+        exTitles: Object.fromEntries(ex.filter(id => exTitles[id] != null).map(id => [id, exTitles[id]])),
         rt: parseReadingTime(src) || undefined,
         checkCount: Q.filter(row => row[3] === fm.id).length
       }
@@ -114,20 +121,60 @@ export function readChapters(chaptersDir: string): { meta: ChapterMeta; src: str
 
 export function courseDataPlugin(courseDir: string): Plugin {
   const chaptersDir = path.join(courseDir, 'chapters')
+  // 按章拆分的虚拟模块：virtual:course-selfchecks/<章id>、virtual:course-summaries/<章id>（经 virtual:course-loaders 的入口表动态载入）。
+  // 全量的 virtual:course-selfchecks 另存一份，给要全部题的复习页和阶段测验页用。
+  const SC_PREFIX = SC_ID + '/'
+  const SUM_PREFIX = SUM_ID + '/'
+  let mdPromise: ReturnType<typeof createMarkdownRenderer> | null = null
+  const renderer = () => (mdPromise ||= createMarkdownRenderer(courseDir, { config: m => cjkFriendlyEmphasis(m) }, BASE_PATH))
+  const selfChecksOf = async (c: { meta: ChapterMeta; src: string }) => {
+    const md = await renderer()
+    return parseSelfChecks(c.src).map((s, i): SelfCheckItem => ({
+      key: c.meta.id + ':' + i,
+      chapterId: c.meta.id,
+      a: s.a,
+      stem: md.render(s.stemSrc),
+      // renderInline 在 VitePress 的 attrs 插件下会出错，所以整段渲染后去掉外层 <p>
+      opts: s.opts.map(o => md.render(o).trim().replace(/^<p>([\s\S]*)<\/p>$/, '$1')),
+      explain: md.render(s.explainSrc)
+    }))
+  }
   return {
     name: 'course-data',
     resolveId(id) {
-      if (id === META_ID || id === SC_ID || id === SUM_ID || id === GLOSS_ID) return '\0' + id
+      if (id === META_ID || id === SC_ID || id === GLOSS_ID || id === LOADERS_ID || id.startsWith(SC_PREFIX) || id.startsWith(SUM_PREFIX)) return '\0' + id
     },
     async load(id) {
-      if (id !== '\0' + META_ID && id !== '\0' + SC_ID && id !== '\0' + SUM_ID && id !== '\0' + GLOSS_ID) return
+      if (!id.startsWith('\0virtual:course-')) return
+      const vid = id.slice(1)
       const chapters = readChapters(chaptersDir)
-      for (const c of chapters) this.addWatchFile(path.join(chaptersDir, c.meta.file + '.md'))
-      if (id === '\0' + META_ID) {
+      for (const c of chapters) {
+        this.addWatchFile(path.join(chaptersDir, c.meta.file + '.md'))
+        this.addWatchFile(path.join(chaptersDir, '..', 'exercises', c.meta.file + '.ts')) // 练习标题进了元数据
+      }
+      if (vid === META_ID) {
         return `export const chapters = ${JSON.stringify(chapters.map(c => c.meta))}`
       }
-      const md = await createMarkdownRenderer(courseDir, { config: m => cjkFriendlyEmphasis(m) }, BASE_PATH)
-      if (id === '\0' + GLOSS_ID) {
+      // 按章载入的入口表：章 id → () => import(该章的数据)。复习页和阶段测验用全量模块，热身和自我解释只取需要的那几章
+      if (vid === LOADERS_ID) {
+        const table = (prefix: string) => `{${chapters.map(c => `${JSON.stringify(c.meta.id)}: () => import(${JSON.stringify(prefix + c.meta.id)})`).join(',')}}`
+        return `export const selfcheckLoaders = ${table(SC_PREFIX)}\nexport const summaryLoaders = ${table(SUM_PREFIX)}`
+      }
+      const one = (prefix: string) => (vid.startsWith(prefix) ? chapters.find(c => c.meta.id === vid.slice(prefix.length)) : undefined)
+      if (vid.startsWith(SC_PREFIX)) {
+        const c = one(SC_PREFIX)
+        if (!c) this.error(`没有这一章：${vid}`)
+        return `export const selfchecks = ${JSON.stringify(await selfChecksOf(c!))}`
+      }
+      if (vid.startsWith(SUM_PREFIX)) {
+        const c = one(SUM_PREFIX)
+        if (!c) this.error(`没有这一章：${vid}`)
+        const md = await renderer()
+        const src = parseSummary(c!.src)
+        return `export const summary = ${JSON.stringify(src ? md.render(src) : '')}`
+      }
+      if (vid === GLOSS_ID) {
+        const md = await renderer()
         const { entries, conflicts } = collectGlossary(chapters)
         for (const c of conflicts as GlossaryConflict[]) this.warn(`术语“${c.term}”在多章里的定义不同：${c.defs.map(d => d.file).join('、')}（术语表用首次出现的定义）`)
         const avoidOf = new Map<string, string>(WRITING_TERMS.flatMap((w: { terms: string[]; avoid: string }) => w.terms.map(t => [t, w.avoid] as [string, string])))
@@ -137,29 +184,12 @@ export function courseDataPlugin(courseDir: string): Plugin {
         })
         return `export const glossary = ${JSON.stringify(glossary)}`
       }
-      if (id === '\0' + SUM_ID) {
-        const sums: Record<string, string> = {}
-        for (const c of chapters) {
-          const src = parseSummary(c.src)
-          if (src) sums[c.meta.id] = md.render(src)
-        }
-        return `export const summaries = ${JSON.stringify(sums)}`
+      // 全量自测题：复习页、阶段测验页要全部章的题，一次请求取完（内容和各章模块相同，复制进这个分块，所以产物里多一份；
+      // 热身和自我解释走按章的小分块，不会加载这一份）
+      if (vid === SC_ID) {
+        const items = (await Promise.all(chapters.map(selfChecksOf))).flat()
+        return `export const selfchecks = ${JSON.stringify(items)}`
       }
-      const items: SelfCheckItem[] = []
-      for (const c of chapters) {
-        parseSelfChecks(c.src).forEach((s, i) => {
-          items.push({
-            key: c.meta.id + ':' + i,
-            chapterId: c.meta.id,
-            a: s.a,
-            stem: md.render(s.stemSrc),
-            // renderInline 在 VitePress 的 attrs 插件下会出错，所以整段渲染后去掉外层 <p>
-            opts: s.opts.map(o => md.render(o).trim().replace(/^<p>([\s\S]*)<\/p>$/, '$1')),
-            explain: md.render(s.explainSrc)
-          })
-        })
-      }
-      return `export const selfchecks = ${JSON.stringify(items)}`
     }
   }
 }

@@ -8,7 +8,7 @@ import SiteLogo from './components/SiteLogo.vue'
 import NavProgress from './components/NavProgress.vue'
 import './style.css'
 
-const SITE_CREDIT = '本课程不是 Vue 官方项目。'
+const SITE_CREDIT = '个人学习用的开源课程，与 Vue 官方无关。'
 
 // components/ 下的 .vue 全局注册，组件名 = 文件名。
 // 示意图（figures/）和实验台（labs/）不在这里注册，由章节的 <script setup> 导入。

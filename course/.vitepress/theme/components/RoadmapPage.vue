@@ -295,7 +295,7 @@ const rangeOf = (r: (typeof routes)[number]) => `${r.parts.length} 步 · 共 ${
           </table></div>
         </div>
       </details>
-      <p class="home-credit">本课程不是 Vue 官方项目。</p>
+      <p class="home-credit">个人学习用的开源课程，与 Vue 官方无关。</p>
     </footer>
   </div>
 </template>

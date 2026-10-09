@@ -392,7 +392,7 @@ onBeforeUnmount(() => {
               <a class="btn ghost" :href="mapHref">查看课程地图</a>
             </div>
           </div>
-          <p class="foot">本课程不是 Vue 官方项目。</p>
+          <p class="foot">个人学习用的开源课程，与 Vue 官方无关。</p>
         </div>
       </div>
     </section>

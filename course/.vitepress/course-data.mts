@@ -150,7 +150,9 @@ export function courseDataPlugin(courseDir: string): Plugin {
       const chapters = readChapters(chaptersDir)
       for (const c of chapters) {
         this.addWatchFile(path.join(chaptersDir, c.meta.file + '.md'))
-        this.addWatchFile(path.join(chaptersDir, '..', 'exercises', c.meta.file + '.ts')) // 练习标题进了元数据
+        // 练习标题进了元数据。速查表没有练习文件：dev 下监听不存在的文件会让整个虚拟模块解析失败
+        const exFile = path.join(chaptersDir, '..', 'exercises', c.meta.file + '.ts')
+        if (fs.existsSync(exFile)) this.addWatchFile(exFile)
       }
       if (vid === META_ID) {
         return `export const chapters = ${JSON.stringify(chapters.map(c => c.meta))}`

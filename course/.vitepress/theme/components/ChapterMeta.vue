@@ -14,7 +14,7 @@ const stage = computed(() => (meta.value?.stage != null ? STAGES[meta.value.stag
 </script>
 
 <template>
-  <div v-if="meta" class="ch-meta">
+  <div v-if="meta" class="ch-meta" :data-stage="meta.stage ?? undefined">
     <div class="crumb">
       <span class="tag">{{ stage ? `${stage.no} · ${stage.name}` : '参考' }}</span>
       <span v-if="meta.chapter">第 {{ meta.chapter }} / {{ progressChapters.length }} 章</span>

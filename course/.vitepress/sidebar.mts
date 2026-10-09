@@ -43,7 +43,9 @@ export function buildSidebar(chaptersDir: string, opts: SidebarOptions = {}) {
       continue
     }
     if (!byStage[stage - 1]) throw new Error(`${f}：stage 必须是 1 到 ${STAGES.length}（实际是 ${fm.stage}）`)
-    const label = chapter ? `${chapter}. ${fm.title}` : fm.title
+    // 章号和“项目：”前缀各包一个 span（只给样式用：章号等宽，项目带强调色；文字内容不变）
+    const title = fm.title.replace(/^项目[：:]/, m => `<span class="proj-tag">${m}</span>`)
+    const label = chapter ? `<span class="ch-no">${chapter}.</span> ${title}` : title
     byStage[stage - 1].push({ text: fm.optional === 'true' ? `${label} ${OPTIONAL_TAG}` : label, link: '/chapters/' + name, chapter, order, file: name })
   }
   const sort = (a: Item, b: Item) => {
@@ -57,7 +59,7 @@ export function buildSidebar(chaptersDir: string, opts: SidebarOptions = {}) {
   const top = [{ text: '今日复习', link: '/review' }, { text: '术语表', link: '/glossary' }, ...pinned.sort((a, b) => a.order - b.order || a.file.localeCompare(b.file)).map(strip)]
   // 每个阶段的章列表末尾加一条“阶段测验”（/check/N，页面是 course/check/N.md），AppEffects 在它右边显示通过状态
   const groups = byStage
-    .map((items, i) => ({ text: stageTitle(i + 1), items: [...items.sort(sort).map(strip), { text: '阶段测验', link: `/check/${i + 1}` }], count: items.length }))
+    .map((items, i) => ({ text: stageTitle(i + 1).replace(/^(\d+)\s/, '<span class="stage-no">$1</span> '), items: [...items.sort(sort).map(strip), { text: '阶段测验', link: `/check/${i + 1}` }], count: items.length }))
     .filter(g => g.count)
     .map(({ text, items }) => ({ text, items }))
   // 只构建部分章时，空的阶段不显示

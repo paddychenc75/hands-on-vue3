@@ -443,8 +443,11 @@ html[data-learner="returning"] .film .only-new { display: none; }
   .film .snd-tip { bottom: auto; top: calc(var(--nav) + 10px); left: auto; right: 34px; transform: none; font-size: 13px; padding: 8px 14px; animation: none; }
 }
 @media (prefers-reduced-motion: no-preference) and (max-width: 899px) {
-  html.film-dyn .film .world { height: clamp(240px, calc(var(--V) - 292px), 560px); }
+  /* 文字区贴底、舞台在上：舞台下面留 320px 给文字。字体不同（Android、Linux 上不是苹方）时说明会多折一行，
+     留的余量要够多一行；再给说明加 4 行上限兜底，文字区不会顶进舞台底部的图例 */
+  html.film-dyn .film .world { height: clamp(240px, calc(var(--V) - 320px), 560px); }
   html.film-dyn .film .sc-copy { left: 20px; right: 44px; bottom: calc(68px + max(8px, env(safe-area-inset-bottom))); gap: 8px; }
+  html.film-dyn .film .sc:not(.s0):not(.s9) .desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
   html.film-dyn .film .sc-copy::before { inset: -20px -44px -80px -20px; }
   html.film-dyn .film .sc-copy h2 { font-size: 24px; line-height: 1.25; }
   html.film-dyn .film .desc { font-size: 14.5px; line-height: 1.65; }
